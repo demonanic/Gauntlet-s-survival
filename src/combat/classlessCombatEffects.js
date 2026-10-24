@@ -1,3 +1,6 @@
+import { heroGearStats } from "./gear";
+import { heroTraitEffects } from "./traits";
+
 // Runtime support for the currently implemented Phase 1 classless passives.
 // Keep this list explicit: catalog ownership alone never implies an effect.
 const IMPLEMENTED_PASSIVES = Object.freeze({
@@ -65,5 +68,8 @@ export function classlessCombatEffects(ownedNodeIds = []) {
 export function classlessMaxHp(hero) {
   const maxHp = Number(hero?.combat?.maxHp);
   if (!Number.isFinite(maxHp) || maxHp <= 0) return 300;
-  return Math.round(maxHp * (1 + classlessCombatEffects(hero.progression?.ownedNodeIds).maxHp));
+  // Gauntlet: flat gear HP is added before the perk, trait and guild percentages.
+  const gearHp = heroGearStats(hero).maxHp;
+  const percent = classlessCombatEffects(hero.progression?.ownedNodeIds).maxHp + heroTraitEffects(hero).maxHp;
+  return Math.round((maxHp + gearHp) * (1 + percent));
 }

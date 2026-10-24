@@ -342,8 +342,8 @@ export const ENEMIES = {
   warlock: { key: "warlock", name: "Warlock", tier: "specialized", hp: 115, speed: 20, damage: 13, color: "#C026D3", affinities: { [DAMAGE_TYPES.ARCANE]: "tolerant", [DAMAGE_TYPES.DARK_SOUL]: "resistant" } },
   lieutenant:{ key: "lieutenant", name: "Lieutenant", tier: "elite",  hp: 300, speed: 26, damage: 30, color: "#00F3FF" },
   demon: { key: "demon", name: "Three-Headed Demon", tier: "boss", hp: 2800, speed: 20, damage: 55, color: "#FF0055", boss: true, attackFx: "napalm", attackRange: 420, splashRadius: 68, affinities: BOSS_AFFINITIES.threeHeadedDemon },
-imperialNecromancer: { key: "imperialNecromancer", name: "Imperial Necromancer", tier: "boss", hp: 3300, speed: 18, damage: 48, color: "#8B5CF6", boss: true, affinities: BOSS_AFFINITIES.imperialNecromancer },
-nuclearBehemoth: { key: "nuclearBehemoth", name: "Nuclear Behemoth", tier: "boss", hp: 3800, speed: 16, damage: 60, color: "#84CC16", boss: true, affinities: BOSS_AFFINITIES.nuclearBehemoth },
+imperialNecromancer: { key: "imperialNecromancer", name: "Imperial Necromancer", tier: "boss", hp: 3300, speed: 18, damage: 48, color: "#8B5CF6", boss: true, attackRange: 380, splashRadius: 52, affinities: BOSS_AFFINITIES.imperialNecromancer },
+nuclearBehemoth: { key: "nuclearBehemoth", name: "The Abomination", tier: "boss", hp: 3800, speed: 16, damage: 60, color: "#84CC16", boss: true, affinities: BOSS_AFFINITIES.nuclearBehemoth },
 };
 export const BASIC_POOL = ["ghost", "slime", "goblin"];
 export const SPEC_POOL = ["skeleton", "orc", "reaper", "darkElf", "warlock"];

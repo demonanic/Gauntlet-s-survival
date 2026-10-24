@@ -13,7 +13,10 @@ import { classlessCombatEffects, classlessMaxHp } from "./classlessCombatEffects
 import { getUnlockedClasslessAbilities, validateClasslessAbilityUse } from "./classlessAbilities";
 import { HERO_SPRITE_ATLAS, selectHeroSpriteFrame } from "./heroSprite";
 import { getEquippedHeroWeaponType, HERO_WEAPON_ASSETS } from "./heroWeapon";
+import { CONSUMABLES, QUICK_ITEM_COOLDOWN, heroGearStats } from "./gear";
+import { heroTraitEffects } from "./traits";
 import { isNeonIdentityColor } from "./heroModel";
+import { heroSpriteFilter } from "./heroPalette";
 import { combatVfxAssetId, drawCombatVfx, getCombatVfxImage, projectileVfxAssetId } from "./combatVfx";
 
 let heroSpriteImage = null;
@@ -74,7 +77,9 @@ function classlessHeroDerived(hero) {
   const attack = combat.basicAttack;
   const stats = combat.stats;
   const effects = classlessCombatEffects(hero.progression?.ownedNodeIds);
-  const attackDamage = attack.damage + ((Number(stats.attack) || 10) - HERO_BASELINE.stats.attack);
+  const gear = heroGearStats(hero);
+  const traits = heroTraitEffects(hero);
+  const attackDamage = attack.damage + ((Number(stats.attack) || 10) - HERO_BASELINE.stats.attack) + gear.attack;
   return {
     maxHp: classlessMaxHp(hero),
     // Baseline attack stat 10 maps to the approved 16 weapon damage; each
@@ -83,16 +88,16 @@ function classlessHeroDerived(hero) {
     damage: attackDamage,
     range: attack.range,
     rangeMode: attack.rangeMode,
-    rate: attack.intervalSeconds / (1 + effects.attackSpeed),
-    movementSpeed: attack.movementSpeed,
+    rate: attack.intervalSeconds / ((1 + effects.attackSpeed) * (1 + traits.attackSpeed)),
+    movementSpeed: attack.movementSpeed * (1 + traits.moveSpeed),
     magic: false,
     damageType: null,
-    defense: stats.defense,
-    agility: stats.agility,
+    defense: stats.defense + gear.defense + traits.defense,
+    agility: stats.agility + gear.agility + traits.agility,
     intelligence: stats.intelligence,
-    critChance: Math.min(0.5, attack.criticalChance + effects.critChance),
+    critChance: Math.min(0.5, attack.criticalChance + effects.critChance + gear.critChance + traits.critChance),
     critMult: Math.min(2.5, attack.criticalDamageMultiplier + effects.critDamage),
-    dodge: C.dodgeChance(stats.agility),
+    dodge: C.dodgeChance(stats.agility + gear.agility + traits.agility),
     lowHpDodge: 0,
     moveSpeedMultiplier: 1,
     abilityDamageMultiplier: 1,
@@ -107,6 +112,7 @@ function classlessHeroDerived(hero) {
     lifesteal: effects.lifesteal,
     decoyChance: effects.decoyChance,
     classlessEffects: effects,
+    traits,
     bloodPriceBonus: effects.bloodPriceBonus,
     bloodPriceCost: effects.bloodPriceCost,
     color: hero.appearance?.identityColor || "#22D3EE",
@@ -123,6 +129,7 @@ function heroMovementSpeed(hero, legacyBase, currentTime, applyLegacyModifiers =
 }
 
 const LANES = 5;
+const ENDLESS_WAVE_BREAK_SECONDS = 3;
 function laneX(i) { return (W / LANES) * (i + 0.5); }
 
 export const LAYOUT = { W, H, HERO_Y, FLOOR_Y };
@@ -145,6 +152,7 @@ export class Engine {
     this.floaters = [];
     this.effects = [];
     this.killed = 0;
+    this.wavesCleared = 0;
     this.xpGains = { heroes: {}, towers: {} };
     this.sim.vault = Array.isArray(this.sim.vault) ? this.sim.vault : [];
     this.time = 0;
@@ -194,6 +202,9 @@ export class Engine {
         interposeReduction: 0,
         interposeTarget: null,
         untargetableUntil: 0,
+        quickCd: 0,
+        ammoShots: 0,
+        ammoBonus: 0,
         maxMana: classless ? 0 : Math.round(70 + (h.level || 1) * 5 + (d.intelligence || 10) * 1.5),
         mana: classless ? 0 : Math.round(70 + (h.level || 1) * 5 + (d.intelligence || 10) * 1.5),
         currentTarget: null,
@@ -1134,6 +1145,78 @@ export class Engine {
     return target ? this.commandHeroAttack(index, target) : false;
   }
 
+  // ---------------- Gauntlet quick slots ----------------
+  // Consumable stacks live on the hero model (h.model.quickSlots), which is the
+  // disposable sim copy, so spent items flow back with the post-battle party.
+  getHeroQuickSlots(index) {
+    const h = this.heroes[index];
+    if (!h?.classless) return [];
+    const slots = Array.isArray(h.model.quickSlots) ? h.model.quickSlots : [];
+    return slots.map((slot, i) => {
+      const item = slot && CONSUMABLES[slot.key];
+      if (!item || !(slot.qty > 0)) return { slot: i, empty: true };
+      return {
+        slot: i, key: item.key, name: item.name, short: item.short, color: item.color, desc: item.desc,
+        qty: slot.qty, cooldown: h.quickCd,
+        available: h.alive && h.quickCd <= 0 && !this.ended && this._quickItemUseful(h, item),
+      };
+    });
+  }
+
+  useQuickItem(index, slotIndex) {
+    const h = this.heroes[index];
+    const slot = h?.classless ? h.model.quickSlots?.[slotIndex] : null;
+    const item = slot && CONSUMABLES[slot.key];
+    if (!item || !(slot.qty > 0) || !h.alive || h.quickCd > 0 || this.ended || !this._quickItemUseful(h, item)) return false;
+    slot.qty -= 1;
+    h.quickCd = QUICK_ITEM_COOLDOWN;
+    if (item.heal) {
+      const amount = Math.min(h.d.maxHp - h.ref.hp, h.d.maxHp * item.heal * (1 + (h.d.traits?.healBonus || 0)));
+      h.ref.hp += amount;
+      this._float(h.x, h.y - 18, `+${Math.round(amount)}`, "#39FF14");
+    }
+    if (item.shots) {
+      h.ammoShots = item.shots;
+      h.ammoBonus = item.damageBonus;
+      this._float(h.x, h.y - 18, "AMMO", item.color);
+    }
+    this.effects.push({ x: h.x, y: h.y, r: 16, life: 0.3, color: item.color, ring: true });
+    return true;
+  }
+
+  _quickItemUseful(h, item) {
+    if (item.heal) return h.ref.hp < h.d.maxHp;
+    if (item.shots) return !(h.ammoShots > 0);
+    return false;
+  }
+
+  // Heroes use their own quick slots: heals below the item's HP threshold,
+  // ammo while an elite or boss is on the field.
+  _tickQuickItems(h, dt) {
+    h.quickCd = Math.max(0, h.quickCd - dt);
+    if (!h.classless || h.quickCd > 0) return;
+    const slots = Array.isArray(h.model.quickSlots) ? h.model.quickSlots : [];
+    const hpFraction = h.ref.hp / Math.max(1, h.d.maxHp);
+    const eliteOnField = this.active.some((e) => e.hp > 0 && (e.boss || e.tier === "elite"));
+    for (let i = 0; i < slots.length; i++) {
+      const item = slots[i] && CONSUMABLES[slots[i].key];
+      if (!item || !(slots[i].qty > 0)) continue;
+      const wants = item.heal ? hpFraction < item.autoBelowHp : !!item.autoVsElite && eliteOnField;
+      if (wants && this.useQuickItem(h.i, i)) return;
+    }
+  }
+
+  _consumeAmmoShot(src, isHero) {
+    if (!isHero || !(src.ammoShots > 0)) return 1;
+    src.ammoShots -= 1;
+    return 1 + (src.ammoBonus || 0);
+  }
+
+  // Gauntlet scales summoned minions to the encounter through sim.makeMinion.
+  _summon(type) {
+    this.injectEnemy(this.sim.makeMinion ? this.sim.makeMinion(type) : makeSingleEnemy(this.sim, type));
+  }
+
   injectEnemy(e) {
     e.x = laneX(pickLane(this, e)); e.y = 12;
     e.lane = Math.round(e.x / (W / LANES) - 0.5);
@@ -1142,6 +1225,21 @@ export class Engine {
     this.wave.total += 1;
   }
   forceDefeat() { this.forcedDefeat = true; }
+
+  // Gauntlet endless mode: the player ends the fight and keeps what was earned.
+  returnHome() {
+    if (this.ended) return false;
+    this.ended = true;
+    this.stop();
+    this.cb.onEnd && this.cb.onEnd({
+      victory: true,
+      reason: "returned",
+      xpGains: this.xpGains,
+      killed: this.killed,
+      wavesCleared: this.wavesCleared,
+    });
+    return true;
+  }
   forceWin() { this.spawnQueue = []; this.active = []; }
 
   _loop(now) {
@@ -1209,6 +1307,7 @@ export class Engine {
       if (h.protect > 0) { h.protect -= dt; continue; }
       for (const id of Object.keys(h.abilityCooldowns)) h.abilityCooldowns[id] = Math.max(0, h.abilityCooldowns[id] - dt);
       this._tickClasslessSustain(h, dt);
+      this._tickQuickItems(h, dt);
       for (const id of Object.keys(h.spellCooldowns)) h.spellCooldowns[id] = Math.max(0, h.spellCooldowns[id] - dt);
       h.mana = Math.min(h.maxMana, h.mana + (2 + Math.max(0, h.d.intelligence || 0) * 0.04) * dt);
       const cfg = h.ref.attackConfig || "";
@@ -1331,6 +1430,21 @@ export class Engine {
         continue;
       }
 
+      // Gauntlet encounters: an AUTO classless hero with nothing in range closes
+      // on the nearest enemy, so ranged enemies that out-range heroes (warlocks,
+      // the demon) cannot stall a fight indefinitely.
+      if (h.classless && !target && !h.manual) {
+        const nearest = this.active.reduce((best, enemy) => enemy.hp > 0 &&
+          (!best || Math.hypot(enemy.x - h.x, enemy.y - h.y) < Math.hypot(best.x - h.x, best.y - h.y)) ? enemy : best, null);
+        if (nearest) {
+          const dist = Math.hypot(nearest.x - h.x, nearest.y - h.y) || 1;
+          const step = Math.min(heroMovementSpeed(h, 155, this.time) * dt, Math.max(0, dist - (h.d.range - 10)));
+          h.x += ((nearest.x - h.x) / dist) * step;
+          h.y += ((nearest.y - h.y) / dist) * step;
+          continue;
+        }
+      }
+
       if (melee) {
         if (target) {
           const dist = Math.hypot(target.x - h.x, target.y - h.y) || 1;
@@ -1418,12 +1532,36 @@ export class Engine {
     // living hero or tower inside the boss's configured attack range.
     if (e.boss) {
       e.abilityCd = (e.abilityCd == null ? 5 : e.abilityCd) - dt;
+      // Gauntlet boss identities: the Abomination enrages once, below 35% HP.
+      if (e.type === "nuclearBehemoth" && !e.enraged && e.hp < e.maxHp * 0.35) {
+        e.enraged = true;
+        e.speed *= 1.5;
+        e.damage *= 1.3;
+        this._float(e.x, e.y - 34, "ENRAGED", "#84CC16");
+        this.effects.push({ x: e.x, y: e.y, r: 46, life: 0.6, color: "#84CC16", ring: true });
+      }
       if (e.abilityCd <= 0) {
         const range = e.attackRange || 420;
         const target = this._nearestDefender(e.x, e.y, range);
-        if (target) {
-          e.abilityCd = 6;
-          for (let k = 0; k < 2; k++) this.injectEnemy(makeSingleEnemy(this.sim, "skeleton"));
+        if (e.type === "nuclearBehemoth") {
+          // Toxic slam: no minions, heavy damage to every hero close by.
+          if (this._nearestDefender(e.x, e.y, 110)) {
+            e.abilityCd = e.enraged ? 3.5 : 5;
+            this.effects.push({ x: e.x, y: e.y, r: 100, life: 0.45, color: "#84CC16", ring: true });
+            this._explodeNapalm(e.x, e.y, { dmg: e.damage * 1.1, splash: 100 });
+          } else {
+            e.abilityCd = 0.5;
+          }
+        } else if (target) {
+          if (e.type === "imperialNecromancer") {
+            // Raise dead: a larger, slower pack of minions, plus a soul bomb.
+            e.abilityCd = 8;
+            for (const type of ["skeleton", "skeleton", "ghost"]) this._summon(type);
+            this._float(e.x, e.y - 34, "RAISE DEAD", e.color);
+          } else {
+            e.abilityCd = 6;
+            for (let k = 0; k < 2; k++) this._summon("skeleton");
+          }
           this._throwNapalm(e, target);
         } else {
           e.abilityCd = 1;
@@ -1685,7 +1823,7 @@ export class Engine {
     const interpose = hero.interposeUntil > this.time ? hero.interposeReduction : 0;
     const formation = this._classlessFormationReduction(hero);
     const reduction = Math.min(0.30, Math.max(0, hero.d.damageReduction + lastStand + interpose + formation));
-    return C.damageAfterDefense(rawDamage, hero.d.defense) * (1 - reduction);
+    return C.damageAfterDefense(rawDamage, hero.d.defense) * (1 - reduction) * (1 - (hero.d.traits?.damageTaken || 0));
   }
 
   _classlessFormationReduction(hero) {
@@ -1931,7 +2069,7 @@ export class Engine {
     this.projectiles.push({
       sourceId, x: src.x, y: src.y, tx: target.x, ty: target.y, target,
       heroActionIndex: isHero && src.pendingTacticalAction === "attack" && src.manualTarget === target ? src.i : null,
-      spd: d.magic ? 340 : 460, dmg: d.damage || d.attack, magic: !!d.magic,
+      spd: d.magic ? 340 : 460, dmg: (d.damage || d.attack) * this._consumeAmmoShot(src, isHero), magic: !!d.magic,
       critChance: isHero ? (d.critChance ?? C.BASE_CRIT) : C.BASE_CRIT,
       critMult: isHero ? (d.critMult ?? C.CRIT_MULT) : C.CRIT_MULT,
       perkData: isHero && !src.classless ? d : null,
@@ -2042,6 +2180,9 @@ export class Engine {
     const echoMarks = this._takeClasslessEchoMarks(target, p.sourceId);
     let damage = p.dmg * affinity;
     if (p.damageCategory === "weapon") damage *= 1 + effects.weaponDamage;
+    // Gauntlet traits and Hall of Legends bonuses (Berserker below half HP).
+    const traits = hero.d.traits;
+    if (traits) damage *= 1 + traits.damage + (hero.ref.hp < hero.d.maxHp * 0.5 ? traits.berserk : 0);
     if (p.damageType === C.DAMAGE_TYPES.ARCANE) damage *= 1 + (effects.arcaneDamage || 0);
     let situationalBonus = p.situationalBonus || 0;
     if (p.ability) situationalBonus += hero.d.bloodPriceBonus || 0;
@@ -2159,11 +2300,13 @@ export class Engine {
 
     // reward gold continuously
     const tier = C.ENEMY_TIERS[e.tier] || C.ENEMY_TIERS.basic;
-    this.sim.gold += tier.gold;
+    const killer = typeof sourceId === "string" && sourceId.startsWith("H") ? this.heroes[Number(sourceId.slice(1))] : null;
+    this.sim.gold += Math.round(tier.gold * (1 + (killer?.d?.traits?.goldFind || 0)));
 
     // Equipment drops are deposited directly into the community Vault.
     // The drop/rarity economy is tuned separately from the verified gear stats.
-    const drop = rollEquipmentDrop(e, this.sim.wave || 1);
+    // Gauntlet supplies its own loot table through sim.rollDrop (gear or consumables).
+    const drop = this.sim.rollDrop ? this.sim.rollDrop(e) : rollEquipmentDrop(e, this.sim.wave || 1);
     if (drop) this.sim.vault.push(drop);
 
     // XP attribution
@@ -2472,9 +2615,11 @@ export class Engine {
       total: this.wave.total, killed: this.killed,
       remaining: this.active.length + this.spawnQueue.length,
       gold: this.sim.gold,
+      wave: this.wavesCleared + 1,
       heroes: this.heroes.map((h) => ({ name: h.ref.name, hp: h.ref.hp, maxHp: h.d.maxHp, alive: h.alive, shield: h.ref.shield || 0 })),
       heroAbilities: this.heroes.map((h) => this.getHeroAbilityStatus(h.i)),
       heroSpells: this.heroes.map((h) => this.getHeroSpellStatus(h.i)),
+      heroQuickSlots: this.heroes.map((h) => this.getHeroQuickSlots(h.i)),
       boss: (() => { const b = this.active.find((e) => e.boss); return b ? { name: b.name, hp: b.hp, maxHp: b.maxHp } : null; })(),
     });
   }
@@ -2494,12 +2639,26 @@ export class Engine {
         reason: "heroes",
         xpGains: this.xpGains,
         killed: this.killed,
+        wavesCleared: this.wavesCleared,
       });
       return;
     }
 
     // Victory requires the entire squad to be resolved while at least one hero is alive.
     if (this.spawnQueue.length === 0 && this.active.length === 0) {
+      // Gauntlet endless mode: a cleared wave rolls straight into the next one
+      // after a short breather. The fight only ends on a wipe or returnHome().
+      if (this.cb.nextWave) {
+        this.wavesCleared += 1;
+        const next = this.cb.nextWave(this.wavesCleared);
+        if (next?.enemies?.length) {
+          this.wave = { ...next, total: next.enemies.length };
+          this.spawnQueue = [...next.enemies];
+          this.spawnTimer = ENDLESS_WAVE_BREAK_SECONDS;
+          this._float(W / 2, H * 0.4, `WAVE ${this.wavesCleared + 1}`, "#00F3FF");
+          return;
+        }
+      }
       this.ended = true;
       this.stop();
       this.cb.onEnd && this.cb.onEnd({
@@ -2507,6 +2666,7 @@ export class Engine {
         reason: "cleared",
         xpGains: this.xpGains,
         killed: this.killed,
+        wavesCleared: this.wavesCleared,
       });
     }
   }
@@ -2862,6 +3022,7 @@ export class Engine {
     const alpha = h.alive ? (h.protect > 0 ? 0.58 : 1) : 0.52;
     const identityColor = isNeonIdentityColor(h.model?.appearance?.identityColor)
       ? h.model.appearance.identityColor : h.d.color || "#22D3EE";
+    const accentColor = h.model?.appearance?.accentColor || identityColor;
     const legacyWeapon = ({ knight: "sword", rouge: "sword", archer: "bow", mage: "staff" })[h.ref?.cls];
     const weaponType = getEquippedHeroWeaponType(h.model || h.ref) || legacyWeapon;
 
@@ -2873,7 +3034,12 @@ export class Engine {
     ctx.rotate(facing);
     const image = getHeroSpriteImage();
     if (image?.complete && image.naturalWidth > 0 && image.naturalHeight > 0) {
+      // Gauntlet: each hero's own neon shade, plus a soft glow in that color.
+      ctx.filter = heroSpriteFilter(h.model?.appearance);
+      ctx.shadowBlur = 7;
+      ctx.shadowColor = identityColor;
       ctx.drawImage(image, frame.sx, frame.sy, frame.sw, frame.sh, -24, -44, 48, 48);
+      ctx.filter = "none";
     } else {
       // Missing-image fallback is a neutral silhouette, never the old
       // class-specific procedural character artwork.
@@ -2899,8 +3065,8 @@ export class Engine {
       ctx.drawImage(weaponImage, 0, 0, 48, 48, -24, -44, 48, 48);
     }
     ctx.shadowBlur = 6;
-    ctx.shadowColor = identityColor;
-    ctx.fillStyle = identityColor;
+    ctx.shadowColor = accentColor;
+    ctx.fillStyle = accentColor;
     ctx.fillRect(-1.75, -34, 3.5, 3.5);
     ctx.restore();
 

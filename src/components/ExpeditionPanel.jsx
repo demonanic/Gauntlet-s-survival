@@ -4,6 +4,7 @@ import { getRegion } from "../game/regions";
 const PHASE_LABEL = {
   traveling: "Traveling to the next encounter",
   ready: "Enemies sighted!",
+  riftReady: "The Rift is open!",
   returning: "Heading home",
 };
 
@@ -11,16 +12,19 @@ export default function ExpeditionPanel({ expedition, now, onFight, onRecall }) 
   const region = getRegion(expedition.regionId);
   const total = region.encounters.length;
   const cleared = Math.min(expedition.encounterIndex, total);
+  const progress = region.endless
+    ? `Endless${expedition.wavesCleared != null ? ` · ${expedition.wavesCleared} waves cleared` : ""}`
+    : `${cleared}/${total} encounters cleared`;
   return (
     <Panel className="border-cyan-400/40" data-testid="expedition-panel">
       <div className="flex items-baseline justify-between">
         <h2 className="font-display text-sm font-bold" style={{ color: region.color }}>{region.name}</h2>
-        <span className="font-mono-g text-[10px] text-slate-400">{cleared}/{total} encounters cleared</span>
+        <span className="font-mono-g text-[10px] text-slate-400">{progress}</span>
       </div>
-      <Bar value={cleared} max={total} color={region.color} className="my-2" />
+      {!region.endless && <Bar value={cleared} max={total} color={region.color} className="my-2" />}
       <div className="flex items-center justify-between gap-2">
         <p className="font-mono-g text-[11px]">
-          {PHASE_LABEL[expedition.phase]}
+          {PHASE_LABEL[region.endless && expedition.phase === "ready" ? "riftReady" : expedition.phase]}
           {expedition.phaseEndsAt != null && ` · ${formatSeconds(expedition.phaseEndsAt - now)}`}
           <span className="ml-2 text-yellow-300">{expedition.loot.gold}g · {expedition.loot.items.length} items</span>
         </p>

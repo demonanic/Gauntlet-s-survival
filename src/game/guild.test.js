@@ -105,6 +105,7 @@ describe("expedition lifecycle", () => {
 
   test("resting at the guild heals wounded heroes", () => {
     let state = createGuild();
+    state.heroes[0].traits = []; // no trait, so max HP is exactly 300
     state.heroes[0].combat.hp = 100;
     state = tick(state, T0);
     state = tick(state, T0 + 30_000);

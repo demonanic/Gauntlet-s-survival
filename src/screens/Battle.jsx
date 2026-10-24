@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { Engine, LAYOUT } from "../combat/engine";
 import { Bar, NeonButton } from "../components/ui";
-import { buildEncounter, createEncounterSim } from "../game/encounters";
-import { getRegion, REGIONS } from "../game/regions";
+import { createEncounterSim, endlessWaveSource } from "../game/encounters";
+import { getRegion } from "../game/regions";
 
 const COUNTDOWN_SECONDS = 3;
 const HUD_THROTTLE_MS = 90;
 
 // One live encounter: the trimmed Demonanic engine on a canvas, plus a light
 // tactical HUD (abilities, move orders, speed). Hands the result back up.
-export default function Battle({ expedition, party, onComplete }) {
+export default function Battle({ expedition, party, createWave, onComplete }) {
   const canvasRef = useRef(null);
   const engineRef = useRef(null);
   const simRef = useRef(null);
@@ -20,11 +20,14 @@ export default function Battle({ expedition, party, onComplete }) {
   const [speed, setSpeed] = useState(1);
   const [result, setResult] = useState(null);
   const region = getRegion(expedition.regionId);
+  const endless = !!region.endless;
 
   useEffect(() => {
-    const sim = createEncounterSim(party, REGIONS.indexOf(region) + 1);
+    const wave = createWave();
+    const sim = createEncounterSim(party, region.tier, wave);
     simRef.current = sim;
-    const engine = new Engine(canvasRef.current, sim, buildEncounter(region, expedition.encounterIndex), {
+    const engine = new Engine(canvasRef.current, sim, wave, {
+      ...(endless ? { nextWave: endlessWaveSource(sim) } : {}),
       onHud: (next) => {
         const t = performance.now();
         if (t - hudThrottle.current > HUD_THROTTLE_MS) { hudThrottle.current = t; setHud(next); }
@@ -68,6 +71,7 @@ export default function Battle({ expedition, party, onComplete }) {
     xpGains: result.xpGains?.heroes || {},
     gold: result.gold,
     items: result.items,
+    wavesCleared: result.wavesCleared || 0,
   });
 
   return (
@@ -76,11 +80,18 @@ export default function Battle({ expedition, party, onComplete }) {
         <div className="font-mono-g text-[11px]">
           <span className="font-bold" style={{ color: region.color }}>{region.name}</span>
           <span className="ml-2 text-slate-400">
-            Encounter {expedition.encounterIndex + 1}/{region.encounters.length}
+            {endless ? `Wave ${hud?.wave ?? 1}` : `Encounter ${expedition.encounterIndex + 1}/${region.encounters.length}`}
             {hud && ` · ${hud.remaining} enemies left`}
           </span>
         </div>
-        <NeonButton color="#00F3FF" onClick={toggleSpeed}>{speed}×</NeonButton>
+        <div className="flex gap-2">
+          {endless && (
+            <NeonButton color="#39FF14" disabled={!!result || countdown > 0} onClick={() => engine?.returnHome()} data-testid="return-home">
+              Return home
+            </NeonButton>
+          )}
+          <NeonButton color="#00F3FF" onClick={toggleSpeed}>{speed}×</NeonButton>
+        </div>
       </header>
 
       <div className="relative flex min-h-0 flex-1 items-center justify-center px-2">
@@ -102,8 +113,11 @@ export default function Battle({ expedition, party, onComplete }) {
           <div className="absolute inset-0 flex items-center justify-center bg-black/70 p-4">
             <div className="w-full max-w-xs rounded-lg border border-white/15 bg-[#080b12] p-4 text-center">
               <h2 className={`font-display text-2xl font-black ${result.victory ? "text-emerald-300" : "text-red-400"}`}>
-                {result.victory ? "VICTORY" : "ROUTED"}
+                {result.reason === "returned" ? "RETURNING" : result.victory ? "VICTORY" : "ROUTED"}
               </h2>
+              {endless && (
+                <p className="mt-1 font-mono-g text-[11px] text-cyan-200">{result.wavesCleared || 0} waves cleared</p>
+              )}
               <p className="mt-2 font-mono-g text-[11px] text-slate-300">
                 {result.killed ?? 0} slain · +{result.gold}g · {result.items.length} items
               </p>
@@ -123,6 +137,7 @@ export default function Battle({ expedition, party, onComplete }) {
         {party.map((hero, index) => {
           const status = hud?.heroes?.[index];
           const abilities = hud?.heroAbilities?.[index] || [];
+          const quickSlots = (hud?.heroQuickSlots?.[index] || []).filter((slot) => !slot.empty);
           const isSelected = selected === index;
           return (
             <div
@@ -147,6 +162,24 @@ export default function Battle({ expedition, party, onComplete }) {
                     {ability.name}{ability.cooldown > 0 ? ` ${Math.ceil(ability.cooldown)}s` : ""}
                   </button>
                 ))}
+                {quickSlots.length > 0 && (
+                  <div className="flex gap-1">
+                    {quickSlots.map((slot) => (
+                      <button
+                        key={slot.slot}
+                        type="button"
+                        disabled={!slot.available || !!result}
+                        onClick={(event) => { event.stopPropagation(); engine?.useQuickItem(index, slot.slot); }}
+                        className="min-w-0 flex-1 truncate rounded border px-1 py-1 font-mono-g text-[9px] disabled:opacity-35"
+                        style={{ borderColor: `${slot.color}66`, color: slot.color }}
+                        title={`${slot.name}: ${slot.desc}`}
+                        data-testid={`battle-quick-${index}-${slot.slot}`}
+                      >
+                        {slot.short} ×{slot.qty}{slot.cooldown > 0 ? ` ${Math.ceil(slot.cooldown)}s` : ""}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 {isSelected && (
                   <button
                     type="button"
@@ -162,7 +195,7 @@ export default function Battle({ expedition, party, onComplete }) {
         })}
       </footer>
       <p className="pb-2 text-center font-mono-g text-[9px] text-slate-500">
-        Tap a hero card, then tap the field to move them. Auto returns them to normal targeting.
+        Tap a hero card, then tap the field to move them. Auto returns them to normal targeting. Heroes use quick-slot supplies on their own when needed.
       </p>
     </div>
   );

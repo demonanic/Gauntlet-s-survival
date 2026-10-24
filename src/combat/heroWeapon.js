@@ -31,6 +31,9 @@ function weaponTypeFromItem(item, slot) {
 // Resolve from saved equipment only. No hero class or display title is read.
 export function getEquippedHeroWeaponType(hero) {
   const equipment = hero?.equipment && typeof hero.equipment === "object" ? hero.equipment : {};
+  // Gauntlet gear uses a single lowercase `weapon` slot with an explicit weaponType.
+  const gauntletWeapon = knownWeaponType(equipment.weapon?.weaponType);
+  if (gauntletWeapon) return gauntletWeapon;
   const primary = weaponTypeFromItem(equipment.PrimaryWeapon, "PrimaryWeapon");
   return primary || weaponTypeFromItem(equipment.SecondaryWeapon, "SecondaryWeapon");
 }
