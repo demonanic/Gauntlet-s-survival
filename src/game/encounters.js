@@ -5,10 +5,11 @@ import { BOSS_RANK_SCALING, BOSS_ROTATION, bossForRank } from "./regions";
 // Later encounters in the same region hit a little harder.
 const DEPTH_SCALE_PER_ENCOUNTER = 0.06;
 
-// Endless Rift wave curve (wave 1 is the first wave).
+// Endless Rift wave curve (wave 1 is the first wave). Like boss ranks it
+// compounds, so every party is eventually overrun.
 export const ENDLESS = Object.freeze({
-  hpBase: 0.8, hpPerWave: 0.12,
-  dmgBase: 0.8, dmgPerWave: 0.07,
+  hpBase: 0.8, hpGrowth: 1.1,
+  dmgBase: 0.8, dmgGrowth: 1.07,
   eliteEvery: 5, bossEvery: 10,
   maxSquad: 8,
   wavesPerLootTier: 5,
@@ -34,8 +35,8 @@ export function buildEncounter(region, encounterIndex, { bossRank = 0 } = {}) {
   const rank = bossFight ? Math.max(0, bossRank) : 0;
   const squad = bossFight ? template.map((key) => (C.ENEMIES[key]?.boss ? bossForRank(rank) : key)) : template;
   const scale = {
-    hp: region.hpScale * depth * (1 + BOSS_RANK_SCALING.hp * rank),
-    dmg: region.dmgScale * depth * (1 + BOSS_RANK_SCALING.dmg * rank),
+    hp: region.hpScale * depth * BOSS_RANK_SCALING.hpGrowth ** rank,
+    dmg: region.dmgScale * depth * BOSS_RANK_SCALING.dmgGrowth ** rank,
   };
   return assembleWave(squad, scale, region.tier + (bossFight ? Math.floor(rank / 2) : 0));
 }
@@ -53,8 +54,8 @@ export function buildEndlessWave(waveNumber, rng = Math.random) {
     squad[0] = "lieutenant";
   }
   const scale = {
-    hp: ENDLESS.hpBase + ENDLESS.hpPerWave * (n - 1),
-    dmg: ENDLESS.dmgBase + ENDLESS.dmgPerWave * (n - 1),
+    hp: ENDLESS.hpBase * ENDLESS.hpGrowth ** (n - 1),
+    dmg: ENDLESS.dmgBase * ENDLESS.dmgGrowth ** (n - 1),
   };
   return { ...assembleWave(squad, scale, 1 + Math.floor((n - 1) / ENDLESS.wavesPerLootTier)), waveNumber: n };
 }
@@ -78,6 +79,9 @@ function makeEnemy(base, hpScale, dmgScale) {
   };
 }
 
+// Minions a boss summons mid-fight are fodder: weaker than the wave they join.
+const MINION_SCALE = Object.freeze({ hp: 0.6, dmg: 0.7 });
+
 // Disposable battle state handed to the engine. The engine mutates it (hero HP,
 // gold per kill, equipment drops), so it never aliases the saved guild state.
 // Loot and summoned minions follow the current wave's lootTier and scale.
@@ -96,7 +100,8 @@ export function createEncounterSim(party, regionTier, wave = null) {
     minionScale: wave?.scale ?? { hp: 1, dmg: 1 },
   };
   sim.rollDrop = (enemy) => rollLoot(enemy, sim.lootTier);
-  sim.makeMinion = (type) => makeEnemy(C.ENEMIES[type] || C.ENEMIES.skeleton, sim.minionScale.hp, sim.minionScale.dmg);
+  sim.makeMinion = (type) => makeEnemy(C.ENEMIES[type] || C.ENEMIES.skeleton,
+    sim.minionScale.hp * MINION_SCALE.hp, sim.minionScale.dmg * MINION_SCALE.dmg);
   return sim;
 }
 

@@ -108,7 +108,8 @@ describe("boss rotation", () => {
     expect(types).toEqual([...BOSS_ROTATION, BOSS_ROTATION[0]]);
     const rank0 = buildEncounter(ashen, last, { bossRank: 0 });
     const rank3 = buildEncounter(ashen, last, { bossRank: 3 });
-    expect(rank3.enemies[0].maxHp).toBeGreaterThan(rank0.enemies[0].maxHp * 1.7);
+    // Rank 3 is the demon again, with HP compounded 15% per rank.
+    expect(Math.abs(rank3.enemies[0].maxHp - rank0.enemies[0].maxHp * 1.15 ** 3)).toBeLessThan(2);
     expect(rank3.lootTier).toBe(rank0.lootTier + 1);
     expect(buildEncounter(ashen, 0, { bossRank: 3 }).enemies.map((enemy) => enemy.type)).toEqual(ashen.encounters[0]);
   });
@@ -127,7 +128,7 @@ describe("boss rotation", () => {
     expect(first.bossRank).toBe(1);
     expect(first.expedition.loot.gold).toBe(500);
     expect(first.expedition.log.join(" ")).toMatch(/Three-Headed Demon slain! Next on the throne: Imperial Necromancer \(rank 2\)/);
-    expect(clearAshen(2).expedition.loot.gold).toBe(900);
+    expect(clearAshen(2).expedition.loot.gold).toBe(650);
   });
 });
 
@@ -211,6 +212,7 @@ describe("boss mechanics", () => {
     engine.update(1 / 30);
     const minions = engine.active.filter((enemy) => !enemy.boss);
     expect(minions.map((enemy) => enemy.type).sort()).toEqual(["ghost", "skeleton", "skeleton"]);
-    expect(minions.find((enemy) => enemy.type === "skeleton").maxHp).toBe(Math.round(70 * engine.sim.minionScale.hp));
+    // Minions spawn at 60% of the encounter's HP scale.
+    expect(minions.find((enemy) => enemy.type === "skeleton").maxHp).toBe(Math.round(70 * engine.sim.minionScale.hp * 0.6));
   });
 });

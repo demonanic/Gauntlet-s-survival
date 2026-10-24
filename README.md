@@ -12,13 +12,15 @@ abilities, move orders and speed controls.
 ## Gameplay
 
 1. **Guild Hall:** recruit classless heroes, spend AP/SP in the universal perk tree, equip
-   gear and buy supplies.
-2. **Expedition Board:** pick a destination and a party of 1–4 ready heroes.
-3. **Travel:** a timer runs until the next encounter.
-4. **Encounter:** a live fight against a small enemy squad. HP carries over between
+   and upgrade gear, and treat injured heroes.
+2. **Market:** buy gear from the Armory (stock rotates every 4 hours, with one featured
+   Masterwork) and supplies for your heroes' quick slots.
+3. **Expedition Board:** pick a destination and a party of 1–4 ready heroes.
+4. **Travel:** a timer runs until the next encounter.
+5. **Encounter:** a live fight against a small enemy squad. HP carries over between
    fights, and fallen heroes sit out the rest of the run. You can recall the party at
    any time and keep the loot.
-5. **Return:** victory banks the full loot plus the region bounty. A routed party comes
+6. **Return:** victory banks the full loot plus the region bounty. A routed party comes
    home with half the loot, and fallen heroes stay injured until they recover.
 
 ### Gear and supplies
@@ -28,13 +30,22 @@ and two quick slots for stacks of bandages, health potions or barbed ammo. Enemi
 gear in four rarities; better regions drop stronger gear. Heroes use their supplies on
 their own in battle, or you can tap them.
 
+### Endgame
+
+- **Boss rotation:** after the Three-Headed Demon falls, Ashen Keep's throne passes to the
+  Imperial Necromancer, then the Abomination, then back to the Demon. Every kill raises the
+  boss rank: tougher bosses, bigger bounties, better loot.
+- **The Endless Rift:** one nonstop fight with ever-stronger waves (a boss every 10th
+  wave). Return home whenever you like to keep everything; get overrun and keep half.
+
 ### Regions
 
 | Region | Min level | Encounters | Bounty |
 | --- | --- | --- | --- |
 | The Gutter | 1 | 3 | 60g |
 | Boneyard Crypt | 3 | 4 | 180g |
-| Ashen Keep | 6 | 5 | 500g |
+| Ashen Keep | 6 | 5 (rotating final boss) | 500g, +15% per boss rank |
+| The Endless Rift | 3 | endless | 10g per wave |
 
 ## Getting started
 

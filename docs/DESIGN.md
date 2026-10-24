@@ -49,8 +49,9 @@ A deliberately small model (not Demonanic's 11 slots), defined in `src/combat/ge
 
 - **Gear slots:** head, chest, legs, arms, weapon, secondary, amulet/ring. Gear adds flat
   attack, defense, max HP, agility (dodge) and crit chance.
-- **Rarity × region tier:** Common ×1, Uncommon ×1.5, Rare ×2.2, Epic ×3.2, multiplied by
-  ×1 / ×1.6 / ×2.4 for gear from The Gutter / Boneyard Crypt / Ashen Keep.
+- **Rarity × tier:** Common ×1, Uncommon ×1.5, Rare ×2.2, Epic ×3.2, multiplied by the
+  tier: ×1 / ×1.6 / ×2.4 for tiers 1–3 (The Gutter / Boneyard Crypt / Ashen Keep), then
+  +0.8 per tier up to tier 10 (ranked bosses, deep Rift waves, the shop's Masterwork).
 - **Weapons:** sword (attack), bow (attack + crit), staff (attack + HP). Every hero starts
   with a common one. Secondaries: shield, dagger, focus orb. Trinkets: amulet, ring.
 - **Quick slots (2 per hero):** stacks of bandages (heal 20%), health potions (heal 45%)
@@ -60,28 +61,61 @@ A deliberately small model (not Demonanic's 11 slots), defined in `src/combat/ge
 - **Loot:** at most one drop per kill, gear first, then supplies. Chances rise with enemy
   tier; the boss always drops Rare or Epic gear. Spare gear sells for gold.
 
+## Gold
+
+- **Armory** (Market tab, `src/game/shop.js`): stock rotates every 4 hours. Five items at
+  the guild's shop tier (best cleared region tier, +1 per two boss ranks) and one featured
+  **Masterwork**: Epic, one tier higher, +15% stats, priced at 10× its sell value. Stock
+  comes from a seeded RNG, so only the rotation, its reroll count and sold ids are saved.
+  Rerolling the stock costs gold and doubles in price each time within a rotation.
+- **Forge:** upgrade any gear up to +5; each level adds 15% of the item's base stats.
+- **Infirmary:** cure an injured hero at once (10g + 1g per 3 seconds left) and heal to full.
+- **Supplies** and **recruits** as before.
+
+## Endgame
+
+- **Boss rotation:** after the first Ashen Keep clear its final boss cycles Three-Headed
+  Demon → Imperial Necromancer → Abomination → Demon… Each kill raises the guild's boss
+  rank: enemy HP ×1.15 and damage ×1.09 per rank (compounding), bounty +15% per rank, and
+  loot one tier better every two ranks.
+  - *Demon:* napalm bottles and two skeletons every 6s.
+  - *Imperial Necromancer:* long-range soul bombs; raises two skeletons and a ghost every 8s.
+  - *Abomination:* no minions; a toxic slam on every hero within reach, faster once it
+    enrages below 35% HP.
+  - Minions summoned mid-fight spawn at 60% HP / 70% damage of the encounter's scale.
+- **The Endless Rift** (LV 3+): one continuous fight. Each cleared wave rolls into the next
+  after 3 seconds; HP ×1.10 and damage ×1.07 per wave, squads grow to 8, a lieutenant
+  every 5th wave and a rotating boss every 10th. Loot tier rises every 5 waves. Return home
+  at any time to keep everything plus 10 gold per wave; a wipe keeps half. Best wave is
+  recorded.
+
 ## Balance (Oct 2026, `npm run balance`)
 
-Heroes now close on enemies that sit out of range (previously warlocks and the demon could
-out-range the party and stall a fight until it wiped). Region multipliers after that fix:
+Heroes close on enemies that sit out of range (previously warlocks and the demon could
+out-range the party and stall a fight until it wiped).
 
 | Region | HP × | Damage × | Result |
 | --- | --- | --- | --- |
 | The Gutter | 0.9 | 0.9 | Tutorial: cleared first try at LV 1 |
 | Boneyard Crypt | 2.0 | 1.7 | Cleared first try at LV 3–4, but costs HP and supplies |
-| Ashen Keep | 2.2 | 1.6 | The wall. Every loss is at the demon. First clear: active players ~30–65 min (2–6 attempts, LV 7–9); idle players ~40–180 min |
+| Ashen Keep | 2.0 | 1.5 | The wall; every loss is at the demon. ~20–25% win rate per attempt at first: typical first clear ~40–50 min (range 20–130), LV 7–11 |
 
 Gear and supplies carry the late game: without equipping drops the first Ashen clear takes
-4–8 hours (LV 12–17); without supplies 2–4.5 hours.
+hours longer (measured before the endgame changes: 4–8 hours, LV 12–17).
+
+Endgame, 8 hours after the first Ashen clear (scripted guild that buys from the Armory and
+upgrades in the Forge): boss rank ~13–19 after 2h, ~21–24 after 4h, levelling off at
+~24–27 by 8h. Boss runs win ~55% and pay ~150–170 gold/min; Rift runs pay ~220–250
+gold/min and usually end at the boss walls on waves 40 or 50.
 
 ## Known gaps / next steps
 
 - **Second trim pass:** `engine.js` still has tower/castle branches that are now dead
   (they iterate empty `towers`/`barricades`), plus `logic.js` with castle economy code the
   engine only needs for `heroDerived`/`makeSingleEnemy`.
-- **Gold sink:** by the first Ashen clear a guild banks 1,000–2,000 unspent gold. Supplies
-  are the only steady expense; something worth buying is still missing.
-- **Post-game:** nothing after the demon yet; Ashen Keep farming is the endgame.
+- **Level cap:** heroes reach LV 20 within the 8-hour endgame; after that only gear grows.
+- **Boss walls:** progress past rank ~25 or Rift wave 50 depends on rare Epic drops and
+  Masterworks; a deeper gear tier or prestige system would extend it.
 - **Saves:** localStorage only. Supabase-backed accounts would replace `game/storage.js`.
 - **Mobile:** the canvas is portrait-first; a Capacitor Android shell like Demonanic's is
   not set up yet.

@@ -54,9 +54,9 @@ export function createGuild() {
   };
 }
 
-// Endless Rift bounty paid for the waves cleared on one run (grows with depth).
+// Endless Rift bounty paid for the waves cleared on one run.
 export function riftBounty(wavesCleared) {
-  return 6 * wavesCleared * (wavesCleared + 1) / 2;
+  return 10 * wavesCleared;
 }
 
 // The wave the current expedition fights next.
