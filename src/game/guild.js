@@ -5,6 +5,7 @@ import { createHeroModel, serializeGameState } from "../combat/heroModel";
 import { mergeClasslessBattleResults } from "../combat/classlessBattleResults";
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import { getRegion } from "./regions";
+import { bankLoot, createGearItem, normalizeHeroGear } from "./items";
 
 export const STATE_VERSION = 1;
 export const MAX_PARTY_SIZE = 4;
@@ -19,15 +20,25 @@ const REST_HEAL_FRACTION_PER_SECOND = 1 / 90;
 const LEG_TRAVEL_FRACTION = 0.5;
 // Loot share kept when a defeated party limps home.
 const RETREAT_LOOT_SHARE = 0.5;
+const STARTER_WEAPONS = ["sword", "bow", "staff"];
+const STARTING_STASH = { bandage: 6 };
+
+// Every hero arrives with an empty gear sheet and a common weapon.
+function newHero(name, weaponVariant) {
+  const hero = normalizeHeroGear(createHeroModel({ name }));
+  hero.equipment.weapon = createGearItem({ slot: "weapon", variant: weaponVariant, rarity: "common", tier: 1 });
+  return hero;
+}
 
 export function createGuild() {
   return {
     version: STATE_VERSION,
     gold: STARTING_GOLD,
-    heroes: STARTER_NAMES.map((name) => createHeroModel({ name })),
+    heroes: STARTER_NAMES.map((name, index) => newHero(name, STARTER_WEAPONS[index % STARTER_WEAPONS.length])),
     bench: [],
     injuries: {},
     vault: [],
+    stash: { ...STARTING_STASH },
     expedition: null,
     clears: {},
     recruits: 0,
@@ -56,7 +67,7 @@ export function recruitHero(state) {
   if (state.gold < cost) return { ok: false, reason: "insufficient_gold" };
   const next = serializeGameState(state);
   const name = RECRUIT_NAMES[next.recruits % RECRUIT_NAMES.length];
-  next.heroes.push(createHeroModel({ name }));
+  next.heroes.push(newHero(name, STARTER_WEAPONS[next.recruits % STARTER_WEAPONS.length]));
   next.gold -= cost;
   next.recruits += 1;
   return { ok: true, state: next };
@@ -147,6 +158,11 @@ export function resolveEncounter(state, { victory, party, xpGains, gold, items }
     runtimeHeroes: party,
     xpGains: xpGains || {},
   });
+  // Quick-slot stacks spent in the fight come back on the runtime party.
+  for (const runtime of party) {
+    const saved = findHero(next, heroId(runtime));
+    if (saved) saved.quickSlots = normalizeHeroGear(runtime).quickSlots;
+  }
   const run = next.expedition;
   run.loot.gold += Math.round(gold || 0);
   run.loot.items.push(...(items || []));
@@ -200,7 +216,7 @@ function completeReturn(state) {
     if (hero && hero.combat.hp <= 0) hero.combat.hp = 1;
   }
   state.gold += loot.gold;
-  state.vault.push(...loot.items);
+  bankLoot(state, loot.items);
   state.lastReport = { regionId, outcome, loot, log };
   state.expedition = null;
   return state;

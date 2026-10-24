@@ -13,6 +13,7 @@ import { classlessCombatEffects, classlessMaxHp } from "./classlessCombatEffects
 import { getUnlockedClasslessAbilities, validateClasslessAbilityUse } from "./classlessAbilities";
 import { HERO_SPRITE_ATLAS, selectHeroSpriteFrame } from "./heroSprite";
 import { getEquippedHeroWeaponType, HERO_WEAPON_ASSETS } from "./heroWeapon";
+import { CONSUMABLES, QUICK_ITEM_COOLDOWN, heroGearStats } from "./gear";
 import { isNeonIdentityColor } from "./heroModel";
 import { combatVfxAssetId, drawCombatVfx, getCombatVfxImage, projectileVfxAssetId } from "./combatVfx";
 
@@ -74,7 +75,8 @@ function classlessHeroDerived(hero) {
   const attack = combat.basicAttack;
   const stats = combat.stats;
   const effects = classlessCombatEffects(hero.progression?.ownedNodeIds);
-  const attackDamage = attack.damage + ((Number(stats.attack) || 10) - HERO_BASELINE.stats.attack);
+  const gear = heroGearStats(hero);
+  const attackDamage = attack.damage + ((Number(stats.attack) || 10) - HERO_BASELINE.stats.attack) + gear.attack;
   return {
     maxHp: classlessMaxHp(hero),
     // Baseline attack stat 10 maps to the approved 16 weapon damage; each
@@ -87,12 +89,12 @@ function classlessHeroDerived(hero) {
     movementSpeed: attack.movementSpeed,
     magic: false,
     damageType: null,
-    defense: stats.defense,
-    agility: stats.agility,
+    defense: stats.defense + gear.defense,
+    agility: stats.agility + gear.agility,
     intelligence: stats.intelligence,
-    critChance: Math.min(0.5, attack.criticalChance + effects.critChance),
+    critChance: Math.min(0.5, attack.criticalChance + effects.critChance + gear.critChance),
     critMult: Math.min(2.5, attack.criticalDamageMultiplier + effects.critDamage),
-    dodge: C.dodgeChance(stats.agility),
+    dodge: C.dodgeChance(stats.agility + gear.agility),
     lowHpDodge: 0,
     moveSpeedMultiplier: 1,
     abilityDamageMultiplier: 1,
@@ -194,6 +196,9 @@ export class Engine {
         interposeReduction: 0,
         interposeTarget: null,
         untargetableUntil: 0,
+        quickCd: 0,
+        ammoShots: 0,
+        ammoBonus: 0,
         maxMana: classless ? 0 : Math.round(70 + (h.level || 1) * 5 + (d.intelligence || 10) * 1.5),
         mana: classless ? 0 : Math.round(70 + (h.level || 1) * 5 + (d.intelligence || 10) * 1.5),
         currentTarget: null,
@@ -1134,6 +1139,73 @@ export class Engine {
     return target ? this.commandHeroAttack(index, target) : false;
   }
 
+  // ---------------- Gauntlet quick slots ----------------
+  // Consumable stacks live on the hero model (h.model.quickSlots), which is the
+  // disposable sim copy, so spent items flow back with the post-battle party.
+  getHeroQuickSlots(index) {
+    const h = this.heroes[index];
+    if (!h?.classless) return [];
+    const slots = Array.isArray(h.model.quickSlots) ? h.model.quickSlots : [];
+    return slots.map((slot, i) => {
+      const item = slot && CONSUMABLES[slot.key];
+      if (!item || !(slot.qty > 0)) return { slot: i, empty: true };
+      return {
+        slot: i, key: item.key, name: item.name, short: item.short, color: item.color, desc: item.desc,
+        qty: slot.qty, cooldown: h.quickCd,
+        available: h.alive && h.quickCd <= 0 && !this.ended && this._quickItemUseful(h, item),
+      };
+    });
+  }
+
+  useQuickItem(index, slotIndex) {
+    const h = this.heroes[index];
+    const slot = h?.classless ? h.model.quickSlots?.[slotIndex] : null;
+    const item = slot && CONSUMABLES[slot.key];
+    if (!item || !(slot.qty > 0) || !h.alive || h.quickCd > 0 || this.ended || !this._quickItemUseful(h, item)) return false;
+    slot.qty -= 1;
+    h.quickCd = QUICK_ITEM_COOLDOWN;
+    if (item.heal) {
+      const amount = Math.min(h.d.maxHp - h.ref.hp, h.d.maxHp * item.heal);
+      h.ref.hp += amount;
+      this._float(h.x, h.y - 18, `+${Math.round(amount)}`, "#39FF14");
+    }
+    if (item.shots) {
+      h.ammoShots = item.shots;
+      h.ammoBonus = item.damageBonus;
+      this._float(h.x, h.y - 18, "AMMO", item.color);
+    }
+    this.effects.push({ x: h.x, y: h.y, r: 16, life: 0.3, color: item.color, ring: true });
+    return true;
+  }
+
+  _quickItemUseful(h, item) {
+    if (item.heal) return h.ref.hp < h.d.maxHp;
+    if (item.shots) return !(h.ammoShots > 0);
+    return false;
+  }
+
+  // Heroes use their own quick slots: heals below the item's HP threshold,
+  // ammo while an elite or boss is on the field.
+  _tickQuickItems(h, dt) {
+    h.quickCd = Math.max(0, h.quickCd - dt);
+    if (!h.classless || h.quickCd > 0) return;
+    const slots = Array.isArray(h.model.quickSlots) ? h.model.quickSlots : [];
+    const hpFraction = h.ref.hp / Math.max(1, h.d.maxHp);
+    const eliteOnField = this.active.some((e) => e.hp > 0 && (e.boss || e.tier === "elite"));
+    for (let i = 0; i < slots.length; i++) {
+      const item = slots[i] && CONSUMABLES[slots[i].key];
+      if (!item || !(slots[i].qty > 0)) continue;
+      const wants = item.heal ? hpFraction < item.autoBelowHp : !!item.autoVsElite && eliteOnField;
+      if (wants && this.useQuickItem(h.i, i)) return;
+    }
+  }
+
+  _consumeAmmoShot(src, isHero) {
+    if (!isHero || !(src.ammoShots > 0)) return 1;
+    src.ammoShots -= 1;
+    return 1 + (src.ammoBonus || 0);
+  }
+
   injectEnemy(e) {
     e.x = laneX(pickLane(this, e)); e.y = 12;
     e.lane = Math.round(e.x / (W / LANES) - 0.5);
@@ -1209,6 +1281,7 @@ export class Engine {
       if (h.protect > 0) { h.protect -= dt; continue; }
       for (const id of Object.keys(h.abilityCooldowns)) h.abilityCooldowns[id] = Math.max(0, h.abilityCooldowns[id] - dt);
       this._tickClasslessSustain(h, dt);
+      this._tickQuickItems(h, dt);
       for (const id of Object.keys(h.spellCooldowns)) h.spellCooldowns[id] = Math.max(0, h.spellCooldowns[id] - dt);
       h.mana = Math.min(h.maxMana, h.mana + (2 + Math.max(0, h.d.intelligence || 0) * 0.04) * dt);
       const cfg = h.ref.attackConfig || "";
@@ -1931,7 +2004,7 @@ export class Engine {
     this.projectiles.push({
       sourceId, x: src.x, y: src.y, tx: target.x, ty: target.y, target,
       heroActionIndex: isHero && src.pendingTacticalAction === "attack" && src.manualTarget === target ? src.i : null,
-      spd: d.magic ? 340 : 460, dmg: d.damage || d.attack, magic: !!d.magic,
+      spd: d.magic ? 340 : 460, dmg: (d.damage || d.attack) * this._consumeAmmoShot(src, isHero), magic: !!d.magic,
       critChance: isHero ? (d.critChance ?? C.BASE_CRIT) : C.BASE_CRIT,
       critMult: isHero ? (d.critMult ?? C.CRIT_MULT) : C.CRIT_MULT,
       perkData: isHero && !src.classless ? d : null,
@@ -2163,7 +2236,8 @@ export class Engine {
 
     // Equipment drops are deposited directly into the community Vault.
     // The drop/rarity economy is tuned separately from the verified gear stats.
-    const drop = rollEquipmentDrop(e, this.sim.wave || 1);
+    // Gauntlet supplies its own loot table through sim.rollDrop (gear or consumables).
+    const drop = this.sim.rollDrop ? this.sim.rollDrop(e) : rollEquipmentDrop(e, this.sim.wave || 1);
     if (drop) this.sim.vault.push(drop);
 
     // XP attribution
@@ -2475,6 +2549,7 @@ export class Engine {
       heroes: this.heroes.map((h) => ({ name: h.ref.name, hp: h.ref.hp, maxHp: h.d.maxHp, alive: h.alive, shield: h.ref.shield || 0 })),
       heroAbilities: this.heroes.map((h) => this.getHeroAbilityStatus(h.i)),
       heroSpells: this.heroes.map((h) => this.getHeroSpellStatus(h.i)),
+      heroQuickSlots: this.heroes.map((h) => this.getHeroQuickSlots(h.i)),
       boss: (() => { const b = this.active.find((e) => e.boss); return b ? { name: b.name, hp: b.hp, maxHp: b.maxHp } : null; })(),
     });
   }

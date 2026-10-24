@@ -157,7 +157,7 @@ export function normalizeClasslessHero(input) {
   };
   hero.combat = {
     ...combat,
-    hp: Math.min(numeric(combat.hp, HERO_BASELINE.hp), classlessMaxHp({ combat: { maxHp: baseMaxHp }, progression })),
+    hp: Math.min(numeric(combat.hp, HERO_BASELINE.hp), classlessMaxHp({ combat: { maxHp: baseMaxHp }, progression, equipment: hero.equipment })),
     maxHp: baseMaxHp,
     stats: { ...stats, ...Object.fromEntries(Object.entries(HERO_BASELINE.stats).map(([key, base]) => [key, numeric(stats[key], base)])) },
     basicAttack: {

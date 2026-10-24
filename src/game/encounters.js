@@ -1,4 +1,5 @@
 import * as C from "../combat/config";
+import { rollLoot } from "./items";
 
 // Later encounters in the same region hit a little harder.
 const DEPTH_SCALE_PER_ENCOUNTER = 0.06;
@@ -39,5 +40,6 @@ export function createEncounterSim(party, regionTier) {
     gold: 0,
     vault: [],
     kills: { total: 0, byType: {} },
+    rollDrop: (enemy) => rollLoot(enemy, regionTier),
   };
 }

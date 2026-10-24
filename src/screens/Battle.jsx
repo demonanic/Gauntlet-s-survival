@@ -123,6 +123,7 @@ export default function Battle({ expedition, party, onComplete }) {
         {party.map((hero, index) => {
           const status = hud?.heroes?.[index];
           const abilities = hud?.heroAbilities?.[index] || [];
+          const quickSlots = (hud?.heroQuickSlots?.[index] || []).filter((slot) => !slot.empty);
           const isSelected = selected === index;
           return (
             <div
@@ -147,6 +148,24 @@ export default function Battle({ expedition, party, onComplete }) {
                     {ability.name}{ability.cooldown > 0 ? ` ${Math.ceil(ability.cooldown)}s` : ""}
                   </button>
                 ))}
+                {quickSlots.length > 0 && (
+                  <div className="flex gap-1">
+                    {quickSlots.map((slot) => (
+                      <button
+                        key={slot.slot}
+                        type="button"
+                        disabled={!slot.available || !!result}
+                        onClick={(event) => { event.stopPropagation(); engine?.useQuickItem(index, slot.slot); }}
+                        className="min-w-0 flex-1 truncate rounded border px-1 py-1 font-mono-g text-[9px] disabled:opacity-35"
+                        style={{ borderColor: `${slot.color}66`, color: slot.color }}
+                        title={`${slot.name}: ${slot.desc}`}
+                        data-testid={`battle-quick-${index}-${slot.slot}`}
+                      >
+                        {slot.short} ×{slot.qty}{slot.cooldown > 0 ? ` ${Math.ceil(slot.cooldown)}s` : ""}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 {isSelected && (
                   <button
                     type="button"
@@ -162,7 +181,7 @@ export default function Battle({ expedition, party, onComplete }) {
         })}
       </footer>
       <p className="pb-2 text-center font-mono-g text-[9px] text-slate-500">
-        Tap a hero card, then tap the field to move them. Auto returns them to normal targeting.
+        Tap a hero card, then tap the field to move them. Auto returns them to normal targeting. Heroes use quick-slot supplies on their own when needed.
       </p>
     </div>
   );

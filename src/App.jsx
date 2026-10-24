@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
 import ClasslessPerkTree from "./components/ClasslessPerkTree";
 import ExpeditionPanel from "./components/ExpeditionPanel";
+import HeroGear from "./components/HeroGear";
 import { NeonButton, Panel } from "./components/ui";
 import { allocateClasslessStat, purchaseClasslessNode } from "./combat/classlessProgression";
 import {
   currentEncounterParty, dismissReport, findHero, recallExpedition, recruitHero, resolveEncounter,
   startExpedition, tick, updateHero,
 } from "./game/guild";
+import {
+  buyConsumable, equipGear, loadQuickSlot, sellGear, unequipGear, unloadQuickSlot,
+} from "./game/items";
 import { getRegion } from "./game/regions";
 import { clearGuild, loadGuild, saveGuild } from "./game/storage";
 import Battle from "./screens/Battle";
@@ -22,6 +26,7 @@ export default function App() {
   const [tab, setTab] = useState("hall");
   const [inBattle, setInBattle] = useState(false);
   const [perkHeroId, setPerkHeroId] = useState(null);
+  const [gearHeroId, setGearHeroId] = useState(null);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -41,6 +46,7 @@ export default function App() {
   });
 
   const perkHero = perkHeroId ? findHero(guild, perkHeroId) : null;
+  const gearHero = gearHeroId ? findHero(guild, gearHeroId) : null;
   const editHero = (result, base) => {
     if (!result.ok) return;
     setGuild((current) => updateHero(current, result.hero || { ...base, progression: result.progression }));
@@ -72,7 +78,15 @@ export default function App() {
       </nav>
 
       {tab === "hall" ? (
-        <GuildHall guild={guild} now={now} onRecruit={() => apply(recruitHero)} onOpenPerks={setPerkHeroId} />
+        <GuildHall
+          guild={guild}
+          now={now}
+          onRecruit={() => apply(recruitHero)}
+          onOpenPerks={setPerkHeroId}
+          onOpenGear={setGearHeroId}
+          onSell={(itemId) => apply((current) => sellGear(current, itemId))}
+          onBuy={(key, qty) => apply((current) => buyConsumable(current, key, qty))}
+        />
       ) : (
         <ExpeditionBoard
           guild={guild}
@@ -101,6 +115,20 @@ export default function App() {
           onPurchase={(nodeId) => editHero(purchaseClasslessNode(perkHero, nodeId), perkHero)}
           onAllocate={(stat) => editHero(allocateClasslessStat(perkHero, stat), perkHero)}
           onClose={() => setPerkHeroId(null)}
+        />
+      )}
+
+      {gearHero && (
+        <HeroGear
+          hero={gearHero}
+          vault={guild.vault}
+          stash={guild.stash}
+          locked={!!guild.expedition?.heroIds.includes(gearHeroId)}
+          onEquip={(itemId) => apply((current) => equipGear(current, gearHeroId, itemId))}
+          onUnequip={(slot) => apply((current) => unequipGear(current, gearHeroId, slot))}
+          onLoadQuick={(index, key) => apply((current) => loadQuickSlot(current, gearHeroId, index, key))}
+          onUnloadQuick={(index) => apply((current) => unloadQuickSlot(current, gearHeroId, index))}
+          onClose={() => setGearHeroId(null)}
         />
       )}
 
