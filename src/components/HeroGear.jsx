@@ -3,6 +3,8 @@ import { CONSUMABLE_KEYS, CONSUMABLES, GEAR_SLOT_LABELS, GEAR_SLOTS, GEAR_STAT_L
 import {
   MAX_UPGRADE, RARITIES, formatGearStats, gearStatDelta, heroCombatSummary, itemLabel, upgradeCost,
 } from "../game/items";
+import { TRAITS } from "../combat/traits";
+import { MAX_NAME_LENGTH, cleanHeroName } from "../game/guild";
 import { NeonButton } from "./ui";
 
 function DeltaText({ delta }) {
@@ -30,9 +32,11 @@ function ItemName({ item }) {
 
 // Per-hero gear sheet: seven gear slots plus two consumable quick slots.
 export default function HeroGear({
-  hero, vault, stash, gold, locked, onEquip, onUnequip, onLoadQuick, onUnloadQuick, onUpgrade, onClose,
+  hero, vault, stash, gold, locked, onEquip, onUnequip, onLoadQuick, onUnloadQuick, onUpgrade, onRename, onClose,
 }) {
   const [picking, setPicking] = useState(null); // { type: "gear", slot } | { type: "quick", index }
+  const [renaming, setRenaming] = useState(null); // draft name while editing
+  const trait = TRAITS[hero.traits?.[0]];
   const summary = heroCombatSummary(hero);
   const equipment = hero.equipment || {};
   const quickSlots = hero.quickSlots || [];
@@ -43,7 +47,30 @@ export default function HeroGear({
       <section className="mx-auto max-w-xl rounded-xl border border-cyan-400/40 bg-[#080b12] p-3 text-slate-100">
         <header className="flex items-center gap-3 border-b border-white/10 pb-3">
           <div className="min-w-0 flex-1">
-            <h2 className="truncate font-display text-lg font-bold" style={{ color: hero.appearance?.identityColor }}>{hero.identity.name}</h2>
+            {renaming == null ? (
+              <h2 className="flex items-baseline gap-2 font-display text-lg font-bold" style={{ color: hero.appearance?.identityColor }}>
+                <span className="truncate">{hero.identity.name}</span>
+                <button type="button" className="font-mono-g text-[10px] font-normal text-slate-400 underline" onClick={() => setRenaming(hero.identity.name)} data-testid="rename">
+                  rename
+                </button>
+              </h2>
+            ) : (
+              <form
+                className="flex gap-1"
+                onSubmit={(event) => { event.preventDefault(); if (cleanHeroName(renaming)) { onRename(renaming); setRenaming(null); } }}
+              >
+                <input
+                  autoFocus
+                  value={renaming}
+                  maxLength={MAX_NAME_LENGTH}
+                  onChange={(event) => setRenaming(event.target.value)}
+                  className="min-w-0 flex-1 rounded border border-white/15 bg-black/40 px-2 py-1 font-display text-sm outline-none focus:border-cyan-300"
+                  data-testid="rename-input"
+                />
+                <NeonButton type="submit" color="#39FF14" disabled={!cleanHeroName(renaming)}>Save</NeonButton>
+              </form>
+            )}
+            {trait && <p className="font-mono-g text-[11px] text-yellow-300">{trait.name}: <span className="text-slate-300">{trait.desc}</span></p>}
             <p className="font-mono-g text-[11px] text-slate-300">
               ATK {summary.attack} · DEF {summary.defense} · HP {summary.maxHp} · DODGE {Math.round(summary.dodge * 100)}% · CRIT {Math.round(summary.critChance * 100)}%
             </p>

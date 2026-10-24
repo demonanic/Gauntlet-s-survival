@@ -23,6 +23,18 @@ abilities, move orders and speed controls.
 6. **Return:** victory banks the full loot plus the region bounty. A routed party comes
    home with half the loot, and fallen heroes stay injured until they recover.
 
+### Heroes
+
+Every hero has an individual neon look (their sprite is tinted with their own hue) and
+one random trait, such as Brawny (+12% HP), Berserker (+20% damage below half HP) or
+Field Medic (supplies heal 40% more). Recruits are shown before you hire them: name them
+yourself, pick a new look for free, or pay 25g to see a different candidate. Heroes can
+be renamed from their Gear screen.
+
+**Prestige:** retire a level 20 hero to earn Renown, and spend it in the Hall of Legends
+on permanent upgrades (damage, HP, gold, XP, travel time, and recruits that start at a
+higher level). Retired heroes are remembered there.
+
 ### Gear and supplies
 
 Each hero has seven gear slots (head, chest, legs, arms, weapon, secondary, amulet/ring)
@@ -63,11 +75,19 @@ npm run balance   # simulate full playthroughs and report balance numbers
 Saves live in the browser's `localStorage`. Use **Reset save** at the bottom of the
 page to start over.
 
+**Cloud saves:** tap **Cloud: sign in** (top right) to create an account with email and
+password. The guild then syncs to Supabase every 45 seconds and whenever the page is
+hidden. Signing in on a device with a different guild asks which one to keep. The
+Supabase project, table and row-level security are described in
+[docs/DESIGN.md](docs/DESIGN.md#cloud-saves); `.env.example` shows how to point the game
+at another project.
+
 ## Tech stack
 
 - [React 19](https://react.dev) + [Vite 6](https://vite.dev)
 - [Tailwind CSS 3](https://tailwindcss.com)
 - [Vitest](https://vitest.dev) for tests
+- [Supabase](https://supabase.com) for accounts and cloud saves
 - A canvas combat engine vendored from Demonanic
 
 ## Project layout
@@ -75,12 +95,16 @@ page to start over.
 ```
 src/
   combat/      Combat engine vendored from demonanic/Demonanic, trimmed to encounter mode
-  game/        Gauntlet logic: regions, encounters, guild/expedition state, saves, simulator
+  game/        Gauntlet logic: regions, encounters, guild/expedition state, items, shop,
+               prestige, saves, simulator
+  cloud/       Supabase accounts and cloud saves
   screens/     Guild Hall, Expedition Board, Battle
   components/  Shared React UI
   test/        Vitest setup (aliases jest → vi for the vendored tests)
 public/sprites Hero atlas, weapon icons, projectile and impact VFX
 docs/          Design notes
+supabase/      Database migrations for cloud saves
+scripts/       Balance simulator (npm run balance)
 ```
 
 ## Documentation

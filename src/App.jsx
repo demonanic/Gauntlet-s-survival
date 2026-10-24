@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
 import ClasslessPerkTree from "./components/ClasslessPerkTree";
+import CloudSync from "./components/CloudSync";
+import RecruitDialog from "./components/RecruitDialog";
 import ExpeditionPanel from "./components/ExpeditionPanel";
 import HeroGear from "./components/HeroGear";
 import { NeonButton, Panel } from "./components/ui";
 import { allocateClasslessStat, purchaseClasslessNode } from "./combat/classlessProgression";
 import {
   currentEncounterParty, currentEncounterWave, dismissReport, findHero, recallExpedition, recruitHero,
-  resolveEncounter, startExpedition, tick, treatInjury, updateHero,
+  renameHero, rerollCandidate, resolveEncounter, startExpedition, tick, treatInjury, updateHero,
 } from "./game/guild";
+import { buyLegacyUpgrade, renownForRetiring, retireHero } from "./game/legacy";
 import {
   buyConsumable, equipGear, loadQuickSlot, sellGear, unequipGear, unloadQuickSlot, upgradeGear,
 } from "./game/items";
@@ -32,6 +35,7 @@ export default function App() {
   const [inBattle, setInBattle] = useState(false);
   const [perkHeroId, setPerkHeroId] = useState(null);
   const [gearHeroId, setGearHeroId] = useState(null);
+  const [recruiting, setRecruiting] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -63,7 +67,10 @@ export default function App() {
     <div className="mx-auto min-h-screen max-w-xl px-4 pb-10 pt-4">
       <header className="mb-3 flex items-center justify-between">
         <h1 className="font-display text-2xl font-black tracking-wider text-cyan-200 text-glow-cyan">GAUNTLET</h1>
-        <span className="font-mono-g text-sm font-bold text-yellow-300" data-testid="gold">{guild.gold}g</span>
+        <div className="flex items-center gap-2">
+          <CloudSync guild={guild} onLoadSave={(state) => setGuild(tick(state, Date.now()))} />
+          <span className="font-mono-g text-sm font-bold text-yellow-300" data-testid="gold">{guild.gold}g</span>
+        </div>
       </header>
 
       {guild.expedition && (
@@ -89,12 +96,18 @@ export default function App() {
         <GuildHall
           guild={guild}
           now={now}
-          onRecruit={() => apply(recruitHero)}
+          onRecruit={() => setRecruiting(true)}
           onOpenPerks={setPerkHeroId}
           onOpenGear={setGearHeroId}
           onSell={(itemId) => apply((current) => sellGear(current, itemId))}
           onUpgrade={(itemId) => apply((current) => upgradeGear(current, itemId))}
           onTreat={(heroId) => apply((current) => treatInjury(current, heroId, Date.now()))}
+          onRetire={(heroId) => {
+            const hero = findHero(guild, heroId);
+            if (!window.confirm(`Retire ${hero?.identity.name} to the Hall of Legends for ${renownForRetiring(guild)} renown? This cannot be undone.`)) return;
+            apply((current) => retireHero(current, heroId, Date.now()));
+          }}
+          onBuyLegacy={(key) => apply((current) => buyLegacyUpgrade(current, key))}
         />
       )}
       {tab === "market" && (
@@ -148,8 +161,18 @@ export default function App() {
           onLoadQuick={(index, key) => apply((current) => loadQuickSlot(current, gearHeroId, index, key))}
           onUnloadQuick={(index) => apply((current) => unloadQuickSlot(current, gearHeroId, index))}
           onUpgrade={(itemId) => apply((current) => upgradeGear(current, itemId))}
+          onRename={(name) => apply((current) => renameHero(current, gearHeroId, name))}
           gold={guild.gold}
           onClose={() => setGearHeroId(null)}
+        />
+      )}
+
+      {recruiting && (
+        <RecruitDialog
+          guild={guild}
+          onHire={(choice) => { apply((current) => recruitHero(current, choice)); setRecruiting(false); }}
+          onReroll={() => apply(rerollCandidate)}
+          onClose={() => setRecruiting(false)}
         />
       )}
 

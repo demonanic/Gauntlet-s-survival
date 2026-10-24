@@ -14,7 +14,9 @@ import { getUnlockedClasslessAbilities, validateClasslessAbilityUse } from "./cl
 import { HERO_SPRITE_ATLAS, selectHeroSpriteFrame } from "./heroSprite";
 import { getEquippedHeroWeaponType, HERO_WEAPON_ASSETS } from "./heroWeapon";
 import { CONSUMABLES, QUICK_ITEM_COOLDOWN, heroGearStats } from "./gear";
+import { heroTraitEffects } from "./traits";
 import { isNeonIdentityColor } from "./heroModel";
+import { heroSpriteFilter } from "./heroPalette";
 import { combatVfxAssetId, drawCombatVfx, getCombatVfxImage, projectileVfxAssetId } from "./combatVfx";
 
 let heroSpriteImage = null;
@@ -76,6 +78,7 @@ function classlessHeroDerived(hero) {
   const stats = combat.stats;
   const effects = classlessCombatEffects(hero.progression?.ownedNodeIds);
   const gear = heroGearStats(hero);
+  const traits = heroTraitEffects(hero);
   const attackDamage = attack.damage + ((Number(stats.attack) || 10) - HERO_BASELINE.stats.attack) + gear.attack;
   return {
     maxHp: classlessMaxHp(hero),
@@ -85,16 +88,16 @@ function classlessHeroDerived(hero) {
     damage: attackDamage,
     range: attack.range,
     rangeMode: attack.rangeMode,
-    rate: attack.intervalSeconds / (1 + effects.attackSpeed),
-    movementSpeed: attack.movementSpeed,
+    rate: attack.intervalSeconds / ((1 + effects.attackSpeed) * (1 + traits.attackSpeed)),
+    movementSpeed: attack.movementSpeed * (1 + traits.moveSpeed),
     magic: false,
     damageType: null,
-    defense: stats.defense + gear.defense,
-    agility: stats.agility + gear.agility,
+    defense: stats.defense + gear.defense + traits.defense,
+    agility: stats.agility + gear.agility + traits.agility,
     intelligence: stats.intelligence,
-    critChance: Math.min(0.5, attack.criticalChance + effects.critChance + gear.critChance),
+    critChance: Math.min(0.5, attack.criticalChance + effects.critChance + gear.critChance + traits.critChance),
     critMult: Math.min(2.5, attack.criticalDamageMultiplier + effects.critDamage),
-    dodge: C.dodgeChance(stats.agility + gear.agility),
+    dodge: C.dodgeChance(stats.agility + gear.agility + traits.agility),
     lowHpDodge: 0,
     moveSpeedMultiplier: 1,
     abilityDamageMultiplier: 1,
@@ -109,6 +112,7 @@ function classlessHeroDerived(hero) {
     lifesteal: effects.lifesteal,
     decoyChance: effects.decoyChance,
     classlessEffects: effects,
+    traits,
     bloodPriceBonus: effects.bloodPriceBonus,
     bloodPriceCost: effects.bloodPriceCost,
     color: hero.appearance?.identityColor || "#22D3EE",
@@ -1167,7 +1171,7 @@ export class Engine {
     slot.qty -= 1;
     h.quickCd = QUICK_ITEM_COOLDOWN;
     if (item.heal) {
-      const amount = Math.min(h.d.maxHp - h.ref.hp, h.d.maxHp * item.heal);
+      const amount = Math.min(h.d.maxHp - h.ref.hp, h.d.maxHp * item.heal * (1 + (h.d.traits?.healBonus || 0)));
       h.ref.hp += amount;
       this._float(h.x, h.y - 18, `+${Math.round(amount)}`, "#39FF14");
     }
@@ -1819,7 +1823,7 @@ export class Engine {
     const interpose = hero.interposeUntil > this.time ? hero.interposeReduction : 0;
     const formation = this._classlessFormationReduction(hero);
     const reduction = Math.min(0.30, Math.max(0, hero.d.damageReduction + lastStand + interpose + formation));
-    return C.damageAfterDefense(rawDamage, hero.d.defense) * (1 - reduction);
+    return C.damageAfterDefense(rawDamage, hero.d.defense) * (1 - reduction) * (1 - (hero.d.traits?.damageTaken || 0));
   }
 
   _classlessFormationReduction(hero) {
@@ -2176,6 +2180,9 @@ export class Engine {
     const echoMarks = this._takeClasslessEchoMarks(target, p.sourceId);
     let damage = p.dmg * affinity;
     if (p.damageCategory === "weapon") damage *= 1 + effects.weaponDamage;
+    // Gauntlet traits and Hall of Legends bonuses (Berserker below half HP).
+    const traits = hero.d.traits;
+    if (traits) damage *= 1 + traits.damage + (hero.ref.hp < hero.d.maxHp * 0.5 ? traits.berserk : 0);
     if (p.damageType === C.DAMAGE_TYPES.ARCANE) damage *= 1 + (effects.arcaneDamage || 0);
     let situationalBonus = p.situationalBonus || 0;
     if (p.ability) situationalBonus += hero.d.bloodPriceBonus || 0;
@@ -2293,7 +2300,8 @@ export class Engine {
 
     // reward gold continuously
     const tier = C.ENEMY_TIERS[e.tier] || C.ENEMY_TIERS.basic;
-    this.sim.gold += tier.gold;
+    const killer = typeof sourceId === "string" && sourceId.startsWith("H") ? this.heroes[Number(sourceId.slice(1))] : null;
+    this.sim.gold += Math.round(tier.gold * (1 + (killer?.d?.traits?.goldFind || 0)));
 
     // Equipment drops are deposited directly into the community Vault.
     // The drop/rarity economy is tuned separately from the verified gear stats.
@@ -3014,6 +3022,7 @@ export class Engine {
     const alpha = h.alive ? (h.protect > 0 ? 0.58 : 1) : 0.52;
     const identityColor = isNeonIdentityColor(h.model?.appearance?.identityColor)
       ? h.model.appearance.identityColor : h.d.color || "#22D3EE";
+    const accentColor = h.model?.appearance?.accentColor || identityColor;
     const legacyWeapon = ({ knight: "sword", rouge: "sword", archer: "bow", mage: "staff" })[h.ref?.cls];
     const weaponType = getEquippedHeroWeaponType(h.model || h.ref) || legacyWeapon;
 
@@ -3025,7 +3034,12 @@ export class Engine {
     ctx.rotate(facing);
     const image = getHeroSpriteImage();
     if (image?.complete && image.naturalWidth > 0 && image.naturalHeight > 0) {
+      // Gauntlet: each hero's own neon shade, plus a soft glow in that color.
+      ctx.filter = heroSpriteFilter(h.model?.appearance);
+      ctx.shadowBlur = 7;
+      ctx.shadowColor = identityColor;
       ctx.drawImage(image, frame.sx, frame.sy, frame.sw, frame.sh, -24, -44, 48, 48);
+      ctx.filter = "none";
     } else {
       // Missing-image fallback is a neutral silhouette, never the old
       // class-specific procedural character artwork.
@@ -3051,8 +3065,8 @@ export class Engine {
       ctx.drawImage(weaponImage, 0, 0, 48, 48, -24, -44, 48, 48);
     }
     ctx.shadowBlur = 6;
-    ctx.shadowColor = identityColor;
-    ctx.fillStyle = identityColor;
+    ctx.shadowColor = accentColor;
+    ctx.fillStyle = accentColor;
     ctx.fillRect(-1.75, -34, 3.5, 3.5);
     ctx.restore();
 

@@ -38,6 +38,7 @@ describe("gear items", () => {
 
   test("equipping swaps the old piece into the vault and adds stats", () => {
     const state = createGuild();
+    state.heroes[0].traits = []; // no trait, so max HP is exactly base + gear
     const helm = createGearItem({ slot: "head", rarity: "rare", tier: 1 });
     const equipped = equipGear(withVaultItem(state, helm), heroId(state), helm.id);
     expect(equipped.ok).toBe(true);
@@ -57,6 +58,7 @@ describe("gear items", () => {
 
   test("unequipping HP gear clamps current HP to the new maximum", () => {
     const state = createGuild();
+    state.heroes[0].traits = []; // no trait, so max HP is exactly 300
     const amulet = createGearItem({ slot: "trinket", variant: "amulet", rarity: "epic", tier: 3 });
     const equipped = equipGear(withVaultItem(state, amulet), heroId(state), amulet.id).state;
     equipped.heroes[0].combat.hp = classlessMaxHp(equipped.heroes[0]);
@@ -144,6 +146,7 @@ describe("quick slots in battle", () => {
 
   test("a wounded hero bandages themself and spends the stack", () => {
     const hero = structuredClone(createGuild().heroes[0]);
+    hero.traits = []; // no trait, so max HP is exactly 300
     hero.quickSlots = [{ key: "bandage", qty: 2 }, null];
     hero.combat.hp = 100;
     const engine = engineFor([hero]);

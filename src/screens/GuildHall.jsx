@@ -1,13 +1,17 @@
+import HallOfLegends from "../components/HallOfLegends";
 import HeroRow from "../components/HeroRow";
 import { NeonButton, Panel } from "../components/ui";
 import { GEAR_SLOT_LABELS } from "../combat/gear";
 import { heroStatus, recruitCost, treatmentCost } from "../game/guild";
+import { canRetire } from "../game/legacy";
 import { MAX_UPGRADE, RARITIES, RARITY_ORDER, formatGearStats, itemLabel, upgradeCost } from "../game/items";
 
 const byRarityThenSlot = (a, b) => RARITY_ORDER.indexOf(b.rarity) - RARITY_ORDER.indexOf(a.rarity)
   || (b.tier || 1) - (a.tier || 1) || a.slot.localeCompare(b.slot);
 
-export default function GuildHall({ guild, now, onRecruit, onOpenPerks, onOpenGear, onSell, onUpgrade, onTreat }) {
+export default function GuildHall({
+  guild, now, onRecruit, onOpenPerks, onOpenGear, onSell, onUpgrade, onTreat, onRetire, onBuyLegacy,
+}) {
   const cost = recruitCost(guild);
   const vault = [...guild.vault].sort(byRarityThenSlot);
   return (
@@ -43,6 +47,11 @@ export default function GuildHall({ guild, now, onRecruit, onOpenPerks, onOpenGe
                     <NeonButton color="#A855F7" onClick={() => onOpenPerks(hero.identity.id)}>
                       Perks
                     </NeonButton>
+                    {!canRetire(guild, hero) && (
+                      <NeonButton color="#E879F9" onClick={() => onRetire(hero.identity.id)} data-testid={`retire-${hero.identity.id}`}>
+                        Retire
+                      </NeonButton>
+                    )}
                   </div>
                 )}
               />
@@ -85,6 +94,7 @@ export default function GuildHall({ guild, now, onRecruit, onOpenPerks, onOpenGe
           </ul>
         )}
       </Panel>
+      <HallOfLegends guild={guild} onBuy={onBuyLegacy} />
     </div>
   );
 }

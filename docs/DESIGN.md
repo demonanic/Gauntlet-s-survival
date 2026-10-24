@@ -61,6 +61,40 @@ A deliberately small model (not Demonanic's 11 slots), defined in `src/combat/ge
 - **Loot:** at most one drop per kill, gear first, then supplies. Chances rise with enemy
   tier; the boss always drops Rare or Epic gear. Spare gear sells for gold.
 
+## Heroes
+
+- **Looks** (`src/combat/heroPalette.js`): each hero has a random `hueShift`; the shared
+  sprite is drawn with `hue-rotate(hueShift)`, and the hero's identity (glow, name) and
+  accent colors are the sprite's own magenta and cyan rotated by the same amount.
+- **Traits** (`src/combat/traits.js`): one per hero, rolled at creation. Combat traits
+  feed `classlessHeroDerived` and the hit, heal and kill paths; XP traits apply when an
+  encounter resolves. Older saves get a random trait on load.
+- **Recruiting:** the guild always has a waiting candidate (trait + look). The player names
+  them (16 characters max), may pick another look for free, or pays 25g for a different
+  candidate. Recruit cost scales with the roster size, so retiring keeps it affordable.
+
+## Prestige (`src/game/legacy.js`)
+
+Retire a level 20 hero for 3 Renown (+1 per 5 boss ranks); their gear returns to the vault
+and their supplies to the stash. Renown buys Hall of Legends ranks (rank *n* costs *n*
+Renown): Might (+4% damage), Vigor (+4% max HP), Fortune (+10% gold), Wisdom (+10% XP),
+Swift Roads (−8% travel) and Mentorship (recruits start 2 levels higher). Damage and HP
+bonuses are stamped onto every hero as `hero.guildBonus` so the engine can read them.
+
+## Cloud saves
+
+- Supabase project **gauntlet** (`xtgpznknlaihmfohdmqs`, us-east-1, org *demonanic*).
+- Table `public.saves (user_id, data jsonb, updated_at)`, one row per player, with
+  row-level security so players can only read and write their own row
+  (`supabase/migrations/`). Saves are capped at 512 KB.
+- Email + password auth. Supabase sends a confirmation email on sign-up; set the project's
+  **Site URL** (Authentication → URL Configuration) to wherever the game is hosted so the
+  confirmation link lands on the game.
+- `src/cloud/cloudSave.js` talks to Supabase; `src/components/CloudSync.jsx` syncs every
+  45s and when the page is hidden. Each device remembers the cloud version it last
+  synced, and the player is asked to choose only when the cloud holds a save this device
+  hasn't seen.
+
 ## Gold
 
 - **Armory** (Market tab, `src/game/shop.js`): stock rotates every 4 hours. Five items at
@@ -116,7 +150,8 @@ gold/min and usually end at the boss walls on waves 40 or 50.
 - **Level cap:** heroes reach LV 20 within the 8-hour endgame; after that only gear grows.
 - **Boss walls:** progress past rank ~25 or Rift wave 50 depends on rare Epic drops and
   Masterworks; a deeper gear tier or prestige system would extend it.
-- **Saves:** localStorage only. Supabase-backed accounts would replace `game/storage.js`.
+- **Cloud saves:** last write wins between devices that are both online; there is no
+  merge. Password reset and account deletion are not in the game UI yet.
 - **Mobile:** the canvas is portrait-first; a Capacitor Android shell like Demonanic's is
   not set up yet.
 - **Engine sync:** the copy will drift from Demonanic; port upstream fixes by hand or move

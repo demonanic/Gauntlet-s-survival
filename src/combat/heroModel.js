@@ -6,8 +6,10 @@ export const NEON_IDENTITY_COLORS = Object.freeze([
   "#EC4899", "#14B8A6", "#A3E635", "#F8FAFC",
 ]);
 
+// Gauntlet heroes carry individually generated neon colors (see heroPalette.js),
+// so any #RRGGBB value is accepted alongside the preset list.
 export function isNeonIdentityColor(value) {
-  return NEON_IDENTITY_COLORS.includes(value);
+  return NEON_IDENTITY_COLORS.includes(value) || (typeof value === "string" && /^#[0-9A-F]{6}$/i.test(value));
 }
 
 export function randomNeonIdentityColor(rng = Math.random) {
@@ -157,7 +159,7 @@ export function normalizeClasslessHero(input) {
   };
   hero.combat = {
     ...combat,
-    hp: Math.min(numeric(combat.hp, HERO_BASELINE.hp), classlessMaxHp({ combat: { maxHp: baseMaxHp }, progression, equipment: hero.equipment })),
+    hp: Math.min(numeric(combat.hp, HERO_BASELINE.hp), classlessMaxHp({ ...hero, combat: { maxHp: baseMaxHp }, progression })),
     maxHp: baseMaxHp,
     stats: { ...stats, ...Object.fromEntries(Object.entries(HERO_BASELINE.stats).map(([key, base]) => [key, numeric(stats[key], base)])) },
     basicAttack: {

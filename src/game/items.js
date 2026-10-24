@@ -7,6 +7,7 @@ import {
   CONSUMABLES, GEAR_SLOTS, GEAR_STAT_KEYS, GEAR_STAT_LABELS, QUICK_SLOT_COUNT, heroGearStats,
 } from "../combat/gear";
 import { HERO_BASELINE, serializeGameState } from "../combat/heroModel";
+import { heroTraitEffects } from "../combat/traits";
 
 export const RARITIES = Object.freeze({
   common: { key: "common", name: "Common", word: "Scrap", color: "#94A3B8", mult: 1, sell: 6 },
@@ -314,15 +315,17 @@ export function unloadQuickSlot(state, id, slotIndex) {
 // Display-only combat sheet; mirrors the engine's classlessHeroDerived maths.
 export function heroCombatSummary(hero) {
   const gear = heroGearStats(hero);
+  const traits = heroTraitEffects(hero);
   const effects = classlessCombatEffects(hero.progression?.ownedNodeIds);
   const stats = hero.combat.stats;
   const attack = hero.combat.basicAttack;
+  const weapon = attack.damage + (stats.attack - HERO_BASELINE.stats.attack) + gear.attack;
   return {
-    attack: Math.round((attack.damage + (stats.attack - HERO_BASELINE.stats.attack) + gear.attack) * (1 + effects.weaponDamage)),
-    defense: stats.defense + gear.defense,
+    attack: Math.round(weapon * (1 + effects.weaponDamage) * (1 + traits.damage)),
+    defense: stats.defense + gear.defense + traits.defense,
     maxHp: classlessMaxHp(hero),
-    dodge: C.dodgeChance(stats.agility + gear.agility),
-    critChance: Math.min(0.5, attack.criticalChance + effects.critChance + gear.critChance),
+    dodge: C.dodgeChance(stats.agility + gear.agility + traits.agility),
+    critChance: Math.min(0.5, attack.criticalChance + effects.critChance + gear.critChance + traits.critChance),
   };
 }
 
