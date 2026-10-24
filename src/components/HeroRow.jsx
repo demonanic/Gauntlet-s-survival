@@ -1,0 +1,42 @@
+import ClasslessHeroAvatar from "./ClasslessHeroAvatar";
+import { Bar, formatSeconds } from "./ui";
+import { classlessMaxHp } from "../combat/classlessCombatEffects";
+
+const STATUS_STYLE = {
+  ready: { label: "READY", color: "#39FF14" },
+  away: { label: "ON EXPEDITION", color: "#00F3FF" },
+  injured: { label: "INJURED", color: "#FF2A5F" },
+};
+
+export default function HeroRow({ hero, status, injuredUntil, now, selected, onSelect, actions }) {
+  const maxHp = classlessMaxHp(hero);
+  const style = STATUS_STYLE[status];
+  const { level, ap, sp } = hero.progression;
+  return (
+    <div
+      className={`flex items-center gap-3 rounded border p-2 ${selected ? "border-cyan-300 bg-cyan-400/10" : "border-white/10 bg-white/[0.025]"}
+        ${onSelect ? "cursor-pointer" : ""}`}
+      onClick={onSelect}
+      data-testid={`hero-row-${hero.identity.id}`}
+    >
+      <ClasslessHeroAvatar className="h-12 w-12 rounded border" identityColor={hero.appearance?.identityColor} label={hero.identity.name} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-2">
+          <span className="truncate font-display text-sm font-bold">{hero.identity.name}</span>
+          <span className="font-mono-g text-[10px] text-slate-400">LV {level}</span>
+          {(ap > 0 || sp > 0) && (
+            <span className="font-mono-g text-[10px] text-yellow-300">{ap} AP · {sp} SP</span>
+          )}
+        </div>
+        <Bar value={hero.combat.hp} max={maxHp} className="my-1" />
+        <div className="flex justify-between font-mono-g text-[10px]">
+          <span className="text-slate-400">{Math.round(hero.combat.hp)} / {maxHp} HP</span>
+          <span style={{ color: style.color }}>
+            {style.label}{status === "injured" ? ` · ${formatSeconds(injuredUntil - now)}` : ""}
+          </span>
+        </div>
+      </div>
+      {actions}
+    </div>
+  );
+}
