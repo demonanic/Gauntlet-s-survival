@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import ClasslessPerkTree from "./components/ClasslessPerkTree";
+import DebugPanel from "./components/DebugPanel";
 import CloudSync from "./components/CloudSync";
 import RecruitDialog from "./components/RecruitDialog";
 import ExpeditionPanel from "./components/ExpeditionPanel";
@@ -15,6 +16,7 @@ import {
   buyConsumable, equipGear, loadQuickSlot, sellGear, unequipGear, unloadQuickSlot, upgradeGear,
 } from "./game/items";
 import { buyShopItem, rerollShop } from "./game/shop";
+import { isDebugMode } from "./game/debug";
 import { getRegion } from "./game/regions";
 import { clearGuild, loadGuild, saveGuild } from "./game/storage";
 import Battle from "./screens/Battle";
@@ -23,6 +25,8 @@ import GuildHall from "./screens/GuildHall";
 import Market from "./screens/Market";
 
 const TICK_MS = 500;
+// Test mode: open the game with ?debug in the address.
+const DEBUG = isDebugMode();
 const OUTCOME_TITLE = {
   victory: "Expedition conquered", retreat: "Party routed", recalled: "Party recalled", returned: "Back from the Rift",
 };
@@ -195,12 +199,14 @@ export default function App() {
           expedition={guild.expedition}
           party={currentEncounterParty(guild)}
           createWave={() => currentEncounterWave(guild)}
+          speeds={DEBUG ? [1, 2, 4, 8] : [1, 2]}
           onComplete={(outcome) => {
             apply((current) => resolveEncounter(current, outcome, Date.now()));
             setInBattle(false);
           }}
         />
       )}
+      {DEBUG && <DebugPanel guild={guild} apply={apply} />}
     </div>
   );
 }

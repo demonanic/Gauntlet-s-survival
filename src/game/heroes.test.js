@@ -1,7 +1,7 @@
 import { Engine } from "../combat/engine";
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import * as C from "../combat/config";
-import { heroSpriteFilter, isHexColor, paletteForShift, rollHeroPalette } from "../combat/heroPalette";
+import { distinctHueShift, heroSpriteFilter, isHexColor, paletteForShift, rollHeroPalette } from "../combat/heroPalette";
 import { TRAITS, TRAIT_KEYS, heroTraitEffects } from "../combat/traits";
 import { needsSaveChoice, summarizeSave } from "../cloud/cloudSave";
 import { buildEncounter, createEncounterSim } from "./encounters";
@@ -34,6 +34,27 @@ describe("individual neon looks", () => {
     expect(rollHeroPalette(() => 0.5).hueShift).toBe(180);
     expect(heroSpriteFilter(palette)).toBe("hue-rotate(120deg) saturate(1.25)");
     expect(heroSpriteFilter({})).toBe("none");
+  });
+
+  test("UI colors are the sprite's own colors after the same filter, readable on dark backgrounds", () => {
+    // No shift: still the sprite's magenta body (strong red and blue, little green).
+    const [r0, g0, b0] = [1, 3, 5].map((i) => parseInt(paletteForShift(0).identityColor.slice(i, i + 2), 16));
+    expect(r0).toBeGreaterThan(200);
+    expect(b0).toBeGreaterThan(180);
+    expect(g0).toBeLessThan(60);
+    for (const shift of [0, 90, 180, 240, 300]) {
+      const [r, g, b] = [1, 3, 5].map((i) => parseInt(paletteForShift(shift).identityColor.slice(i, i + 2), 16));
+      expect((0.2126 * r + 0.7152 * g + 0.0722 * b) / 255).toBeGreaterThanOrEqual(0.31);
+    }
+  });
+
+  test("new hues keep away from the roster's, and starters are spread out", () => {
+    const sequence = [0.01, 0.02, 0.5, 0.03];
+    let index = 0;
+    expect(distinctHueShift([0, 10], () => sequence[index++ % sequence.length])).toBe(180);
+    const shifts = createGuild().heroes.map((hero) => hero.appearance.hueShift).sort((a, b) => a - b);
+    expect(shifts[1] - shifts[0]).toBe(120);
+    expect(shifts[2] - shifts[1]).toBe(120);
   });
 
   test("every new hero gets their own look and a trait", () => {

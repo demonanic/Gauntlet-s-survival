@@ -1248,7 +1248,9 @@ export class Engine {
       let dt = (now - this.last) / 1000;
       this.last = now;
       if (dt > 0.05) dt = 0.05;
-      this.update(dt * this.speed);
+      // Fast-forward in normal-sized steps so 4x/8x play matches 1x physics.
+      const steps = Math.max(1, Math.ceil(this.speed));
+      for (let i = 0; i < steps && !this.ended; i += 1) this.update((dt * this.speed) / steps);
       this.render();
       if (!this.ended) requestAnimationFrame(this._loop);
     } catch (err) {

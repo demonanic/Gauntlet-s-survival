@@ -27,8 +27,8 @@ export default function HeroRow({ hero, status, injuredUntil, now, selected, onS
         label={hero.identity.name}
       />
       <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2">
-          <span className="truncate font-display text-sm font-bold" style={{ color: hero.appearance?.identityColor }}>{hero.identity.name}</span>
+        <div className="flex flex-wrap items-baseline gap-x-2">
+          <span className="max-w-full truncate font-display text-sm font-bold" style={{ color: hero.appearance?.identityColor }}>{hero.identity.name}</span>
           <span className="font-mono-g text-[10px] text-slate-400">LV {level}</span>
           {TRAITS[hero.traits?.[0]] && (
             <span className="truncate font-mono-g text-[10px] text-slate-500" title={TRAITS[hero.traits[0]].desc}>

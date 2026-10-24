@@ -68,7 +68,9 @@ export function getCombatVfxImage(assetId, cache, options = {}) {
   const ImageConstructor = options.ImageConstructor || (typeof Image === "undefined" ? null : Image);
   if (!ImageConstructor) return null;
   const image = new ImageConstructor();
-  image.src = `${options.publicUrl ?? (typeof process !== "undefined" ? process.env.PUBLIC_URL || "" : "")}${path}`;
+  // Vite replaces process.env.PUBLIC_URL at build time, so no runtime `process` check
+  // (in a browser that check is always false and dropped the GitHub Pages base path).
+  image.src = `${options.publicUrl ?? (process.env.PUBLIC_URL || "")}${path}`;
   cache.set(assetId, image);
   return image;
 }
