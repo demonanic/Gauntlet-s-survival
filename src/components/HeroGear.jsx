@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { CONSUMABLE_KEYS, CONSUMABLES, GEAR_SLOT_LABELS, GEAR_SLOTS, GEAR_STAT_LABELS, QUICK_SLOT_COUNT } from "../combat/gear";
-import { RARITIES, formatGearStats, gearStatDelta, heroCombatSummary } from "../game/items";
+import {
+  MAX_UPGRADE, RARITIES, formatGearStats, gearStatDelta, heroCombatSummary, itemLabel, upgradeCost,
+} from "../game/items";
 import { NeonButton } from "./ui";
 
 function DeltaText({ delta }) {
@@ -21,13 +23,15 @@ function ItemName({ item }) {
   const rarity = RARITIES[item.rarity] || RARITIES.common;
   return (
     <span className="font-bold" style={{ color: rarity.color }}>
-      {item.name} <span className="font-normal text-slate-500">T{item.tier}</span>
+      {itemLabel(item)} <span className="font-normal text-slate-500">T{item.tier}</span>
     </span>
   );
 }
 
 // Per-hero gear sheet: seven gear slots plus two consumable quick slots.
-export default function HeroGear({ hero, vault, stash, locked, onEquip, onUnequip, onLoadQuick, onUnloadQuick, onClose }) {
+export default function HeroGear({
+  hero, vault, stash, gold, locked, onEquip, onUnequip, onLoadQuick, onUnloadQuick, onUpgrade, onClose,
+}) {
   const [picking, setPicking] = useState(null); // { type: "gear", slot } | { type: "quick", index }
   const summary = heroCombatSummary(hero);
   const equipment = hero.equipment || {};
@@ -106,7 +110,19 @@ export default function HeroGear({ hero, vault, stash, locked, onEquip, onUnequi
             <div className="mb-1 flex items-center justify-between">
               <span className="font-bold text-cyan-200">{GEAR_SLOT_LABELS[picking.slot]} · vault</span>
               {equipment[picking.slot] && (
-                <NeonButton color="#94A3B8" onClick={() => { onUnequip(picking.slot); setPicking(null); }}>Unequip</NeonButton>
+                <div className="flex gap-1">
+                  {(equipment[picking.slot].upgrade || 0) < MAX_UPGRADE && (
+                    <NeonButton
+                      color="#FF6600"
+                      disabled={gold < upgradeCost(equipment[picking.slot])}
+                      onClick={() => onUpgrade(equipment[picking.slot].id)}
+                      data-testid="gear-forge"
+                    >
+                      Forge {upgradeCost(equipment[picking.slot])}g
+                    </NeonButton>
+                  )}
+                  <NeonButton color="#94A3B8" onClick={() => { onUnequip(picking.slot); setPicking(null); }}>Unequip</NeonButton>
+                </div>
               )}
             </div>
             {candidates.length === 0 && <p className="text-slate-500">No {GEAR_SLOT_LABELS[picking.slot].toLowerCase()} gear in the vault.</p>}

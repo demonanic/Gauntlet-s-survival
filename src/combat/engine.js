@@ -125,6 +125,7 @@ function heroMovementSpeed(hero, legacyBase, currentTime, applyLegacyModifiers =
 }
 
 const LANES = 5;
+const ENDLESS_WAVE_BREAK_SECONDS = 3;
 function laneX(i) { return (W / LANES) * (i + 0.5); }
 
 export const LAYOUT = { W, H, HERO_Y, FLOOR_Y };
@@ -147,6 +148,7 @@ export class Engine {
     this.floaters = [];
     this.effects = [];
     this.killed = 0;
+    this.wavesCleared = 0;
     this.xpGains = { heroes: {}, towers: {} };
     this.sim.vault = Array.isArray(this.sim.vault) ? this.sim.vault : [];
     this.time = 0;
@@ -1206,6 +1208,11 @@ export class Engine {
     return 1 + (src.ammoBonus || 0);
   }
 
+  // Gauntlet scales summoned minions to the encounter through sim.makeMinion.
+  _summon(type) {
+    this.injectEnemy(this.sim.makeMinion ? this.sim.makeMinion(type) : makeSingleEnemy(this.sim, type));
+  }
+
   injectEnemy(e) {
     e.x = laneX(pickLane(this, e)); e.y = 12;
     e.lane = Math.round(e.x / (W / LANES) - 0.5);
@@ -1214,6 +1221,21 @@ export class Engine {
     this.wave.total += 1;
   }
   forceDefeat() { this.forcedDefeat = true; }
+
+  // Gauntlet endless mode: the player ends the fight and keeps what was earned.
+  returnHome() {
+    if (this.ended) return false;
+    this.ended = true;
+    this.stop();
+    this.cb.onEnd && this.cb.onEnd({
+      victory: true,
+      reason: "returned",
+      xpGains: this.xpGains,
+      killed: this.killed,
+      wavesCleared: this.wavesCleared,
+    });
+    return true;
+  }
   forceWin() { this.spawnQueue = []; this.active = []; }
 
   _loop(now) {
@@ -1506,12 +1528,36 @@ export class Engine {
     // living hero or tower inside the boss's configured attack range.
     if (e.boss) {
       e.abilityCd = (e.abilityCd == null ? 5 : e.abilityCd) - dt;
+      // Gauntlet boss identities: the Abomination enrages once, below 35% HP.
+      if (e.type === "nuclearBehemoth" && !e.enraged && e.hp < e.maxHp * 0.35) {
+        e.enraged = true;
+        e.speed *= 1.5;
+        e.damage *= 1.3;
+        this._float(e.x, e.y - 34, "ENRAGED", "#84CC16");
+        this.effects.push({ x: e.x, y: e.y, r: 46, life: 0.6, color: "#84CC16", ring: true });
+      }
       if (e.abilityCd <= 0) {
         const range = e.attackRange || 420;
         const target = this._nearestDefender(e.x, e.y, range);
-        if (target) {
-          e.abilityCd = 6;
-          for (let k = 0; k < 2; k++) this.injectEnemy(makeSingleEnemy(this.sim, "skeleton"));
+        if (e.type === "nuclearBehemoth") {
+          // Toxic slam: no minions, heavy damage to every hero close by.
+          if (this._nearestDefender(e.x, e.y, 110)) {
+            e.abilityCd = e.enraged ? 3.5 : 5;
+            this.effects.push({ x: e.x, y: e.y, r: 100, life: 0.45, color: "#84CC16", ring: true });
+            this._explodeNapalm(e.x, e.y, { dmg: e.damage * 1.1, splash: 100 });
+          } else {
+            e.abilityCd = 0.5;
+          }
+        } else if (target) {
+          if (e.type === "imperialNecromancer") {
+            // Raise dead: a larger, slower pack of minions, plus a soul bomb.
+            e.abilityCd = 8;
+            for (const type of ["skeleton", "skeleton", "ghost"]) this._summon(type);
+            this._float(e.x, e.y - 34, "RAISE DEAD", e.color);
+          } else {
+            e.abilityCd = 6;
+            for (let k = 0; k < 2; k++) this._summon("skeleton");
+          }
           this._throwNapalm(e, target);
         } else {
           e.abilityCd = 1;
@@ -2561,6 +2607,7 @@ export class Engine {
       total: this.wave.total, killed: this.killed,
       remaining: this.active.length + this.spawnQueue.length,
       gold: this.sim.gold,
+      wave: this.wavesCleared + 1,
       heroes: this.heroes.map((h) => ({ name: h.ref.name, hp: h.ref.hp, maxHp: h.d.maxHp, alive: h.alive, shield: h.ref.shield || 0 })),
       heroAbilities: this.heroes.map((h) => this.getHeroAbilityStatus(h.i)),
       heroSpells: this.heroes.map((h) => this.getHeroSpellStatus(h.i)),
@@ -2584,12 +2631,26 @@ export class Engine {
         reason: "heroes",
         xpGains: this.xpGains,
         killed: this.killed,
+        wavesCleared: this.wavesCleared,
       });
       return;
     }
 
     // Victory requires the entire squad to be resolved while at least one hero is alive.
     if (this.spawnQueue.length === 0 && this.active.length === 0) {
+      // Gauntlet endless mode: a cleared wave rolls straight into the next one
+      // after a short breather. The fight only ends on a wipe or returnHome().
+      if (this.cb.nextWave) {
+        this.wavesCleared += 1;
+        const next = this.cb.nextWave(this.wavesCleared);
+        if (next?.enemies?.length) {
+          this.wave = { ...next, total: next.enemies.length };
+          this.spawnQueue = [...next.enemies];
+          this.spawnTimer = ENDLESS_WAVE_BREAK_SECONDS;
+          this._float(W / 2, H * 0.4, `WAVE ${this.wavesCleared + 1}`, "#00F3FF");
+          return;
+        }
+      }
       this.ended = true;
       this.stop();
       this.cb.onEnd && this.cb.onEnd({
@@ -2597,6 +2658,7 @@ export class Engine {
         reason: "cleared",
         xpGains: this.xpGains,
         killed: this.killed,
+        wavesCleared: this.wavesCleared,
       });
     }
   }

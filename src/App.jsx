@@ -5,20 +5,25 @@ import HeroGear from "./components/HeroGear";
 import { NeonButton, Panel } from "./components/ui";
 import { allocateClasslessStat, purchaseClasslessNode } from "./combat/classlessProgression";
 import {
-  currentEncounterParty, dismissReport, findHero, recallExpedition, recruitHero, resolveEncounter,
-  startExpedition, tick, updateHero,
+  currentEncounterParty, currentEncounterWave, dismissReport, findHero, recallExpedition, recruitHero,
+  resolveEncounter, startExpedition, tick, treatInjury, updateHero,
 } from "./game/guild";
 import {
-  buyConsumable, equipGear, loadQuickSlot, sellGear, unequipGear, unloadQuickSlot,
+  buyConsumable, equipGear, loadQuickSlot, sellGear, unequipGear, unloadQuickSlot, upgradeGear,
 } from "./game/items";
+import { buyShopItem, rerollShop } from "./game/shop";
 import { getRegion } from "./game/regions";
 import { clearGuild, loadGuild, saveGuild } from "./game/storage";
 import Battle from "./screens/Battle";
 import ExpeditionBoard from "./screens/ExpeditionBoard";
 import GuildHall from "./screens/GuildHall";
+import Market from "./screens/Market";
 
 const TICK_MS = 500;
-const OUTCOME_TITLE = { victory: "Expedition conquered", retreat: "Party routed", recalled: "Party recalled" };
+const OUTCOME_TITLE = {
+  victory: "Expedition conquered", retreat: "Party routed", recalled: "Party recalled", returned: "Back from the Rift",
+};
+const TABS = [["hall", "Guild Hall"], ["market", "Market"], ["board", "Expeditions"]];
 
 export default function App() {
   const [guild, setGuild] = useState(() => tick(loadGuild(), Date.now()));
@@ -72,12 +77,15 @@ export default function App() {
         </div>
       )}
 
-      <nav className="mb-3 grid grid-cols-2 gap-2">
-        <NeonButton color={tab === "hall" ? "#00F3FF" : "#475569"} onClick={() => setTab("hall")}>Guild Hall</NeonButton>
-        <NeonButton color={tab === "board" ? "#00F3FF" : "#475569"} onClick={() => setTab("board")}>Expeditions</NeonButton>
+      <nav className="mb-3 grid grid-cols-3 gap-2">
+        {TABS.map(([id, label]) => (
+          <NeonButton key={id} color={tab === id ? "#00F3FF" : "#475569"} onClick={() => setTab(id)} data-testid={`tab-${id}`}>
+            {label}
+          </NeonButton>
+        ))}
       </nav>
 
-      {tab === "hall" ? (
+      {tab === "hall" && (
         <GuildHall
           guild={guild}
           now={now}
@@ -85,9 +93,20 @@ export default function App() {
           onOpenPerks={setPerkHeroId}
           onOpenGear={setGearHeroId}
           onSell={(itemId) => apply((current) => sellGear(current, itemId))}
-          onBuy={(key, qty) => apply((current) => buyConsumable(current, key, qty))}
+          onUpgrade={(itemId) => apply((current) => upgradeGear(current, itemId))}
+          onTreat={(heroId) => apply((current) => treatInjury(current, heroId, Date.now()))}
         />
-      ) : (
+      )}
+      {tab === "market" && (
+        <Market
+          guild={guild}
+          now={now}
+          onBuyItem={(itemId) => apply((current) => buyShopItem(current, itemId, Date.now()))}
+          onReroll={() => apply((current) => rerollShop(current, Date.now()))}
+          onBuySupply={(key, qty) => apply((current) => buyConsumable(current, key, qty))}
+        />
+      )}
+      {tab === "board" && (
         <ExpeditionBoard
           guild={guild}
           now={now}
@@ -128,6 +147,8 @@ export default function App() {
           onUnequip={(slot) => apply((current) => unequipGear(current, gearHeroId, slot))}
           onLoadQuick={(index, key) => apply((current) => loadQuickSlot(current, gearHeroId, index, key))}
           onUnloadQuick={(index) => apply((current) => unloadQuickSlot(current, gearHeroId, index))}
+          onUpgrade={(itemId) => apply((current) => upgradeGear(current, itemId))}
+          gold={guild.gold}
           onClose={() => setGearHeroId(null)}
         />
       )}
@@ -150,6 +171,7 @@ export default function App() {
         <Battle
           expedition={guild.expedition}
           party={currentEncounterParty(guild)}
+          createWave={() => currentEncounterWave(guild)}
           onComplete={(outcome) => {
             apply((current) => resolveEncounter(current, outcome, Date.now()));
             setInBattle(false);

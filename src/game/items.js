@@ -16,9 +16,18 @@ export const RARITIES = Object.freeze({
 });
 export const RARITY_ORDER = Object.freeze(["common", "uncommon", "rare", "epic"]);
 
-// Region tier (1 = The Gutter, 3 = Ashen Keep) scales every stat.
-const TIER_MULT = [1, 1.6, 2.4];
-const tierMult = (tier) => TIER_MULT[Math.min(TIER_MULT.length, Math.max(1, tier)) - 1];
+// Gear tier scales every stat: 1 = The Gutter, 2 = Boneyard Crypt, 3 = Ashen Keep.
+// Higher tiers come from ranked bosses, deep Rift waves and the shop's featured item.
+export const MAX_GEAR_TIER = 10;
+const clampTier = (tier) => Math.min(MAX_GEAR_TIER, Math.max(1, Math.floor(tier) || 1));
+export function tierMult(tier) {
+  const t = clampTier(tier);
+  return t <= 3 ? [1, 1.6, 2.4][t - 1] : 2.4 + 0.8 * (t - 3);
+}
+
+// Forge: each upgrade level adds 15% of the item's base stats, up to +5.
+export const MAX_UPGRADE = 5;
+const UPGRADE_STEP = 0.15;
 
 // Common, tier-1 stats per slot variant. critChance is a fraction (0.03 = 3%).
 export const GEAR_TEMPLATES = Object.freeze({
@@ -82,13 +91,7 @@ export function createGearItem({ slot, variant, rarity = "common", tier = 1 } = 
   if (!templates) throw new RangeError(`Unknown gear slot ${slot}`);
   const template = templates.find((entry) => entry.id === variant) || templates[Math.floor(rng() * templates.length)];
   const info = RARITIES[rarity] || RARITIES.common;
-  const scale = info.mult * tierMult(tier);
-  const stats = {};
-  for (const [key, base] of Object.entries(template.stats)) {
-    stats[key] = key === "critChance"
-      ? Math.round(base * scale * 100) / 100
-      : Math.max(1, Math.round(base * scale));
-  }
+  const stats = scaleStats(template.stats, info.mult * tierMult(tier));
   return {
     id: newItemId(),
     kind: "gear",
@@ -96,11 +99,59 @@ export function createGearItem({ slot, variant, rarity = "common", tier = 1 } = 
     variant: template.id,
     name: `${info.word} ${template.name}`,
     rarity: info.key,
-    tier: Math.min(TIER_MULT.length, Math.max(1, tier)),
+    tier: clampTier(tier),
     ...(template.weaponType ? { weaponType: template.weaponType } : {}),
     stats,
     value: Math.round(info.sell * tierMult(tier)),
   };
+}
+
+function scaleStats(stats, scale) {
+  const scaled = {};
+  for (const [key, base] of Object.entries(stats)) {
+    scaled[key] = key === "critChance"
+      ? Math.round(base * scale * 100) / 100
+      : Math.max(1, Math.round(base * scale));
+  }
+  return scaled;
+}
+
+export function itemLabel(item) {
+  return `${item.name}${item.upgrade ? ` +${item.upgrade}` : ""}`;
+}
+
+export function upgradeCost(item) {
+  const info = RARITIES[item.rarity] || RARITIES.common;
+  return Math.round(30 * info.mult * tierMult(item.tier) * ((item.upgrade || 0) + 1) ** 1.5);
+}
+
+// Find a gear item in the vault or on any hero (with that hero's id).
+function locateGear(state, itemId) {
+  const inVault = state.vault.find((item) => item.id === itemId);
+  if (inVault) return { item: inVault, ownerId: null };
+  for (const hero of state.heroes) {
+    for (const item of Object.values(hero.equipment || {})) {
+      if (item?.id === itemId) return { item, ownerId: hero.identity.id };
+    }
+  }
+  return {};
+}
+
+// Forge upgrade. Works on vault gear and on gear worn by heroes who are home.
+export function upgradeGear(state, itemId) {
+  const next = serializeGameState(state);
+  const { item, ownerId } = locateGear(next, itemId);
+  if (!item) return { ok: false, reason: "unknown_item" };
+  if (ownerId && next.expedition?.heroIds.includes(ownerId)) return { ok: false, reason: "hero_away" };
+  if ((item.upgrade || 0) >= MAX_UPGRADE) return { ok: false, reason: "max_upgrade" };
+  const cost = upgradeCost(item);
+  if (next.gold < cost) return { ok: false, reason: "insufficient_gold" };
+  next.gold -= cost;
+  item.baseStats ||= { ...item.stats };
+  item.upgrade = (item.upgrade || 0) + 1;
+  item.stats = scaleStats(item.baseStats, 1 + UPGRADE_STEP * item.upgrade);
+  item.value = Math.round((item.value || 0) + cost * 0.25);
+  return { ok: true, state: next };
 }
 
 export function isConsumableDrop(item) {

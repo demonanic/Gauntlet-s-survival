@@ -2,7 +2,8 @@ import { useState } from "react";
 import HeroRow from "../components/HeroRow";
 import { NeonButton, Panel } from "../components/ui";
 import { heroStatus, MAX_PARTY_SIZE } from "../game/guild";
-import { REGIONS } from "../game/regions";
+import * as C from "../combat/config";
+import { REGIONS, bossForRank } from "../game/regions";
 
 export default function ExpeditionBoard({ guild, now, onLaunch }) {
   const [regionId, setRegionId] = useState(REGIONS[0].id);
@@ -34,10 +35,17 @@ export default function ExpeditionBoard({ guild, now, onLaunch }) {
               <div className="flex items-baseline justify-between">
                 <span className="font-display text-sm font-bold" style={{ color: entry.color }}>{entry.name}</span>
                 <span className="font-mono-g text-[10px] text-slate-400">
-                  {entry.encounters.length} encounters · LV {entry.minLevel}+ · {entry.completionGold}g bounty
+                  {entry.endless
+                    ? `Endless waves · LV ${entry.minLevel}+ · best wave ${guild.records?.riftBest || 0}`
+                    : `${entry.encounters.length} encounters · LV ${entry.minLevel}+ · ${entry.completionGold}g bounty`}
                 </span>
               </div>
               <p className="font-mono-g text-[11px] text-slate-400">{entry.blurb}</p>
+              {entry.bossRotation && (
+                <p className="font-mono-g text-[10px] text-red-300" data-testid="next-boss">
+                  Final boss: {C.ENEMIES[bossForRank(guild.bossRank || 0)].name} · rank {(guild.bossRank || 0) + 1}
+                </p>
+              )}
               {guild.clears[entry.id] > 0 && (
                 <p className="font-mono-g text-[10px] text-emerald-300">Cleared ×{guild.clears[entry.id]}</p>
               )}
