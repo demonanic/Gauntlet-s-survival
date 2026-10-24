@@ -1,5 +1,6 @@
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
-import { ADVENTURE, STORIES, moraleLabel } from "../game/adventure";
+import { ADVENTURE, STORIES, WEATHER, moraleLabel } from "../game/adventure";
+import { RARITIES, formatGearStats } from "../game/items";
 import { getRegion } from "../game/regions";
 import { Bar, NeonButton, Panel, formatSeconds } from "./ui";
 
@@ -18,7 +19,7 @@ function clock(ms) {
 }
 
 // The prompt for whatever the party is waiting on: a fight, a sneak, a story choice.
-function PendingPrompt({ pending, now, onAttack, onChoose }) {
+function PendingPrompt({ pending, now, gold, onAttack, onChoose }) {
   const decideIn = ADVENTURE.autoDecideMs - (now - pending.promptAt);
   const button = (label, color, onClick, testId) => (
     <NeonButton key={testId} color={color} onClick={onClick} data-testid={testId}>{label}</NeonButton>
@@ -46,18 +47,32 @@ function PendingPrompt({ pending, now, onAttack, onChoose }) {
       button("Enter the Rift", "#00F3FF", onAttack, "prompt-attack"),
       button("Head home", "#94A3B8", () => onChoose("leave"), "prompt-leave"),
     ];
+  } else if (pending.kind === "merchant") {
+    title = pending.text;
+    actions = [
+      <NeonButton key="buy" color="#FFE600" disabled={gold < pending.price} onClick={() => onChoose("buy")} data-testid="prompt-buy">
+        Buy · {pending.price}g
+      </NeonButton>,
+      button("Pass", "#94A3B8", () => onChoose("decline"), "prompt-decline"),
+    ];
   } else {
     const story = STORIES[pending.story];
-    title = story.prompt;
+    title = pending.text || story.prompt;
     actions = story.options.map((option) => button(option.label, "#38BDF8", () => onChoose(option.id), `prompt-${option.id}`));
   }
   return (
     <div className="mt-2 rounded border border-yellow-300/50 bg-yellow-300/5 p-2" data-testid="expedition-prompt">
       <p className="font-mono-g text-[11px] font-bold text-yellow-200">{title}</p>
+      {pending.kind === "merchant" && (
+        <p className="font-mono-g text-[10px]">
+          <span style={{ color: (RARITIES[pending.item.rarity] || RARITIES.common).color }}>{pending.item.name}</span>
+          <span className="ml-2 text-slate-400">{formatGearStats(pending.item.stats)} · T{pending.item.tier} · you have {gold}g</span>
+        </p>
+      )}
       <div className="mt-2 flex flex-wrap gap-2">{actions}</div>
       {pending.engagedAt == null && (
         <p className="mt-1 font-mono-g text-[10px] text-slate-500">
-          The party decides on their own in {formatSeconds(decideIn)}.
+          {pending.kind === "merchant" ? "The merchant moves on" : "The party decides on their own"} in {formatSeconds(decideIn)}.
         </p>
       )}
     </div>
@@ -82,7 +97,12 @@ export default function ExpeditionPanel({ guild, now, onAttack, onChoose, onReca
           {remaining == null ? "Endless" : pending ? `Paused · ${clock(remaining)} left` : `${clock(remaining)} left`}
         </span>
       </div>
-      {run.durationMs && <Bar value={run.durationMs - remaining} max={run.durationMs} color={region.color} className="my-1.5" />}
+      {run.durationMs && <Bar value={Math.max(0, run.durationMs - remaining)} max={run.durationMs} color={region.color} className="my-1.5" />}
+      {run.weather && (
+        <p className="mb-1 font-mono-g text-[10px] text-slate-400" data-testid="expedition-conditions">
+          {run.night ? "Night" : "Day"} · {WEATHER[run.weather]?.name}{run.scouted ? " · Scouted ahead" : ""}{run.treasureAt != null ? " · Following a treasure map" : ""}
+        </p>
+      )}
 
       <div className="grid grid-cols-[auto_1fr] items-center gap-x-2 gap-y-1 font-mono-g text-[10px]">
         <span className="text-slate-400">Morale</span>
@@ -98,7 +118,7 @@ export default function ExpeditionPanel({ guild, now, onAttack, onChoose, onReca
         ))}
       </div>
 
-      {pending && <PendingPrompt pending={pending} now={now} onAttack={onAttack} onChoose={onChoose} />}
+      {pending && <PendingPrompt pending={pending} now={now} gold={guild.gold} onAttack={onAttack} onChoose={onChoose} />}
 
       <ul className="mt-2 space-y-0.5 font-mono-g text-[10px]" data-testid="adventure-feed">
         {feed.map((entry, index) => (

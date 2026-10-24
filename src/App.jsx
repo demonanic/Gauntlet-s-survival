@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import NotificationToggle, { useAdventureNotifications } from "./components/AdventureNotifications";
 import ClasslessPerkTree from "./components/ClasslessPerkTree";
 import DebugPanel from "./components/DebugPanel";
 import CloudSync from "./components/CloudSync";
@@ -41,6 +42,7 @@ export default function App() {
   const [perkHeroId, setPerkHeroId] = useState(null);
   const [gearHeroId, setGearHeroId] = useState(null);
   const [recruiting, setRecruiting] = useState(false);
+  const notifications = useAdventureNotifications(guild);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -136,7 +138,8 @@ export default function App() {
         />
       )}
 
-      <footer className="mt-6 text-center">
+      <footer className="mt-6 flex flex-col items-center gap-2 text-center">
+        <NotificationToggle state={notifications} />
         <button
           type="button"
           className="font-mono-g text-[10px] text-slate-600 underline"

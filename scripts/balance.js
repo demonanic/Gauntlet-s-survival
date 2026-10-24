@@ -154,13 +154,14 @@ function runExpedition(state, clock, region, party, active) {
   const started = startExpedition(state, region.id, party, clock);
   if (!started.ok) throw new Error(`could not start ${region.id}: ${started.reason}`);
   state = started.state;
-  const until = region.endless ? clock : clock + expeditionDurationMs(state, region);
-  state = tick(state, until + 1, { onStep: active ? activePlayer : null });
+  // Detours (treasure maps) can run past the planned length, so allow an hour extra.
+  const until = region.endless ? clock : clock + expeditionDurationMs(state, region) + 60 * 60_000;
+  state = tick(state, until, { onStep: active ? activePlayer : null });
   if (state.expedition) throw new Error(`${region.id} expedition did not finish`);
   const report = state.lastReport;
   return {
     state,
-    clock: until + report.stats.autoFightSeconds * 1000,
+    clock: report.endedAt + report.stats.autoFightSeconds * 1000,
     reached: region.endless ? report.wavesCleared || 0 : report.stats.fights,
     outcome: report.outcome,
     gold: report.loot.gold,

@@ -30,7 +30,15 @@ abilities, move orders and speed controls.
 6. **Morale** rises and falls with the feed (wins, finds, scares) and gives up to ±10%
    damage. HP carries over between fights, with slow healing on the road; fallen heroes
    sit out the rest of the trip. Recall the party at any time to keep the loot.
-7. **End boss:** Boneyard Crypt and Ashen Keep end with their boss. Win for the region
+7. **World:** each trip has weather (clear, rain, fog, storm) and knows whether it's
+   night (local time). Night means more ambushes but better finds; fog helps sneaking;
+   storms bring hazards. Heroes banter in the feed about their traits and the mood.
+   Rare events: a **wandering merchant** selling better gear for guild gold, a **treasure
+   map** detour that ends in a stash, and **legendary monsters** with a hoard. Trips of 20
+   minutes or more stop to **make camp** halfway: rest, scout ahead (better sneak odds) or
+   forage. Turn on **Notifications** (bottom of the page) to hear about bosses, legends,
+   merchants, treasure and the party coming home while the game is in the background.
+8. **End boss:** Boneyard Crypt and Ashen Keep end with their boss. Win for the region
    bounty, or head home without it. A wiped party comes home with half the loot.
 
 ### Heroes

@@ -8,7 +8,17 @@ import { heroTraitEffects } from "../combat/traits";
 export const ADVENTURE = Object.freeze({
   // Seconds between feed events (random within the range).
   eventEverySeconds: [20, 40],
-  eventWeights: Object.freeze({ flavor: 40, find: 20, hazard: 12, encounter: 22, story: 6 }),
+  eventWeights: Object.freeze({ flavor: 40, find: 20, hazard: 12, encounter: 22, story: 6, rare: 3 }),
+  // Share of flavor events told as a hero's own banter instead.
+  banterShare: 0.35,
+  // Chance per event that the weather turns.
+  weatherChangeChance: 0.06,
+  // Long trips (this many minutes or more) stop to make camp halfway.
+  campFromMinutes: 20,
+  // A treasure map detour adds this long to the trip; the stash is found at its end.
+  treasureDetourMs: 3 * 60_000,
+  // Night is from 20:00 to 06:00 local time.
+  nightHours: Object.freeze([20, 6]),
   // Share of encounters that are ambushes (no choice) rather than sightings.
   ambushShare: 0.35,
   // An unanswered prompt is decided by the party after this long.
@@ -159,6 +169,23 @@ export const STORIES = Object.freeze({
     ],
     auto: ({ partyHp }) => (partyHp < 0.8 ? "rest" : "press"),
   },
+  camp: {
+    prompt: "Halfway there. The party makes camp for the night watch.",
+    options: [
+      { id: "rest", label: "Rest", result: "The party sleeps in shifts and wakes refreshed.", effects: { healAll: 0.3, morale: 5 } },
+      { id: "scout", label: "Scout ahead", result: "{hero} scouts the path ahead and marks the safest routes.", effects: { scout: true, morale: 2 } },
+      { id: "forage", label: "Forage", result: "The party spreads out to search the area.", effects: { forage: true } },
+    ],
+    auto: ({ partyHp }) => (partyHp < 0.7 ? "rest" : "forage"),
+  },
+  map: {
+    prompt: "{hero} finds a scrap of map with an X scrawled on it. A detour, maybe three minutes.",
+    options: [
+      { id: "follow", label: "Follow the map", result: "The party turns off the path to follow the map.", effects: { extend: true, treasure: true } },
+      { id: "ignore", label: "Ignore it", result: "Probably a trap anyway.", effects: {} },
+    ],
+    auto: () => "follow",
+  },
   fork: {
     prompt: "The path forks: a dark shortcut, or the long, well-trodden way.",
     options: [
@@ -168,7 +195,8 @@ export const STORIES = Object.freeze({
     auto: () => "safe",
   },
 });
-export const STORY_KEYS = Object.freeze(Object.keys(STORIES));
+// Stories that come up at random on the road (camp and map are triggered by the trip itself).
+export const STORY_KEYS = Object.freeze(["shrine", "traveler", "chest", "campfire", "fork"]);
 
 // ---------------- sneaking ----------------
 // Shadowcraft and Illusion perks make a party quieter.
@@ -177,7 +205,8 @@ const STEALTH_TRAITS = new Set(["nimble", "swift"]);
 const WATCHFUL = new Set(["ghost", "reaper", "darkElf", "warlock", "lieutenant"]);
 
 // Chance (0.05 to 0.95) that `party` slips past `wave` unseen.
-export function sneakChance(party, wave, morale, region) {
+// `bonus` adds the trip's conditions (fog, night, scouting) on top.
+export function sneakChance(party, wave, morale, region, bonus = 0) {
   if (!party.length) return 0;
   const avg = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;
   let chance = 0.55;
@@ -190,5 +219,82 @@ export function sneakChance(party, wave, morale, region) {
   chance -= Math.max(0, wave.enemies.length - 2) * 0.06;
   chance -= wave.enemies.filter((enemy) => WATCHFUL.has(enemy.type)).length * 0.04;
   chance += (clampMorale(morale) - 50) / 500;
+  chance += bonus;
   return Math.max(0.05, Math.min(0.95, chance));
+}
+
+// ---------------- banter ----------------
+// Lines a hero says because of who they are (trait) or how the trip is going (morale).
+const BANTER = {
+  brawny: ["{hero} carries everyone's packs without being asked.", "{hero} flexes at a statue. The statue loses."],
+  keenEye: ["{hero} points out a crack in the wall nobody else noticed.", "\"Movement, two o'clock,\" says {hero}. It's a rat. Probably."],
+  nimble: ["{hero} hops from stone to stone to keep their boots dry.", "{hero} juggles three pebbles while walking. Show-off."],
+  ironhide: ["{hero} shrugs off a falling rock. \"Felt nothing.\"", "{hero} knocks on their own armor for luck."],
+  berserker: ["{hero} cracks their knuckles. \"Something had better jump out soon.\"", "{hero} grins at every distant growl."],
+  quickHands: ["{hero} has already re-tied everyone's laces.", "{hero} spins a dagger between their fingers, bored."],
+  medic: ["{hero} checks everyone's bandages. Twice.", "{hero} lectures the party about drinking enough water."],
+  fastLearner: ["{hero} scribbles notes about the local monsters.", "{hero} has started naming the rats. For science."],
+  treasureHunter: ["{hero} keeps prying at loose bricks, hoping for gold.", "{hero} insists that every shiny thing is worth a look."],
+  glassCannon: ["{hero} flinches at a drip of water, weapon already raised.", "\"Let me hit it first,\" {hero} says, about everything."],
+  stalwart: ["{hero} takes the front without a word.", "{hero} plants their feet whenever the floor creaks."],
+  swift: ["{hero} scouts ahead and back again before anyone blinks.", "{hero} keeps having to wait for the others to catch up."],
+  high: ["{hero} is grinning ear to ear. This is the good stuff.", "{hero} starts a marching song and everyone joins in."],
+  low: ["{hero} mutters that this was a terrible idea.", "{hero} keeps glancing back toward the exit."],
+};
+
+// A banter line for `hero`, or null if they have nothing to say.
+export function rollBanter(hero, morale, rng = Math.random) {
+  const pools = [...(hero.traits || []).map((key) => BANTER[key]).filter(Boolean)];
+  if (morale >= 75) pools.push(BANTER.high);
+  if (morale <= 30) pools.push(BANTER.low);
+  if (!pools.length) return null;
+  const pool = pick(pools, rng);
+  return { template: null, text: pick(pool, rng).replaceAll("{hero}", hero.identity.name), morale: pool === BANTER.low ? -2 : 1, tone: "flavor" };
+}
+
+// ---------------- time of day and weather ----------------
+export const WEATHER = Object.freeze({
+  clear: { key: "clear", name: "Clear", intro: "Clear air and good footing.", weight: 45, sneak: 0, ambush: 0, hazard: 1, loot: 1, moralePerEvent: 0.5 },
+  rain: { key: "rain", name: "Rain", intro: "Rain hammers down. The noise covers their footsteps, and the floors run slick.", weight: 25, sneak: 0.05, ambush: 0, hazard: 1.3, loot: 1, moralePerEvent: -0.5 },
+  fog: { key: "fog", name: "Fog", intro: "A thick fog rolls in. Easy to hide in, easy to be surprised in.", weight: 18, sneak: 0.12, ambush: 0.1, hazard: 1, loot: 1, moralePerEvent: 0 },
+  storm: { key: "storm", name: "Storm", intro: "A storm howls overhead. Everything shakes.", weight: 12, sneak: 0.05, ambush: 0.05, hazard: 1.6, loot: 1.15, moralePerEvent: -1.5 },
+});
+const WEATHER_KEYS = Object.keys(WEATHER);
+const NIGHT = Object.freeze({ sneak: 0.05, ambush: 0.15, loot: 1.3 });
+
+export function rollWeather(rng = Math.random, except = null) {
+  const keys = WEATHER_KEYS.filter((key) => key !== except);
+  let roll = rng() * keys.reduce((sum, key) => sum + WEATHER[key].weight, 0);
+  for (const key of keys) {
+    roll -= WEATHER[key].weight;
+    if (roll < 0) return key;
+  }
+  return keys[keys.length - 1];
+}
+
+export function isNight(at) {
+  const hour = new Date(at).getHours();
+  const [dusk, dawn] = ADVENTURE.nightHours;
+  return hour >= dusk || hour < dawn;
+}
+
+// Everything the trip's conditions change, combined.
+export function conditionEffects(weatherKey, night, scouted = false) {
+  const weather = WEATHER[weatherKey] || WEATHER.clear;
+  return {
+    sneak: weather.sneak + (night ? NIGHT.sneak : 0) + (scouted ? 0.15 : 0),
+    ambush: weather.ambush + (night ? NIGHT.ambush : 0),
+    hazard: weather.hazard,
+    loot: weather.loot * (night ? NIGHT.loot : 1),
+    moralePerEvent: weather.moralePerEvent,
+  };
+}
+
+// ---------------- rare events ----------------
+export const RARE_EVENTS = Object.freeze(["merchant", "map", "legend"]);
+export const LEGENDARY = Object.freeze({ hp: 5, dmg: 1.6, rewardGold: [60, 140] });
+const LEGEND_TITLES = ["the Undying", "Gutterking", "the Hollow", "Ironjaw", "the Ash-Born", "Old Bones", "the Patient"];
+
+export function legendName(base, rng = Math.random) {
+  return `${base} ${pick(LEGEND_TITLES, rng)}`;
 }

@@ -31,6 +31,26 @@ on the Demonanic combat engine.
    bounty); The Gutter just ends. A wipe brings the party home with half the loot.
 9. **Rest:** heroes at the guild regenerate HP over time.
 
+### World events (`adventure.js`)
+
+- **Conditions:** weather is rolled per trip (clear 45, rain 25, fog 18, storm 12) and
+  turns with a 6% chance per event; night is 20:00–06:00 local time and is re-checked each
+  event (dusk/dawn lines). Effects: rain +5% sneak, hazards ×1.3; fog +12% sneak, +10%
+  ambush; storm +5% sneak, +5% ambush, hazards ×1.6, loot ×1.15, morale −1.5 per event;
+  night +5% sneak, +15% ambush, loot ×1.3.
+- **Banter:** 35% of flavor events are a hero's own line, from their trait or the
+  party's mood (morale ≥75 or ≤30).
+- **Rare events (3% of events):** the wandering merchant (gear one tier above the region,
+  at 4× its value, paid from guild gold; an unattended party never buys), a treasure map
+  (a 3-minute detour that ends in a stash of gold and Rare/Epic gear), and a legendary
+  monster (the region's toughest creature at ×5 HP and ×1.6 damage with two followers;
+  beating it pays a hoard of gold plus Rare/Epic gear).
+- **Camp:** trips of 20+ minutes stop halfway: Rest (heal 30%), Scout ahead (+15% sneak
+  for the rest of the trip) or Forage (gold and supplies).
+- **Notifications:** feed lines flagged `notify` (boss reached, legendary monster,
+  merchant, treasure, rare gear) and the trip's report trigger a browser notification
+  while the page is hidden, if the player turned them on.
+
 ## Decisions (owner-approved)
 
 | Topic | Decision |

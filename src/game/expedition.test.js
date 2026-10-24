@@ -1,7 +1,10 @@
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import { withPendingFight } from "../test/expeditionFixtures";
-import { ADVENTURE, moraleDamageBonus, sneakChance } from "./adventure";
-import { buildWildEncounter } from "./encounters";
+import {
+  ADVENTURE, WEATHER, conditionEffects, isNight, moraleDamageBonus, rollBanter, rollWeather, sneakChance,
+} from "./adventure";
+import { buildLegendaryEncounter, buildWildEncounter } from "./encounters";
+import { createGearItem } from "./items";
 import {
   choosePending, createGuild, currentEncounterParty, engagePending, heroStatus, recallExpedition, resolveEncounter,
   startExpedition, tick,
@@ -44,7 +47,7 @@ describe("timed expeditions", () => {
 
   test("left alone, a party plays the whole trip and comes home with a report", () => {
     let state = gutterRun(seeded(3));
-    state = tick(state, T0 + 11 * MINUTE, { rng: seeded(4) });
+    state = tick(state, T0 + 20 * MINUTE, { rng: seeded(4) }); // room for a treasure map detour
     expect(state.expedition).toBeNull();
     const report = state.lastReport;
     expect(["victory", "retreat"]).toContain(report.outcome);
@@ -185,7 +188,7 @@ describe("timed expeditions", () => {
 
   test("flavor lines don't repeat back to back", () => {
     let state = gutterRun(seeded(11));
-    state = tick(state, T0 + 11 * MINUTE, { rng: seeded(12), interactive: false });
+    state = tick(state, T0 + 20 * MINUTE, { rng: seeded(12), interactive: false });
     const flavor = state.lastReport.log.filter((line) => !/Victory|spots|Ambush|explored|sets out|gold|Slipped/.test(line));
     for (let index = 1; index < flavor.length; index += 1) expect(flavor[index]).not.toBe(flavor[index - 1]);
   });
@@ -262,5 +265,106 @@ describe("saves from before timed expeditions", () => {
     // A new-style expedition survives a save round trip untouched.
     const fresh = gutterRun();
     expect(parseGuild(structuredClone(fresh)).expedition).toEqual(fresh.expedition);
+  });
+});
+
+describe("world events", () => {
+  test("night and weather change ambush odds, sneaking, hazards and loot", () => {
+    const day = conditionEffects("clear", false);
+    const night = conditionEffects("clear", true);
+    expect(night.ambush).toBeGreaterThan(day.ambush);
+    expect(night.loot).toBeGreaterThan(day.loot);
+    expect(conditionEffects("fog", false).sneak).toBeGreaterThan(day.sneak);
+    expect(conditionEffects("storm", false).hazard).toBeGreaterThan(day.hazard);
+    expect(conditionEffects("clear", false, true).sneak).toBeCloseTo(0.15);
+    expect(rollWeather(() => 0, "clear")).not.toBe("clear");
+    expect(isNight(new Date(2026, 9, 24, 23, 0).getTime())).toBe(true);
+    expect(isNight(new Date(2026, 9, 24, 13, 0).getTime())).toBe(false);
+    const run = gutterRun().expedition;
+    expect(Object.keys(WEATHER)).toContain(run.weather);
+    expect(run.feed[1].text).toContain(WEATHER[run.weather].intro);
+  });
+
+  test("heroes banter about their trait and the party's mood", () => {
+    const hero = structuredClone(createGuild().heroes[0]);
+    hero.traits = ["berserker"];
+    expect(rollBanter(hero, 50, () => 0).text).toContain(hero.identity.name);
+    hero.traits = [];
+    expect(rollBanter(hero, 50, () => 0)).toBeNull();
+    expect(rollBanter(hero, 90, () => 0).text).toMatch(/grinning|marching/);
+    expect(rollBanter(hero, 10, () => 0).morale).toBe(-2);
+  });
+
+  test("long trips make camp halfway; scouting improves sneak odds and foraging finds supplies", () => {
+    const state = createGuild();
+    state.heroes[0].progression.level = 3;
+    let run = startExpedition(state, "boneyard", [ids(state)[0]], T0, () => 0.999).state;
+    expect(run.expedition.campAt).toBe(T0 + 10 * MINUTE);
+    expect(gutterRun().expedition.campAt).toBeNull();
+    run.expedition.nextEventAt = T0 + 20 * MINUTE; // nothing else happens first
+    run = tick(run, T0 + 10 * MINUTE, { interactive: true });
+    expect(run.expedition.pending).toMatchObject({ kind: "story", story: "camp" });
+    const scouted = choosePending(run, "scout", T0 + 10 * MINUTE).state;
+    expect(scouted.expedition.scouted).toBe(true);
+    const foraged = choosePending(run, "forage", T0 + 10 * MINUTE).state;
+    expect(foraged.expedition.loot.items.filter((item) => item.kind === "consumable")).toHaveLength(3);
+    expect(foraged.expedition.loot.gold).toBeGreaterThan(0);
+  });
+
+  test("a treasure map adds a detour that ends with a stash", () => {
+    let state = gutterRun();
+    const endsAt = state.expedition.endsAt;
+    state.expedition.pending = { kind: "story", story: "map", text: "map", at: T0 + MINUTE, promptAt: T0 + MINUTE, engagedAt: null };
+    state = choosePending(state, "follow", T0 + MINUTE).state;
+    expect(state.expedition.endsAt).toBe(endsAt + ADVENTURE.treasureDetourMs);
+    expect(state.expedition.treasureAt).toBe(T0 + MINUTE + ADVENTURE.treasureDetourMs);
+    state.expedition.nextEventAt = T0 + 30 * MINUTE;
+    state = tick(state, T0 + MINUTE + ADVENTURE.treasureDetourMs, { interactive: true });
+    const stash = state.expedition.feed.at(-1);
+    expect(stash).toMatchObject({ tone: "loot", notify: true });
+    expect(stash.text).toMatch(/^X marks the spot!/);
+    expect(state.expedition.loot.items.some((item) => ["rare", "epic"].includes(item.rarity))).toBe(true);
+  });
+
+  test("the wandering merchant sells for guild gold, and the party never buys on its own", () => {
+    const state = gutterRun();
+    const item = createGearItem({ slot: "head", rarity: "rare", tier: 2 });
+    state.expedition.pending = { kind: "merchant", item, price: 90, text: "merchant", at: T0 + MINUTE, promptAt: T0 + MINUTE, engagedAt: null };
+    const bought = choosePending({ ...state, gold: 100 }, "buy", T0 + MINUTE).state;
+    expect(bought.gold).toBe(10);
+    expect(bought.expedition.loot.items).toContainEqual(item);
+    expect(choosePending({ ...state, gold: 50 }, "buy", T0 + MINUTE)).toEqual({ ok: false, reason: "insufficient_gold" });
+    const away = tick({ ...state, gold: 1000 }, T0 + 2 * MINUTE);
+    expect(away.gold).toBe(1000);
+    expect(away.expedition.feed.some((entry) => /waves the merchant off/.test(entry.text))).toBe(true);
+  });
+
+  test("legendary monsters are huge, and beating one pays out a hoard", () => {
+    const gutter = getRegion("gutter");
+    const wave = buildLegendaryEncounter(gutter, 0, () => 0.5);
+    const legend = wave.enemies[0];
+    expect(legend).toMatchObject({ legendary: true, tier: "elite", type: "skeleton" });
+    expect(legend.maxHp).toBeGreaterThanOrEqual(Math.round(70 * gutter.hpScale * 5) - 1);
+    expect(wave.enemies).toHaveLength(3);
+    expect(wave.lootTier).toBe(2);
+
+    let state = gutterRun();
+    withPendingFight(state, T0 + MINUTE);
+    state.expedition.pending.legendary = true;
+    const party = structuredClone(currentEncounterParty(state));
+    state = resolveEncounter(state, { victory: true, party, xpGains: {}, gold: 0, items: [] }, T0 + 2 * MINUTE).state;
+    expect(state.expedition.loot.gold).toBeGreaterThan(0);
+    expect(state.expedition.loot.items[0].rarity).toMatch(/rare|epic/);
+    expect(state.expedition.feed.at(-1)).toMatchObject({ notify: true });
+  });
+
+  test("big moments are flagged for notifications", () => {
+    const state = createGuild();
+    state.heroes[0].progression.level = 3;
+    let run = startExpedition(state, "boneyard", [ids(state)[0]], T0, () => 0.999).state;
+    run.expedition.endsAt = T0 + 1000;
+    run.expedition.campAt = null;
+    run = tick(run, T0 + 1000, { interactive: true });
+    expect(run.expedition.feed.at(-1)).toMatchObject({ tone: "danger", notify: true });
   });
 });

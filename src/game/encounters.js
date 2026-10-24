@@ -1,4 +1,5 @@
 import * as C from "../combat/config";
+import { LEGENDARY, legendName } from "./adventure";
 import { rollLoot } from "./items";
 import { BOSS_RANK_SCALING, BOSS_ROTATION, bossForRank } from "./regions";
 
@@ -51,6 +52,20 @@ export function buildWildEncounter(region, progress = 0, rng = Math.random) {
   return assembleWave(squad, { hp: region.hpScale * depth, dmg: region.dmgScale * depth }, region.tier);
 }
 
+// A legendary monster: the toughest creature in the region's wildlife, grown
+// huge (LEGENDARY hp and damage), with two ordinary followers and better loot.
+export function buildLegendaryEncounter(region, progress = 0, rng = Math.random) {
+  const wave = buildWildEncounter({ ...region, wildlife: { ...region.wildlife, squad: [2, 2], eliteChance: 0 } }, progress, rng);
+  const toughest = Object.keys(region.wildlife.pool).sort((a, b) => C.ENEMIES[b].hp - C.ENEMIES[a].hp)[0];
+  const depth = 1 + DEPTH_SCALE_AT_END * Math.max(0, Math.min(1, progress));
+  const legend = makeEnemy(C.ENEMIES[toughest], region.hpScale * depth * LEGENDARY.hp, region.dmgScale * depth * LEGENDARY.dmg);
+  legend.name = legendName(C.ENEMIES[toughest].name, rng);
+  legend.tier = "elite";
+  legend.legendary = true;
+  wave.enemies.unshift(legend);
+  return { ...wave, total: wave.enemies.length, lootTier: region.tier + 1, legendary: true };
+}
+
 // The region's end boss. In a boss-rotation region the boss follows the
 // guild's boss rank, and each rank compounds its difficulty and loot tier.
 export function buildBossEncounter(region, bossRank = 0) {
@@ -69,7 +84,7 @@ export function buildBossEncounter(region, bossRank = 0) {
 export function describeSquad(wave) {
   const counts = new Map();
   for (const enemy of wave.enemies) counts.set(enemy.name, (counts.get(enemy.name) || 0) + 1);
-  const parts = [...counts].map(([name, count]) => (count > 1 ? `${count} ${name}s` : `a ${name}`));
+  const parts = [...counts].map(([name, count]) => (count > 1 ? `${count} ${name}s` : `${/^[AEIOU]/i.test(name) ? "an" : "a"} ${name}`));
   return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0] || "nothing";
 }
 

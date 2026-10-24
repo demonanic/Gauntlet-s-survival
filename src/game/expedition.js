@@ -16,9 +16,12 @@ import { GEAR_SLOTS } from "../combat/gear";
 import { serializeGameState } from "../combat/heroModel";
 import { heroTraitEffects } from "../combat/traits";
 import {
-  ADVENTURE, STORIES, STORY_KEYS, clampMorale, findLine, moraleDamageBonus, rollFlavor, rollHazard, sneakChance,
+  ADVENTURE, LEGENDARY, RARE_EVENTS, STORIES, STORY_KEYS, WEATHER, clampMorale, conditionEffects, findLine, isNight,
+  moraleDamageBonus, rollBanter, rollFlavor, rollHazard, rollWeather, sneakChance,
 } from "./adventure";
-import { buildBossEncounter, buildEndlessWave, buildWildEncounter, describeSquad } from "./encounters";
+import {
+  buildBossEncounter, buildEndlessWave, buildLegendaryEncounter, buildWildEncounter, describeSquad,
+} from "./encounters";
 import { bankLoot, createGearItem, normalizeHeroGear, tierMult } from "./items";
 import { legacyBonuses } from "./legacy";
 import { BOSS_RANK_SCALING, bossForRank, getRegion } from "./regions";
@@ -46,6 +49,8 @@ const RECENT_FLAVOR = 6;
 // Events can't shorten an expedition to less than this from now.
 const MIN_REMAINING_MS = 30_000;
 const FIGHT_KINDS = new Set(["sighting", "ambush", "boss", "rift"]);
+// The wandering merchant charges this multiple of an item's sell value.
+const MERCHANT_PRICE_MULT = 4;
 
 const heroId = (hero) => hero.identity.id;
 const findHero = (state, id) => state.heroes.find((hero) => heroId(hero) === id) || null;
@@ -66,8 +71,9 @@ function nextEventGap(rng) {
   return randomBetween(ADVENTURE.eventEverySeconds, rng) * 1000;
 }
 
-function addFeed(run, at, text, tone = "flavor") {
-  run.feed.push({ at, text, tone });
+// `notify` marks big moments worth a notification while the game is in the background.
+function addFeed(run, at, text, tone = "flavor", notify = false) {
+  run.feed.push(notify ? { at, text, tone, notify: true } : { at, text, tone });
   if (run.feed.length > MAX_FEED_LINES) run.feed.splice(0, run.feed.length - MAX_FEED_LINES);
 }
 
@@ -123,6 +129,13 @@ export function startExpedition(state, regionId, heroIds, now, rng = Math.random
     pending: null,
     healedAt: now,
     bossDone: false,
+    // Conditions: weather (may turn mid-trip) and whether it is night.
+    weather: rollWeather(rng),
+    night: isNight(now),
+    scouted: false,
+    // Long trips make camp halfway; a followed treasure map pays out at treasureAt.
+    campAt: !region.endless && region.durationMinutes >= ADVENTURE.campFromMinutes ? now + durationMs / 2 : null,
+    treasureAt: null,
     morale: ADVENTURE.startMorale,
     feed: [],
     loot: { gold: 0, items: [] },
@@ -131,6 +144,9 @@ export function startExpedition(state, regionId, heroIds, now, rng = Math.random
   };
   next.expedition = run;
   addFeed(run, now, `The party sets out for ${region.name}.`, "good");
+  if (!region.endless) {
+    addFeed(run, now, `${run.night ? "Night has fallen. Ambushes are likelier, but so is treasure. " : ""}${WEATHER[run.weather].intro}`, "flavor");
+  }
   if (region.endless) {
     addFeed(run, now, "The Rift tears open before them. Something stirs on the other side.", "danger");
     openPending(run, now, { kind: "rift", wave: buildEndlessWave(1, rng) });
@@ -147,6 +163,8 @@ function closePending(run, resolvedAt) {
   const paused = Math.max(0, resolvedAt - run.pending.at);
   if (run.endsAt != null) run.endsAt += paused;
   if (run.nextEventAt != null) run.nextEventAt += paused;
+  if (run.campAt != null) run.campAt += paused;
+  if (run.treasureAt != null) run.treasureAt += paused;
   run.healedAt = resolvedAt;
   run.pending = null;
 }
@@ -202,12 +220,22 @@ function advanceExpedition(state, now, options) {
       continue;
     }
     if (run.endsAt == null) return;
-    const at = Math.min(run.nextEventAt, run.endsAt);
+    const at = Math.min(run.nextEventAt, run.endsAt, run.campAt ?? Infinity, run.treasureAt ?? Infinity);
     if (at > now) {
       healParty(state, now);
       return;
     }
     healParty(state, at);
+    if (run.treasureAt != null && at >= run.treasureAt) {
+      run.treasureAt = null;
+      findTreasure(state, region, at, options.rng);
+      continue;
+    }
+    if (run.campAt != null && at >= run.campAt && at < run.endsAt) {
+      run.campAt = null;
+      openStory(state, at, "camp", options.rng);
+      continue;
+    }
     if (at >= run.endsAt) {
       reachEnd(state, region, at);
       continue;
@@ -222,7 +250,7 @@ function reachEnd(state, region, at) {
   if (region.boss && !run.bossDone) {
     const wave = buildBossEncounter(region, state.bossRank || 0);
     const boss = wave.enemies.find((enemy) => enemy.boss || enemy.tier === "elite") || wave.enemies[0];
-    addFeed(run, at, `The way out is blocked: ${boss.name} stands guard with ${describeSquad({ enemies: wave.enemies.filter((enemy) => enemy !== boss) })}.`, "danger");
+    addFeed(run, at, `The way out is blocked: ${boss.name} stands guard with ${describeSquad({ enemies: wave.enemies.filter((enemy) => enemy !== boss) })}.`, "danger", true);
     openPending(run, at, { kind: "boss", wave, label: boss.name });
     return;
   }
@@ -237,13 +265,20 @@ function runEvent(state, region, at, rng) {
   const party = livingParty(state);
   if (!party.length) return;
   run.stats.events += 1;
-  changeMorale(run, (ADVENTURE.startMorale - run.morale) * ADVENTURE.moraleDrift);
+  updateConditions(run, at, rng);
+  const conditions = conditionEffects(run.weather, run.night, run.scouted);
+  changeMorale(run, (ADVENTURE.startMorale - run.morale) * ADVENTURE.moraleDrift + conditions.moralePerEvent);
   const hero = pick(party, rng);
-  const roll = rng() * Object.values(ADVENTURE.eventWeights).reduce((sum, weight) => sum + weight, 0);
+  const weights = { ...ADVENTURE.eventWeights, hazard: ADVENTURE.eventWeights.hazard * conditions.hazard };
+  const roll = rng() * Object.values(weights).reduce((sum, weight) => sum + weight, 0);
   let cursor = 0;
-  const kind = Object.entries(ADVENTURE.eventWeights).find(([, weight]) => (cursor += weight) > roll)[0];
+  const kind = Object.entries(weights).find(([, weight]) => (cursor += weight) > roll)[0];
 
-  if (kind === "flavor") {
+  const banter = kind === "flavor" && rng() < ADVENTURE.banterShare ? rollBanter(hero, run.morale, rng) : null;
+  if (banter) {
+    changeMorale(run, banter.morale);
+    addFeed(run, at, banter.text, banter.tone);
+  } else if (kind === "flavor") {
     run.recentFlavor ||= [];
     const line = rollFlavor(region, hero.identity.name, rng, run.recentFlavor);
     run.recentFlavor = [...run.recentFlavor, line.template].slice(-RECENT_FLAVOR);
@@ -258,19 +293,69 @@ function runEvent(state, region, at, rng) {
     addFeed(run, at, hazard.text, hazard.tone);
   } else if (kind === "encounter") {
     const progress = 1 - (run.endsAt - at) / run.durationMs;
-    startEncounter(state, region, at, buildWildEncounter(region, progress, rng), rng() < ADVENTURE.ambushShare);
+    startEncounter(state, region, at, buildWildEncounter(region, progress, rng), rng() < ADVENTURE.ambushShare + conditions.ambush);
+  } else if (kind === "rare") {
+    rareEvent(state, region, hero, at, rng);
   } else {
-    const key = pick(STORY_KEYS, rng);
-    addFeed(run, at, STORIES[key].prompt, "story");
-    openPending(run, at, { kind: "story", story: key });
+    openStory(state, at, pick(STORY_KEYS, rng), rng);
   }
+}
+
+function openStory(state, at, key, rng) {
+  const run = state.expedition;
+  const text = STORIES[key].prompt.replaceAll("{hero}", pick(livingParty(state), rng).identity.name);
+  addFeed(run, at, text, "story");
+  openPending(run, at, { kind: "story", story: key, text });
+}
+
+// Weather can turn between events, and a long trip can run into dusk or dawn.
+function updateConditions(run, at, rng) {
+  if (rng() < ADVENTURE.weatherChangeChance) {
+    run.weather = rollWeather(rng, run.weather);
+    addFeed(run, at, `The weather turns. ${WEATHER[run.weather].intro}`, "flavor");
+  }
+  const night = isNight(at);
+  if (night !== run.night) {
+    run.night = night;
+    addFeed(run, at, night ? "Night falls. Every shadow could hide something." : "Dawn breaks, and the party breathes a little easier.", "flavor");
+  }
+}
+
+// Rare events: a wandering merchant, a treasure map, or a legendary monster.
+function rareEvent(state, region, hero, at, rng) {
+  const run = state.expedition;
+  const kind = pick(RARE_EVENTS, rng);
+  if (kind === "map") {
+    openStory(state, at, "map", rng);
+  } else if (kind === "legend") {
+    const progress = 1 - (run.endsAt - at) / run.durationMs;
+    startEncounter(state, region, at, buildLegendaryEncounter(region, progress, rng), false);
+  } else {
+    const rarity = pick(["uncommon", "rare", "rare", "epic"], rng);
+    const item = createGearItem({ slot: pick(GEAR_SLOTS, rng), rarity, tier: region.tier + 1 }, rng);
+    const price = item.value * MERCHANT_PRICE_MULT;
+    addFeed(run, at, `A wandering merchant waves the party over. "Fine wares, fair prices!" They're selling a ${item.name} for ${price} gold.`, "story", true);
+    openPending(run, at, { kind: "merchant", item, price, text: `A wandering merchant offers a ${item.name} for ${price} gold.` });
+  }
+}
+
+// The stash at the end of a treasure map detour.
+function findTreasure(state, region, at, rng) {
+  const run = state.expedition;
+  const conditions = conditionEffects(run.weather, run.night, run.scouted);
+  const gold = Math.round(randomBetween([40, 90], rng) * tierMult(region.tier) * conditions.loot);
+  const item = createGearItem({ slot: pick(GEAR_SLOTS, rng), rarity: pick(["rare", "rare", "epic"], rng), tier: region.tier + 1 }, rng);
+  run.loot.gold += gold;
+  run.loot.items.push(item);
+  changeMorale(run, 10);
+  addFeed(run, at, `X marks the spot! The party digs up ${gold} gold and a ${item.name}!`, "loot", true);
 }
 
 function findSomething(state, region, hero, at, rng) {
   const run = state.expedition;
   const roll = rng();
   if (roll < 0.5) {
-    const gold = Math.round(randomBetween([5, 20], rng) * tierMult(region.tier));
+    const gold = Math.round(randomBetween([5, 20], rng) * tierMult(region.tier) * conditionEffects(run.weather, run.night).loot);
     run.loot.gold += gold;
     addFeed(run, at, findLine("gold", hero.identity.name, gold, rng), "loot");
   } else if (roll < 0.8) {
@@ -281,7 +366,7 @@ function findSomething(state, region, hero, at, rng) {
     const rarity = pick(["common", "common", "uncommon", "uncommon", "rare"], rng);
     const item = createGearItem({ slot: pick(GEAR_SLOTS, rng), rarity, tier: region.tier }, rng);
     run.loot.items.push(item);
-    addFeed(run, at, findLine("gear", hero.identity.name, item.name, rng), "loot");
+    addFeed(run, at, findLine("gear", hero.identity.name, item.name, rng), "loot", rarity === "rare");
   }
   changeMorale(run, 3);
 }
@@ -291,14 +376,20 @@ function findSomething(state, region, hero, at, rng) {
 function startEncounter(state, region, at, wave, ambush) {
   const run = state.expedition;
   run.stats.encounters += 1;
-  const squad = describeSquad(wave);
+  const legend = wave.enemies.find((enemy) => enemy.legendary);
+  const squad = legend
+    ? `${legend.name} with ${describeSquad({ enemies: wave.enemies.filter((enemy) => enemy !== legend) })}`
+    : describeSquad(wave);
+  const extra = legend ? { legendary: true } : {};
   if (ambush) {
     ambushParty(state, at, `Ambush! ${squad} burst from the shadows!`);
-    openPending(run, at, { kind: "ambush", wave, label: squad });
+    openPending(run, at, { kind: "ambush", wave, label: squad, ...extra });
   } else {
-    const chance = sneakChance(livingParty(state), wave, run.morale, region);
-    addFeed(run, at, `The party spots ${squad} ahead. They haven't noticed yet.`, "danger");
-    openPending(run, at, { kind: "sighting", wave, label: squad, sneakChance: chance });
+    const chance = sneakChance(livingParty(state), wave, run.morale, region, conditionEffects(run.weather, run.night, run.scouted).sneak);
+    addFeed(run, at, legend
+      ? `A legend walks these halls: ${legend.name}, a monster out of the old stories, with ${describeSquad({ enemies: wave.enemies.filter((enemy) => enemy !== legend) })}. Fortune favours the bold... or the quiet.`
+      : `The party spots ${squad} ahead. They haven't noticed yet.`, "danger", !!legend);
+    openPending(run, at, { kind: "sighting", wave, label: squad, sneakChance: chance, ...extra });
   }
 }
 
@@ -343,6 +434,9 @@ export function choosePending(state, choice, now, { rng = Math.random } = {}) {
     leaveFight(next, region, now);
   } else if (pending.kind === "story" && STORIES[pending.story].options.some((option) => option.id === choice)) {
     resolveStory(next, region, choice, now, rng);
+  } else if (pending.kind === "merchant" && (choice === "buy" || choice === "decline")) {
+    if (choice === "buy" && next.gold < pending.price) return { ok: false, reason: "insufficient_gold" };
+    tradeWithMerchant(next, choice === "buy", now);
   } else {
     return { ok: false, reason: "invalid_choice" };
   }
@@ -373,6 +467,20 @@ function leaveFight(state, region, at) {
   completeExpedition(state, "recalled", at);
 }
 
+// Bought gear joins the trip's loot; the price comes from the guild's gold.
+function tradeWithMerchant(state, buy, at) {
+  const run = state.expedition;
+  const { item, price } = run.pending;
+  if (buy) {
+    state.gold -= price;
+    run.loot.items.push(item);
+    addFeed(run, at, `Bought the ${item.name} for ${price} gold. The merchant tips their hat and vanishes.`, "loot");
+  } else {
+    addFeed(run, at, "The party waves the merchant off. They shrug and wander on.", "flavor");
+  }
+  closePending(run, at);
+}
+
 function resolveStory(state, region, choice, at, rng) {
   const run = state.expedition;
   const story = STORIES[run.pending.story];
@@ -400,6 +508,16 @@ function applyEffects(state, region, effects, at, rng) {
     addFeed(run, at, `Inside: a ${item.name}!`, "loot");
   }
   // Shortcuts trim the trip but never past MIN_REMAINING_MS from now (and never lengthen it).
+  if (effects.scout) run.scouted = true;
+  if (effects.forage) {
+    const gold = Math.round(randomBetween([10, 30], rng) * tierMult(region.tier));
+    const supplies = ["bandage", "bandage", rng() < 0.4 ? "potion" : "ammo"];
+    run.loot.gold += gold;
+    for (const key of supplies) run.loot.items.push({ kind: "consumable", key, qty: 1 });
+    addFeed(run, at, `Foraging turns up ${gold} gold and a few supplies.`, "loot");
+  }
+  if (effects.extend && run.endsAt != null) run.endsAt += ADVENTURE.treasureDetourMs;
+  if (effects.treasure) run.treasureAt = at + ADVENTURE.treasureDetourMs;
   if (effects.shorten && run.endsAt != null) {
     run.endsAt = Math.min(run.endsAt, Math.max(at + MIN_REMAINING_MS, run.endsAt - effects.shorten));
   }
@@ -427,6 +545,9 @@ function decideAlone(state, region, { rng, onStep }) {
   const at = pending.engagedAt ?? pending.promptAt;
   if (pending.kind === "story") {
     resolveStory(state, region, STORIES[pending.story].auto({ partyHp: partyHpFraction(state) }), at, rng);
+  } else if (pending.kind === "merchant") {
+    // Spending the guild's gold is the player's call, never the party's.
+    tradeWithMerchant(state, false, at);
   } else if (pending.kind === "sighting" && (pending.sneakChance >= AUTO_SNEAK_AT || partyHpFraction(state) < AUTO_CAUTIOUS_HP)) {
     attemptSneak(state, at, rng);
   } else if (pending.kind === "boss" && partyHpFraction(state) < AUTO_BOSS_HP) {
@@ -517,6 +638,15 @@ function applyFightResult(state, region, { victory, party, xpGains, gold, items,
   }
   changeMorale(run, 8);
   addFeed(run, at, `Victory over ${pending.label}! +${Math.round(gold || 0)} gold${items?.length ? `, ${items.length} item${items.length > 1 ? "s" : ""}` : ""}.`, "good");
+  if (pending.legendary) {
+    const rng = Math.random;
+    const bonus = Math.round(randomBetween(LEGENDARY.rewardGold, rng) * tierMult(region.tier));
+    const trophy = createGearItem({ slot: pick(GEAR_SLOTS, rng), rarity: pick(["rare", "epic"], rng), tier: region.tier + 1 }, rng);
+    run.loot.gold += bonus;
+    run.loot.items.push(trophy);
+    changeMorale(run, 15);
+    addFeed(run, at, `The legend falls! Its hoard: ${bonus} gold and a ${trophy.name}.`, "loot", true);
+  }
   if (pending.kind === "boss") {
     run.bossDone = true;
     let bounty = region.completionGold;
@@ -570,7 +700,7 @@ function completeExpedition(state, outcome, at) {
   state.gold += loot.gold;
   bankLoot(state, loot.items);
   state.lastReport = {
-    regionId, outcome, loot, stats: run.stats, morale: run.morale, wavesCleared: run.wavesCleared,
+    regionId, outcome, loot, stats: run.stats, morale: run.morale, wavesCleared: run.wavesCleared, endedAt: at,
     log: run.feed.map((entry) => entry.text),
   };
   state.expedition = null;
