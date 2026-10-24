@@ -73,3 +73,8 @@ mobile shell).
 
 Work on a branch and open a pull request against `main`. CI runs `npm test` and
 `npm run build` on every PR; both must pass before merging.
+
+## License
+
+All rights reserved. This is a personal project, and no license is granted to copy,
+modify or redistribute the code or assets.
