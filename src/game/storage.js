@@ -4,7 +4,7 @@ import { createGuild, rollCandidate, STATE_VERSION } from "./guild";
 import { emptyLegacy, syncGuildBonuses } from "./legacy";
 import { paletteForShift } from "../combat/heroPalette";
 import { rollTrait, TRAITS } from "../combat/traits";
-import { migrateVaultItem, normalizeHeroGear } from "./items";
+import { bankLoot, migrateVaultItem, normalizeHeroGear } from "./items";
 import { CONSUMABLE_KEYS } from "../combat/gear";
 
 const STORAGE_KEY = "gauntlet.save.v1";
@@ -21,6 +21,25 @@ function normalizeHeroExtras(hero) {
   };
 }
 
+// Expeditions saved before timed adventures (no feed, fixed encounters) can't
+// be resumed: the party comes home with what it had gathered.
+function retireOldExpedition(state) {
+  const run = state.expedition;
+  if (!run || Array.isArray(run.feed)) return;
+  const loot = { gold: Math.max(0, Math.round(Number(run.loot?.gold) || 0)), items: Array.isArray(run.loot?.items) ? run.loot.items : [] };
+  state.gold += loot.gold;
+  bankLoot(state, loot.items);
+  for (const id of run.heroIds || []) {
+    const hero = state.heroes.find((entry) => entry.identity.id === id);
+    if (hero && hero.combat.hp <= 0) hero.combat.hp = 1;
+  }
+  state.lastReport = {
+    regionId: run.regionId, outcome: "recalled", loot,
+    log: [...(Array.isArray(run.log) ? run.log : []), "Expeditions are now timed adventures. The party came home with everything it found."],
+  };
+  state.expedition = null;
+}
+
 // Turn saved JSON (local or cloud) into a valid guild, or null if unusable.
 export function parseGuild(parsed) {
   if (parsed?.version !== STATE_VERSION || !Array.isArray(parsed.heroes)) return null;
@@ -35,6 +54,7 @@ export function parseGuild(parsed) {
     legacy: { ...emptyLegacy(), ...(parsed.legacy && typeof parsed.legacy === "object" ? parsed.legacy : {}) },
   };
   state.candidate = parsed.candidate?.trait && TRAITS[parsed.candidate.trait] ? parsed.candidate : rollCandidate(state);
+  retireOldExpedition(state);
   syncGuildBonuses(state);
   // A newly assigned trait (e.g. Glass Cannon) can lower max HP below current HP.
   for (const hero of state.heroes) hero.combat.hp = Math.min(hero.combat.hp, classlessMaxHp(hero));

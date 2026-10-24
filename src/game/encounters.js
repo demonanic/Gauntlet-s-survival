@@ -2,8 +2,9 @@ import * as C from "../combat/config";
 import { rollLoot } from "./items";
 import { BOSS_RANK_SCALING, BOSS_ROTATION, bossForRank } from "./regions";
 
-// Later encounters in the same region hit a little harder.
-const DEPTH_SCALE_PER_ENCOUNTER = 0.06;
+// Enemies get tougher the deeper into an expedition the party is: +30% HP and
+// damage by the time the timer runs out. The end boss fights at full depth.
+const DEPTH_SCALE_AT_END = 0.3;
 
 // Endless Rift wave curve (wave 1 is the first wave). Like boss ranks it
 // compounds, so every party is eventually overrun.
@@ -23,22 +24,53 @@ const ENDLESS_POOLS = [
 let enemySequence = 0;
 const nextEnemyId = () => { enemySequence += 1; return enemySequence; };
 
+function weightedPick(weights, rng) {
+  const entries = Object.entries(weights).filter(([, weight]) => weight > 0);
+  let roll = rng() * entries.reduce((sum, [, weight]) => sum + weight, 0);
+  for (const [key, weight] of entries) {
+    roll -= weight;
+    if (roll < 0) return key;
+  }
+  return entries[entries.length - 1][0];
+}
+
 // Build the `wave` object the combat engine expects for one encounter.
 // Shape matches Demonanic's buildWave output: { enemies, total, groups, hasBoss },
 // plus Gauntlet's lootTier and the scale used for any minions summoned mid-fight.
-// In a boss-rotation region the final encounter's boss follows the guild's boss rank.
-export function buildEncounter(region, encounterIndex, { bossRank = 0 } = {}) {
-  const template = region?.encounters?.[encounterIndex];
-  if (!template) throw new RangeError(`No encounter ${encounterIndex} in region ${region?.id}`);
-  const depth = 1 + DEPTH_SCALE_PER_ENCOUNTER * encounterIndex;
-  const bossFight = !!region.bossRotation && encounterIndex === region.encounters.length - 1;
-  const rank = bossFight ? Math.max(0, bossRank) : 0;
-  const squad = bossFight ? template.map((key) => (C.ENEMIES[key]?.boss ? bossForRank(rank) : key)) : template;
+
+// A random squad from the region's wildlife. `progress` is how far through
+// the expedition timer the party is (0 to 1).
+export function buildWildEncounter(region, progress = 0, rng = Math.random) {
+  const wildlife = region?.wildlife;
+  if (!wildlife) throw new RangeError(`Region ${region?.id} has no wildlife`);
+  const [min, max] = wildlife.squad;
+  const size = min + Math.floor(rng() * (max - min + 1 + Math.min(1, progress)));
+  const squad = Array.from({ length: Math.min(size, max + 1) }, () => weightedPick(wildlife.pool, rng));
+  if (rng() < (wildlife.eliteChance || 0)) squad[0] = "lieutenant";
+  const depth = 1 + DEPTH_SCALE_AT_END * Math.max(0, Math.min(1, progress));
+  return assembleWave(squad, { hp: region.hpScale * depth, dmg: region.dmgScale * depth }, region.tier);
+}
+
+// The region's end boss. In a boss-rotation region the boss follows the
+// guild's boss rank, and each rank compounds its difficulty and loot tier.
+export function buildBossEncounter(region, bossRank = 0) {
+  if (!region?.boss) throw new RangeError(`Region ${region?.id} has no boss`);
+  const rank = region.bossRotation ? Math.max(0, bossRank) : 0;
+  const squad = region.boss.map((key) => (region.bossRotation && C.ENEMIES[key]?.boss ? bossForRank(rank) : key));
+  const depth = 1 + DEPTH_SCALE_AT_END;
   const scale = {
     hp: region.hpScale * depth * BOSS_RANK_SCALING.hpGrowth ** rank,
     dmg: region.dmgScale * depth * BOSS_RANK_SCALING.dmgGrowth ** rank,
   };
-  return assembleWave(squad, scale, region.tier + (bossFight ? Math.floor(rank / 2) : 0));
+  return assembleWave(squad, scale, region.tier + Math.floor(rank / 2));
+}
+
+// A short description of a squad for the adventure feed: "3 Skeletons and a Ghost".
+export function describeSquad(wave) {
+  const counts = new Map();
+  for (const enemy of wave.enemies) counts.set(enemy.name, (counts.get(enemy.name) || 0) + 1);
+  const parts = [...counts].map(([name, count]) => (count > 1 ? `${count} ${name}s` : `a ${name}`));
+  return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0] || "nothing";
 }
 
 // One Endless Rift wave. Squads grow, then tougher enemy types join; every 5th

@@ -17,13 +17,11 @@
 import { allocateClasslessStat, purchaseClasslessNode } from "../src/combat/classlessProgression";
 import { classlessMaxHp } from "../src/combat/classlessCombatEffects";
 import {
-  createGuild, currentEncounterParty, currentEncounterWave, recruitCost, recruitHero, resolveEncounter, startExpedition,
-  tick, updateHero,
+  createGuild, expeditionDurationMs, recruitCost, recruitHero, startExpedition, tick, updateHero,
 } from "../src/game/guild";
 import { buyConsumable, equipGear, loadQuickSlot, sellGear, upgradeCost, upgradeGear } from "../src/game/items";
 import { REGIONS, getRegion } from "../src/game/regions";
 import { buyShopItem, shopStock } from "../src/game/shop";
-import { simulateEncounter } from "../src/game/simulate";
 
 const args = process.argv.slice(2);
 const RUNS = Number(args[args.indexOf("--runs") + 1]) || 6;
@@ -35,8 +33,6 @@ const MAX_EXPEDITIONS = 70;
 const CAMPAIGN = REGIONS.filter((region) => !region.endless);
 // Gold kept back for supplies before spending in the Armory or Forge.
 const GOLD_RESERVE = 250;
-// The Rift party heads home once it is down to 40% of its total HP.
-const RIFT_RETURN_HP = 0.4;
 // A sensible generic build: survivability and damage first, then actives.
 const PERK_ORDER = ["V1", "W1", "P1", "V2", "W2", "P2a", "P3", "W2a", "S1", "P2", "V3", "T1", "S2", "F1"];
 const SP_ORDER = ["attack", "defense", "attack"];
@@ -150,35 +146,25 @@ function activePlayer(engine) {
   });
 }
 
-function riftShouldReturn(engine) {
-  const hp = engine.heroes.reduce((sum, hero) => sum + Math.max(0, hero.ref.hp), 0);
-  const max = engine.heroes.reduce((sum, hero) => sum + hero.d.maxHp, 0);
-  return hp / max < RIFT_RETURN_HP;
-}
-
-// Run one expedition to completion through the real guild code.
+// Run one expedition to completion through the real guild code. Nobody answers
+// prompts, so the party decides every sighting, story and boss on its own.
+// Time spent in auto-resolved fights is added on top of the trip timer.
 function runExpedition(state, clock, region, party, active) {
   state = stockUp(state, party);
   const started = startExpedition(state, region.id, party, clock);
   if (!started.ok) throw new Error(`could not start ${region.id}: ${started.reason}`);
   state = started.state;
-  let reached = 0;
-  while (state.expedition) {
-    clock = state.expedition.phaseEndsAt ?? clock;
-    state = tick(state, clock);
-    if (state.expedition?.phase !== "ready") continue;
-    const { result, sim, elapsed } = simulateEncounter(currentEncounterParty(state), currentEncounterWave(state), {
-      regionTier: region.tier, onStep: active ? activePlayer : null,
-      endless: !!region.endless, shouldReturn: riftShouldReturn,
-    });
-    clock += elapsed * 1000;
-    reached = region.endless ? result?.wavesCleared || 0 : state.expedition.encounterIndex + (result?.victory ? 1 : 0);
-    state = resolveEncounter(state, {
-      victory: !!result?.victory, party: sim.heroes, xpGains: result?.xpGains?.heroes || {},
-      gold: sim.gold, items: sim.vault, wavesCleared: result?.wavesCleared || 0,
-    }, clock).state;
-  }
-  return { state, clock, reached, outcome: state.lastReport.outcome, gold: state.lastReport.loot.gold };
+  const until = region.endless ? clock : clock + expeditionDurationMs(state, region);
+  state = tick(state, until + 1, { onStep: active ? activePlayer : null });
+  if (state.expedition) throw new Error(`${region.id} expedition did not finish`);
+  const report = state.lastReport;
+  return {
+    state,
+    clock: until + report.stats.autoFightSeconds * 1000,
+    reached: region.endless ? report.wavesCleared || 0 : report.stats.fights,
+    outcome: report.outcome,
+    gold: report.loot.gold,
+  };
 }
 
 function prepare(state, clock) {

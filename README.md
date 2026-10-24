@@ -16,12 +16,22 @@ abilities, move orders and speed controls.
 2. **Market:** buy gear from the Armory (stock rotates every 4 hours, with one featured
    Masterwork) and supplies for your heroes' quick slots.
 3. **Expedition Board:** pick a destination and a party of 1–4 ready heroes.
-4. **Travel:** a timer runs until the next encounter.
-5. **Encounter:** a live fight against a small enemy squad. HP carries over between
-   fights, and fallen heroes sit out the rest of the run. You can recall the party at
-   any time and keep the loot.
-6. **Return:** victory banks the full loot plus the region bounty. A routed party comes
-   home with half the loot, and fallen heroes stay injured until they recover.
+4. **Adventure (timed):** The Gutter runs 10 minutes, Boneyard Crypt 20, Ashen Keep 30.
+   A live feed fills with what happens on the road every 20–40 seconds: flavor ("the air
+   is still, the vibes are chill"), finds (gold, supplies, gear), close calls and hazards,
+   and story choices (pray at a shrine or loot it? open the chest?).
+5. **Encounters** are random and frequent. **Sightings** let you **Attack** or **Sneak
+   by**; the sneak chance depends on the party's agility, stealth perks and traits, level,
+   party size, morale, and how many and which enemies there are. A failed sneak, or a
+   surprise **ambush**, opens with a volley and forces a fight. While the game is open the
+   timer pauses at each prompt; tap Attack to fight it live. Ignore it (or close the app)
+   and the party decides and fights on its own, so expeditions keep going while you're
+   away.
+6. **Morale** rises and falls with the feed (wins, finds, scares) and gives up to ±10%
+   damage. HP carries over between fights, with slow healing on the road; fallen heroes
+   sit out the rest of the trip. Recall the party at any time to keep the loot.
+7. **End boss:** Boneyard Crypt and Ashen Keep end with their boss. Win for the region
+   bounty, or head home without it. A wiped party comes home with half the loot.
 
 ### Heroes
 
@@ -52,12 +62,12 @@ their own in battle, or you can tap them.
 
 ### Regions
 
-| Region | Min level | Encounters | Bounty |
-| --- | --- | --- | --- |
-| The Gutter | 1 | 3 | 60g |
-| Boneyard Crypt | 3 | 4 | 180g |
-| Ashen Keep | 6 | 5 (rotating final boss) | 500g, +15% per boss rank |
-| The Endless Rift | 3 | endless | 10g per wave |
+| Region | Min level | Length | End boss | Bounty |
+| --- | --- | --- | --- | --- |
+| The Gutter | 1 | 10 min | none | 80g |
+| Boneyard Crypt | 3 | 20 min | Lieutenant | 300g |
+| Ashen Keep | 6 | 30 min | rotating (Demon → Necromancer → Abomination) | 800g, +15% per boss rank |
+| The Endless Rift | 3 | until you return | a boss every 10th wave | 10g per wave |
 
 ## Play it
 

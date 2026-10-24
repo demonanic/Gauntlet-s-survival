@@ -81,7 +81,7 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
         <div className="font-mono-g text-[11px]">
           <span className="font-bold" style={{ color: region.color }}>{region.name}</span>
           <span className="ml-2 text-slate-400">
-            {endless ? `Wave ${hud?.wave ?? 1}` : `Encounter ${expedition.encounterIndex + 1}/${region.encounters.length}`}
+            {endless ? `Wave ${hud?.wave ?? 1}` : expedition.pending?.kind === "boss" ? `Boss: ${expedition.pending.label}` : expedition.pending?.label}
             {hud && ` · ${hud.remaining} enemies left`}
           </span>
         </div>

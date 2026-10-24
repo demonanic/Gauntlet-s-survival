@@ -8,17 +8,28 @@ on the Demonanic combat engine.
 1. **Guild Hall:** recruit classless heroes, spend AP/SP in the universal perk tree, equip
    gear from the vault, buy supplies and load them into quick slots.
 2. **Expedition Board:** choose a destination and a party of 1–4 ready heroes.
-3. **Travel (idle):** a real-time timer runs until the next encounter.
-4. **Encounter (always live):** one small enemy squad versus the party, played on the
-   Demonanic canvas engine. Heroes auto-fight; the player can fire abilities, order
-   moves, change speed.
-5. **Between encounters:** HP carries over (attrition). Fallen heroes sit out the rest of
-   the run. The player can recall the party and keep all loot.
-6. **Return:** loot (gold + equipment drops) is banked when the party gets home.
-   - Victory: full loot + region bounty.
-   - Defeat ("routed"): the party retreats home with half the loot; fallen heroes are
-     injured and can't travel until they recover.
-7. **Rest:** heroes at the guild regenerate HP over time.
+3. **Adventure (timed, `src/game/expedition.js` + `adventure.js`):** the party explores
+   for the region's duration (10 / 20 / 30 min). Every 20–40s a feed event fires:
+   flavor 40%, find 20%, hazard 12%, encounter 22%, story choice 6%.
+4. **Encounters:** random squads from the region's wildlife, tougher the deeper into the
+   timer (+30% HP/damage at the end). 65% are **sightings** (Attack or Sneak, chance from
+   party agility, Shadowcraft/Illusion perks, Nimble/Swift traits, level vs region, party
+   size, morale, squad size and watchful enemy types); 35% are **ambushes** (an opening
+   volley of 8% max HP, then a forced fight). A failed sneak becomes an ambush.
+5. **Live or automatic:** prompts pause the timer. While the page is visible the prompt
+   waits up to 45s for the player (Attack opens the live Battle screen); otherwise the
+   party decides alone and fights through the headless simulator. Alone, it sneaks when
+   the odds are ≥60% or it is badly hurt, skips the end boss below 50% HP, and limps
+   home after a fight that leaves it under 25%. `tick` replays missed time in order, so
+   a party catching up after the app was closed plays out as if watched.
+6. **Morale (0–100, starts 60):** moved by flavor, finds, hazards, wins (+8), sneaks (+4)
+   and ambushes (−8), drifting 10% back toward 60 each event. Gives −10% to +10% damage
+   and nudges sneak odds.
+7. **HP:** carries over between fights; living heroes heal 1/900 of max HP per second on
+   the road (not during prompts). Fallen heroes sit out and are injured on return.
+8. **End:** Boneyard and Ashen Keep end with their boss (fight or head home without the
+   bounty); The Gutter just ends. A wipe brings the party home with half the loot.
+9. **Rest:** heroes at the guild regenerate HP over time.
 
 ## Decisions (owner-approved)
 
@@ -130,17 +141,21 @@ out-range the party and stall a fight until it wiped).
 
 | Region | HP × | Damage × | Result |
 | --- | --- | --- | --- |
-| The Gutter | 0.9 | 0.9 | Tutorial: cleared first try at LV 1 |
-| Boneyard Crypt | 2.0 | 1.7 | Cleared first try at LV 3–4, but costs HP and supplies |
-| Ashen Keep | 2.0 | 1.5 | The wall; every loss is at the demon. ~20–25% win rate per attempt at first: typical first clear ~40–50 min (range 20–130), LV 7–11 |
+| The Gutter | 0.9 | 0.9 | Tutorial: every 10-minute trip succeeds at LV 1 |
+| Boneyard Crypt | 2.0 | 1.7 | First clear on the first try, about an hour into the game (LV 4–5) |
+| Ashen Keep | 2.0 | 1.5 | First clear about 2.5–4 hours in (1–4 attempts, LV 7–11) |
+
+With timed expeditions (Oct 2026), progress is measured in real time: trips are 10–30
+minutes long. 4 hours after the first Ashen clear a scripted guild reaches boss rank 8–9,
+earning ~60–65 gold/min.
 
 Gear and supplies carry the late game: without equipping drops the first Ashen clear takes
 hours longer (measured before the endgame changes: 4–8 hours, LV 12–17).
 
-Endgame, 8 hours after the first Ashen clear (scripted guild that buys from the Armory and
-upgrades in the Forge): boss rank ~13–19 after 2h, ~21–24 after 4h, levelling off at
-~24–27 by 8h. Boss runs win ~55% and pay ~150–170 gold/min; Rift runs pay ~220–250
-gold/min and usually end at the boss walls on waves 40 or 50.
+Before timed expeditions (fixed 3–5 fight runs a few minutes long), boss rank levelled off
+around 24–27 eight hours after the first Ashen clear, and Rift runs usually ended at the
+boss walls on waves 40 or 50. The compounding boss and wave scaling still sets that
+ceiling; it now takes proportionally longer to reach.
 
 ## Known gaps / next steps
 

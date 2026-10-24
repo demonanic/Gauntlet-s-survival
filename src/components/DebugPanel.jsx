@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { MAX_GEAR_TIER, RARITY_ORDER, RARITIES } from "../game/items";
 import {
-  MAX_HERO_LEVEL, debugAddGold, debugAddRenown, debugClearRegions, debugGiveGearSet, debugGiveSupplies,
+  MAX_HERO_LEVEL, debugAddGold, debugAddRenown, debugClearRegions, debugEndExpedition, debugGiveGearSet, debugGiveSupplies,
   debugSetBossRank, debugSetLevels, debugSkipTimers,
 } from "../game/debug";
 import { NeonButton } from "./ui";
@@ -45,7 +45,10 @@ export default function DebugPanel({ guild, apply }) {
         </div>
         <div className={row}>
           <NeonButton color="#39FF14" onClick={() => apply((state) => debugSkipTimers(state, Date.now()))} data-testid="debug-skip">
-            Skip timers + heal
+            Next event + heal
+          </NeonButton>
+          <NeonButton color="#39FF14" onClick={() => apply((state) => debugEndExpedition(state, Date.now()))} data-testid="debug-end-trip">
+            End trip timer
           </NeonButton>
           <NeonButton color="#00F3FF" onClick={() => apply((state) => debugGiveSupplies(state))}>+10 each supply</NeonButton>
         </div>

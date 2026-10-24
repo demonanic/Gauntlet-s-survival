@@ -1,6 +1,6 @@
 import { Engine } from "../combat/engine";
 import { WEAPON_PROFILES } from "../combat/gear";
-import { buildEncounter, createEncounterSim } from "./encounters";
+import { buildWildEncounter, createEncounterSim } from "./encounters";
 import { createGuild } from "./guild";
 import { createGearItem, heroCombatSummary } from "./items";
 import { getRegion } from "./regions";
@@ -15,7 +15,7 @@ function heroWithWeapon(variant) {
 }
 
 function engineWith(heroes) {
-  return new Engine({ getContext: () => null }, createEncounterSim(heroes, 1), buildEncounter(getRegion("gutter"), 0), {});
+  return new Engine({ getContext: () => null }, createEncounterSim(heroes, 1), buildWildEncounter(getRegion("gutter"), 0, () => 0.5), {});
 }
 
 function enemyAt(x, y) {
