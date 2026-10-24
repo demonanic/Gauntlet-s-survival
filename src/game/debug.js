@@ -42,12 +42,21 @@ export function debugSetLevels(state, level) {
   return { ok: true, state: next };
 }
 
-// Finish travel and injuries now, and heal every hero to full.
+// Trigger the next expedition event now, clear injuries, and heal everyone to full.
 export function debugSkipTimers(state, now) {
   const next = serializeGameState(state);
-  if (next.expedition?.phaseEndsAt != null) next.expedition.phaseEndsAt = now;
+  if (next.expedition?.nextEventAt != null && !next.expedition.pending) next.expedition.nextEventAt = now;
   next.injuries = {};
   for (const hero of next.heroes) hero.combat.hp = classlessMaxHp(hero);
+  return { ok: true, state: next };
+}
+
+// Jump to the end of the expedition timer (the boss, or home).
+export function debugEndExpedition(state, now) {
+  if (!state.expedition || state.expedition.endsAt == null || state.expedition.pending) return { ok: false, reason: "no_timer" };
+  const next = serializeGameState(state);
+  next.expedition.endsAt = now;
+  next.expedition.nextEventAt = now + 1;
   return { ok: true, state: next };
 }
 

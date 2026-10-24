@@ -1,8 +1,9 @@
 import { Engine } from "../combat/engine";
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
-import { buildEncounter, buildEndlessWave, createEncounterSim, endlessWaveSource } from "./encounters";
+import { buildBossEncounter, buildEndlessWave, createEncounterSim, endlessWaveSource } from "./encounters";
+import { withPendingFight } from "../test/expeditionFixtures";
 import {
-  createGuild, currentEncounterWave, resolveEncounter, riftBounty, startExpedition, tick, treatInjury, treatmentCost,
+  createGuild, currentEncounterWave, engagePending, resolveEncounter, riftBounty, startExpedition, treatInjury, treatmentCost,
 } from "./guild";
 import { createGearItem, equipGear, upgradeCost, upgradeGear } from "./items";
 import { BOSS_ROTATION, getRegion } from "./regions";
@@ -101,34 +102,35 @@ describe("infirmary", () => {
 
 describe("boss rotation", () => {
   const ashen = getRegion("ashen");
-  const last = ashen.encounters.length - 1;
 
-  test("the final Ashen Keep boss follows the boss rank and scales with it", () => {
-    const types = [0, 1, 2, 3].map((rank) => buildEncounter(ashen, last, { bossRank: rank }).enemies.find((enemy) => enemy.boss).type);
+  test("the Ashen Keep end boss follows the boss rank and scales with it", () => {
+    const types = [0, 1, 2, 3].map((rank) => buildBossEncounter(ashen, rank).enemies.find((enemy) => enemy.boss).type);
     expect(types).toEqual([...BOSS_ROTATION, BOSS_ROTATION[0]]);
-    const rank0 = buildEncounter(ashen, last, { bossRank: 0 });
-    const rank3 = buildEncounter(ashen, last, { bossRank: 3 });
+    const rank0 = buildBossEncounter(ashen, 0);
+    const rank3 = buildBossEncounter(ashen, 3);
     // Rank 3 is the demon again, with HP compounded 15% per rank.
     expect(Math.abs(rank3.enemies[0].maxHp - rank0.enemies[0].maxHp * 1.15 ** 3)).toBeLessThan(2);
     expect(rank3.lootTier).toBe(rank0.lootTier + 1);
-    expect(buildEncounter(ashen, 0, { bossRank: 3 }).enemies.map((enemy) => enemy.type)).toEqual(ashen.encounters[0]);
+    // Boneyard's boss doesn't rotate.
+    expect(buildBossEncounter(getRegion("boneyard"), 5).enemies[0].type).toBe("lieutenant");
   });
 
-  test("clearing Ashen Keep raises the rank and the bounty grows with it", () => {
+  test("beating the Ashen Keep boss raises the rank and the bounty grows with it", () => {
     const clearAshen = (rank) => {
       let state = { ...createGuild(), bossRank: rank };
       state.heroes[0].progression.level = 6;
       state = startExpedition(state, "ashen", [heroId(state)], T0).state;
-      state.expedition.encounterIndex = last;
-      state = tick(state, T0 + 60_000);
+      withPendingFight(state, T0 + 1000, "boss");
       const party = structuredClone(state.heroes.slice(0, 1));
-      return resolveEncounter(state, { victory: true, party, xpGains: {}, gold: 0, items: [] }, T0 + 61_000).state;
+      return resolveEncounter(state, { victory: true, party, xpGains: {}, gold: 0, items: [] }, T0 + 2000).state;
     };
     const first = clearAshen(0);
     expect(first.bossRank).toBe(1);
-    expect(first.expedition.loot.gold).toBe(500);
-    expect(first.expedition.log.join(" ")).toMatch(/Three-Headed Demon slain! Next on the throne: Imperial Necromancer \(rank 2\)/);
-    expect(clearAshen(2).expedition.loot.gold).toBe(650);
+    expect(first.expedition).toBeNull();
+    expect(first.lastReport).toMatchObject({ outcome: "victory", loot: { gold: 800 } });
+    expect(first.lastReport.log.join(" ")).toMatch(/Three-Headed Demon slain! Next on the throne: Imperial Necromancer \(rank 2\)/);
+    expect(first.clears.ashen).toBe(1);
+    expect(clearAshen(2).lastReport.loot.gold).toBe(1040);
   });
 });
 
@@ -163,30 +165,30 @@ describe("endless rift", () => {
     expect(engine.returnHome()).toBe(false);
   });
 
-  test("returning banks loot plus the wave bounty and records the best run", () => {
-    let state = startExpedition(createGuild(), "rift", [], T0);
-    expect(state).toEqual({ ok: false, reason: "invalid_party_size" });
+  test("the Rift opens at once; returning banks loot plus the wave bounty and records the best run", () => {
+    expect(startExpedition(createGuild(), "rift", [], T0)).toEqual({ ok: false, reason: "invalid_party_size" });
     const guild = createGuild();
     guild.heroes[0].progression.level = 3;
-    state = startExpedition(guild, "rift", [heroId(guild)], T0).state;
-    state = tick(state, T0 + 30_000);
+    let state = startExpedition(guild, "rift", [heroId(guild)], T0).state;
+    expect(state.expedition.pending.kind).toBe("rift");
     expect(currentEncounterWave(state).waveNumber).toBe(1);
+    state = engagePending(state, T0 + 1000).state;
     const party = structuredClone(state.heroes.slice(0, 1));
     const returned = resolveEncounter(state, { victory: true, party, xpGains: {}, gold: 40, items: [], wavesCleared: 7 }, T0 + 31_000).state;
-    expect(returned.expedition).toMatchObject({ phase: "returning", outcome: "returned", wavesCleared: 7 });
-    expect(returned.expedition.loot.gold).toBe(40 + riftBounty(7));
+    expect(returned.lastReport).toMatchObject({ outcome: "returned", wavesCleared: 7 });
+    expect(returned.lastReport.loot.gold).toBe(40 + riftBounty(7));
     expect(returned.records.riftBest).toBe(7);
 
     const overrun = resolveEncounter(state, { victory: false, party, xpGains: {}, gold: 40, items: [], wavesCleared: 3 }, T0 + 31_000).state;
-    expect(overrun.expedition.outcome).toBe("retreat");
-    expect(overrun.expedition.loot.gold).toBe(Math.floor((40 + riftBounty(3)) / 2));
+    expect(overrun.lastReport.outcome).toBe("retreat");
+    expect(overrun.lastReport.loot.gold).toBe(Math.floor((40 + riftBounty(3)) / 2));
   });
 });
 
 describe("boss mechanics", () => {
   function bossFight(type) {
     const party = structuredClone(createGuild().heroes);
-    const wave = buildEncounter({ ...getRegion("ashen"), bossRotation: false, encounters: [[type]] }, 0);
+    const wave = buildBossEncounter({ ...getRegion("ashen"), bossRotation: false, boss: [type] }, 0);
     const sim = createEncounterSim(party, 3, wave);
     const engine = new Engine({ getContext: () => null }, sim, wave, {});
     engine.update(1 / 30); // spawn the boss

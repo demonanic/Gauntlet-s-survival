@@ -29,7 +29,8 @@ const EMPTY = Object.freeze({
 });
 
 // Summed trait effects for one hero, plus the guild's Hall of Legends bonuses
-// stamped on the hero (hero.guildBonus: { damage, maxHp }).
+// stamped on the hero (hero.guildBonus: { damage, maxHp }) and, during an
+// expedition fight, the party's morale (hero.moraleBonus: { damage }).
 export function heroTraitEffects(hero) {
   const total = { ...EMPTY };
   for (const key of Array.isArray(hero?.traits) ? hero.traits : []) {
@@ -37,5 +38,6 @@ export function heroTraitEffects(hero) {
   }
   total.damage += Number(hero?.guildBonus?.damage) || 0;
   total.maxHp += Number(hero?.guildBonus?.maxHp) || 0;
+  total.damage += Number(hero?.moraleBonus?.damage) || 0;
   return total;
 }

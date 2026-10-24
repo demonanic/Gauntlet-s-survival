@@ -37,10 +37,13 @@ export default function ExpeditionBoard({ guild, now, onLaunch }) {
                 <span className="font-mono-g text-[10px] text-slate-400">
                   {entry.endless
                     ? `Endless waves · LV ${entry.minLevel}+ · best wave ${guild.records?.riftBest || 0}`
-                    : `${entry.encounters.length} encounters · LV ${entry.minLevel}+ · ${entry.completionGold}g bounty`}
+                    : `${entry.durationMinutes} min · LV ${entry.minLevel}+ · ${entry.completionGold}g bounty`}
                 </span>
               </div>
               <p className="font-mono-g text-[11px] text-slate-400">{entry.blurb}</p>
+              {entry.boss && !entry.bossRotation && (
+                <p className="font-mono-g text-[10px] text-red-300">Final boss: {C.ENEMIES[entry.boss[0]].name}</p>
+              )}
               {entry.bossRotation && (
                 <p className="font-mono-g text-[10px] text-red-300" data-testid="next-boss">
                   Final boss: {C.ENEMIES[bossForRank(guild.bossRank || 0)].name} · rank {(guild.bossRank || 0) + 1}

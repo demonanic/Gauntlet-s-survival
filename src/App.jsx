@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import NotificationToggle, { useAdventureNotifications } from "./components/AdventureNotifications";
 import ClasslessPerkTree from "./components/ClasslessPerkTree";
 import DebugPanel from "./components/DebugPanel";
 import CloudSync from "./components/CloudSync";
@@ -8,8 +9,8 @@ import HeroGear from "./components/HeroGear";
 import { NeonButton, Panel } from "./components/ui";
 import { allocateClasslessStat, purchaseClasslessNode } from "./combat/classlessProgression";
 import {
-  currentEncounterParty, currentEncounterWave, dismissReport, findHero, recallExpedition, recruitHero,
-  renameHero, rerollCandidate, resolveEncounter, startExpedition, tick, treatInjury, updateHero,
+  choosePending, currentEncounterParty, currentEncounterWave, dismissReport, engagePending, findHero, recallExpedition,
+  recruitHero, renameHero, rerollCandidate, resolveEncounter, startExpedition, tick, treatInjury, updateHero,
 } from "./game/guild";
 import { buyLegacyUpgrade, renownForRetiring, retireHero } from "./game/legacy";
 import {
@@ -33,19 +34,21 @@ const OUTCOME_TITLE = {
 const TABS = [["hall", "Guild Hall"], ["market", "Market"], ["board", "Expeditions"]];
 
 export default function App() {
-  const [guild, setGuild] = useState(() => tick(loadGuild(), Date.now()));
+  // Prompts wait for the player only while the page is visible; otherwise the party decides alone.
+  const [guild, setGuild] = useState(() => tick(loadGuild(), Date.now(), { interactive: true }));
   const [now, setNow] = useState(Date.now());
   const [tab, setTab] = useState("hall");
   const [inBattle, setInBattle] = useState(false);
   const [perkHeroId, setPerkHeroId] = useState(null);
   const [gearHeroId, setGearHeroId] = useState(null);
   const [recruiting, setRecruiting] = useState(false);
+  const notifications = useAdventureNotifications(guild);
 
   useEffect(() => {
     const interval = setInterval(() => {
       const t = Date.now();
       setNow(t);
-      setGuild((current) => tick(current, t));
+      setGuild((current) => tick(current, t, { interactive: document.visibilityState === "visible" }));
     }, TICK_MS);
     return () => clearInterval(interval);
   }, []);
@@ -80,9 +83,13 @@ export default function App() {
       {guild.expedition && (
         <div className="mb-3">
           <ExpeditionPanel
-            expedition={guild.expedition}
+            guild={guild}
             now={now}
-            onFight={() => setInBattle(true)}
+            onAttack={() => {
+              apply((current) => engagePending(current, Date.now()));
+              setInBattle(true);
+            }}
+            onChoose={(choice) => apply((current) => choosePending(current, choice, Date.now()))}
             onRecall={() => apply((current) => recallExpedition(current, Date.now()))}
           />
         </div>
@@ -131,7 +138,8 @@ export default function App() {
         />
       )}
 
-      <footer className="mt-6 text-center">
+      <footer className="mt-6 flex flex-col items-center gap-2 text-center">
+        <NotificationToggle state={notifications} />
         <button
           type="button"
           className="font-mono-g text-[10px] text-slate-600 underline"
@@ -186,7 +194,12 @@ export default function App() {
             <h2 className="font-display text-lg font-bold text-cyan-200">{OUTCOME_TITLE[report.outcome]}</h2>
             <p className="font-mono-g text-[11px] text-slate-400">{getRegion(report.regionId)?.name}</p>
             <p className="my-2 font-mono-g text-sm text-yellow-300">+{report.loot.gold}g · {report.loot.items.length} items</p>
-            <ul className="mb-3 space-y-0.5 font-mono-g text-[10px] text-slate-300">
+            {report.stats && (
+              <p className="mb-2 font-mono-g text-[10px] text-slate-400">
+                {report.stats.encounters} encounters · {report.stats.fights} fights · {report.stats.sneaks} snuck past · {report.stats.ambushes} ambushes
+              </p>
+            )}
+            <ul className="mb-3 max-h-64 space-y-0.5 overflow-y-auto font-mono-g text-[10px] text-slate-300" data-testid="report-log">
               {report.log.map((line, index) => <li key={index}>{line}</li>)}
             </ul>
             <NeonButton className="w-full" onClick={() => setGuild((current) => dismissReport(current))}>Collect</NeonButton>
@@ -194,7 +207,7 @@ export default function App() {
         </div>
       )}
 
-      {inBattle && guild.expedition?.phase === "ready" && (
+      {inBattle && guild.expedition?.pending?.engagedAt != null && (
         <Battle
           expedition={guild.expedition}
           party={currentEncounterParty(guild)}

@@ -1,5 +1,5 @@
 import { NeonButton, Panel, formatSeconds } from "../components/ui";
-import { CONSUMABLE_KEYS, CONSUMABLES, GEAR_SLOT_LABELS } from "../combat/gear";
+import { CONSUMABLE_KEYS, CONSUMABLES, GEAR_SLOT_LABELS, WEAPON_PROFILES } from "../combat/gear";
 import { RARITIES, formatGearStats } from "../game/items";
 import { shopStock } from "../game/shop";
 
@@ -13,7 +13,7 @@ function ShopItem({ item, gold, onBuy }) {
       <div className="min-w-0">
         {item.featured && <div className="text-[10px] font-bold uppercase tracking-wide text-yellow-300">Featured</div>}
         <span className="font-bold" style={{ color: rarity.color }}>{item.name}</span>
-        <span className="ml-2 text-slate-500">{GEAR_SLOT_LABELS[item.slot]} · T{item.tier}</span>
+        <span className="ml-2 text-slate-500">{GEAR_SLOT_LABELS[item.slot]}{WEAPON_PROFILES[item.weaponType] ? ` · ${WEAPON_PROFILES[item.weaponType].label} (${WEAPON_PROFILES[item.weaponType].style})` : ""} · T{item.tier}</span>
         <div className="text-slate-400">{formatGearStats(item.stats)}</div>
       </div>
       {item.sold ? (

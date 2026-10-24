@@ -1,10 +1,11 @@
+import { withPendingFight } from "../test/expeditionFixtures";
 import { Engine } from "../combat/engine";
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import * as C from "../combat/config";
 import { distinctHueShift, heroSpriteFilter, isHexColor, paletteForShift, rollHeroPalette } from "../combat/heroPalette";
 import { TRAITS, TRAIT_KEYS, heroTraitEffects } from "../combat/traits";
 import { needsSaveChoice, summarizeSave } from "../cloud/cloudSave";
-import { buildEncounter, createEncounterSim } from "./encounters";
+import { buildWildEncounter, createEncounterSim } from "./encounters";
 import {
   CANDIDATE_REROLL_COST, cleanHeroName, createGuild, recruitCost, recruitHero, renameHero, rerollCandidate,
   resolveEncounter, startExpedition, tick,
@@ -112,13 +113,14 @@ describe("traits", () => {
   const heroWith = (trait) => {
     const hero = structuredClone(createGuild().heroes[0]);
     hero.traits = [trait];
+    delete hero.equipment.weapon; // unarmed, so only the trait changes the numbers
     return hero;
   };
 
   test("stat traits change the hero's combat numbers", () => {
     expect(classlessMaxHp(heroWith("brawny"))).toBe(Math.round(300 * 1.12));
     expect(classlessMaxHp(heroWith("glassCannon"))).toBe(270);
-    const engine = new Engine({ getContext: () => null }, createEncounterSim([heroWith("ironhide"), heroWith("quickHands")], 1), buildEncounter(getRegion("gutter"), 0), {});
+    const engine = new Engine({ getContext: () => null }, createEncounterSim([heroWith("ironhide"), heroWith("quickHands")], 1), buildWildEncounter(getRegion("gutter"), 0, () => 0.5), {});
     expect(engine.heroes[0].d.defense).toBe(18);
     expect(engine.heroes[1].d.rate).toBeCloseTo(1.05 / 1.08);
   });
@@ -136,7 +138,7 @@ describe("traits", () => {
     state.heroes[1].traits = [];
     for (const hero of state.heroes) hero.combat.hp = classlessMaxHp(hero);
     state = startExpedition(state, "gutter", [heroId(state), heroId(state, 1)], T0).state;
-    state = tick(state, T0 + 20_000);
+    withPendingFight(state, T0 + 20_000);
     const party = structuredClone(state.heroes.slice(0, 2));
     const resolved = resolveEncounter(state, { victory: true, party, xpGains: { 0: 100, 1: 100 }, gold: 0, items: [] }, T0 + 21_000).state;
     expect(resolved.heroes[0].progression.xp).toBe(125);
@@ -180,12 +182,15 @@ describe("prestige", () => {
     expect(recruit.progression).toMatchObject({ level: 3, ap: 2, sp: 2 });
     expect(recruit.guildBonus).toBeDefined();
 
-    let run = startExpedition(state, "gutter", [heroId(state)], T0).state;
-    expect(run.expedition.phaseEndsAt - T0).toBe(20_000 * 0.92);
-    run = { ...run, expedition: { ...run.expedition, phase: "returning", phaseEndsAt: T0, loot: { gold: 100, items: [] } } };
-    const home = tick(run, T0);
-    expect(home.lastReport.loot.gold).toBe(110);
-    expect(home.gold).toBe(run.gold + 110);
+    const run = startExpedition(state, "gutter", [heroId(state)], T0).state;
+    expect(run.expedition.endsAt - T0).toBe(10 * 60_000 * 0.92);
+    // At the end of the timer: 100 found + 80 Gutter bounty, then Fortune adds 10%.
+    run.expedition.loot.gold = 100;
+    run.expedition.endsAt = T0 + 5;
+    run.expedition.nextEventAt = T0 + 10;
+    const home = tick(run, T0 + 5);
+    expect(home.lastReport.loot.gold).toBe(198);
+    expect(home.gold).toBe(run.gold + 198);
   });
 });
 

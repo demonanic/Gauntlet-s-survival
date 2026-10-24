@@ -13,7 +13,7 @@ export const LEGACY_UPGRADES = Object.freeze({
   vigor: { key: "vigor", name: "Vigor", desc: "+4% hero max HP per rank.", max: 10, per: 0.04 },
   fortune: { key: "fortune", name: "Fortune", desc: "+10% gold from expeditions per rank.", max: 10, per: 0.1 },
   wisdom: { key: "wisdom", name: "Wisdom", desc: "+10% XP per rank.", max: 10, per: 0.1 },
-  roads: { key: "roads", name: "Swift Roads", desc: "-8% travel time per rank.", max: 5, per: 0.08 },
+  roads: { key: "roads", name: "Swift Roads", desc: "Expeditions take 8% less time per rank.", max: 5, per: 0.08 },
   mentorship: { key: "mentorship", name: "Mentorship", desc: "New recruits start 2 levels higher per rank.", max: 5, per: 2 },
 });
 export const LEGACY_KEYS = Object.freeze(Object.keys(LEGACY_UPGRADES));

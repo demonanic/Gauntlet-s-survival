@@ -4,7 +4,7 @@
 import { classlessCombatEffects, classlessMaxHp } from "../combat/classlessCombatEffects";
 import * as C from "../combat/config";
 import {
-  CONSUMABLES, GEAR_SLOTS, GEAR_STAT_KEYS, GEAR_STAT_LABELS, QUICK_SLOT_COUNT, heroGearStats,
+  CONSUMABLES, GEAR_SLOTS, GEAR_STAT_KEYS, GEAR_STAT_LABELS, QUICK_SLOT_COUNT, heroGearStats, heroWeaponProfile,
 } from "../combat/gear";
 import { HERO_BASELINE, serializeGameState } from "../combat/heroModel";
 import { heroTraitEffects } from "../combat/traits";
@@ -319,7 +319,7 @@ export function heroCombatSummary(hero) {
   const effects = classlessCombatEffects(hero.progression?.ownedNodeIds);
   const stats = hero.combat.stats;
   const attack = hero.combat.basicAttack;
-  const weapon = attack.damage + (stats.attack - HERO_BASELINE.stats.attack) + gear.attack;
+  const weapon = (attack.damage + (stats.attack - HERO_BASELINE.stats.attack) + gear.attack) * (heroWeaponProfile(hero)?.damage ?? 1);
   return {
     attack: Math.round(weapon * (1 + effects.weaponDamage) * (1 + traits.damage)),
     defense: stats.defense + gear.defense + traits.defense,

@@ -1,7 +1,7 @@
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import { GEAR_SLOTS } from "../combat/gear";
 import {
-  debugAddGold, debugAddRenown, debugClearRegions, debugGiveGearSet, debugGiveSupplies, debugSetBossRank,
+  debugAddGold, debugAddRenown, debugClearRegions, debugEndExpedition, debugGiveGearSet, debugGiveSupplies, debugSetBossRank,
   debugSetLevels, debugSkipTimers, isDebugMode,
 } from "./debug";
 import { createGuild, startExpedition } from "./guild";
@@ -31,13 +31,15 @@ describe("test mode", () => {
     expect(debugSetLevels(leveled, 99).state.heroes[0].progression.level).toBe(20);
   });
 
-  test("skipping timers ends travel and injuries and heals everyone", () => {
+  test("skipping timers brings the next event forward, ends injuries and heals everyone", () => {
     let state = createGuild();
     state = startExpedition(state, "gutter", [state.heroes[0].identity.id], T0).state;
     state.injuries[state.heroes[1].identity.id] = T0 + 60_000;
     state.heroes[2].combat.hp = 1;
     const skipped = debugSkipTimers(state, T0 + 5).state;
-    expect(skipped.expedition.phaseEndsAt).toBe(T0 + 5);
+    expect(skipped.expedition.nextEventAt).toBe(T0 + 5);
+    const ended = debugEndExpedition(state, T0 + 5).state;
+    expect(ended.expedition.endsAt).toBe(T0 + 5);
     expect(skipped.injuries).toEqual({});
     expect(skipped.heroes[2].combat.hp).toBe(classlessMaxHp(skipped.heroes[2]));
   });

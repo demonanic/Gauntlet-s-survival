@@ -13,7 +13,7 @@ import { classlessCombatEffects, classlessMaxHp } from "./classlessCombatEffects
 import { getUnlockedClasslessAbilities, validateClasslessAbilityUse } from "./classlessAbilities";
 import { HERO_SPRITE_ATLAS, selectHeroSpriteFrame } from "./heroSprite";
 import { getEquippedHeroWeaponType, HERO_WEAPON_ASSETS } from "./heroWeapon";
-import { CONSUMABLES, QUICK_ITEM_COOLDOWN, heroGearStats } from "./gear";
+import { CONSUMABLES, QUICK_ITEM_COOLDOWN, heroGearStats, heroWeaponProfile } from "./gear";
 import { heroTraitEffects } from "./traits";
 import { isNeonIdentityColor } from "./heroModel";
 import { heroSpriteFilter } from "./heroPalette";
@@ -79,16 +79,19 @@ function classlessHeroDerived(hero) {
   const effects = classlessCombatEffects(hero.progression?.ownedNodeIds);
   const gear = heroGearStats(hero);
   const traits = heroTraitEffects(hero);
-  const attackDamage = attack.damage + ((Number(stats.attack) || 10) - HERO_BASELINE.stats.attack) + gear.attack;
+  // Gauntlet: the equipped weapon decides range, melee vs ranged, and pace.
+  const weapon = heroWeaponProfile(hero);
+  const baseDamage = attack.damage + ((Number(stats.attack) || 10) - HERO_BASELINE.stats.attack) + gear.attack;
+  const attackDamage = baseDamage * (weapon?.damage ?? 1);
   return {
     maxHp: classlessMaxHp(hero),
     // Baseline attack stat 10 maps to the approved 16 weapon damage; each
     // allocated Attack point adds one weapon damage, matching legacy stat scaling.
     attack: attackDamage,
     damage: attackDamage,
-    range: attack.range,
-    rangeMode: attack.rangeMode,
-    rate: attack.intervalSeconds / ((1 + effects.attackSpeed) * (1 + traits.attackSpeed)),
+    range: weapon?.range ?? attack.range,
+    rangeMode: weapon?.rangeMode ?? attack.rangeMode,
+    rate: (attack.intervalSeconds * (weapon?.intervalScale ?? 1)) / ((1 + effects.attackSpeed) * (1 + traits.attackSpeed)),
     movementSpeed: attack.movementSpeed * (1 + traits.moveSpeed),
     magic: false,
     damageType: null,
@@ -2068,7 +2071,7 @@ export class Engine {
       ? (src.classless ? weaponType === "bow" ? "arrow" : weaponType === "staff" ? "magic" : null
         : src.ref?.cls === "mage" ? "magic" : src.ref?.cls === "archer" ? "arrow" : null)
       : null;
-    this.projectiles.push({
+    const shot = {
       sourceId, x: src.x, y: src.y, tx: target.x, ty: target.y, target,
       heroActionIndex: isHero && src.pendingTacticalAction === "attack" && src.manualTarget === target ? src.i : null,
       spd: d.magic ? 340 : 460, dmg: (d.damage || d.attack) * this._consumeAmmoShot(src, isHero), magic: !!d.magic,
@@ -2085,10 +2088,19 @@ export class Engine {
       color: isHero ? d.color : d.color, t: 0,
       visualType,
       vfxAssetId: projectileVfxAssetId({ visualType, sourceId }),
-    });
+    };
+    // Gauntlet: melee weapons (swords) strike in place, with no projectile.
+    if (isHero && src.classless && src.d.rangeMode === "melee") {
+      this._applyHit(shot);
+      if (Number.isInteger(shot.heroActionIndex)) this._completeTacticalAction(shot.heroActionIndex, "completed");
+    } else {
+      this.projectiles.push(shot);
+    }
     if (isHero && src.classless && weaponType === "sword") {
       this.effects.push({ kind: "weapon_swing", x: src.x, y: src.y - 7, r: 15, life: 0.22,
         color: src.d.color, vfxSize: 48, rotation: Math.atan2(target.y - src.y, target.x - src.x) });
+      this.effects.push({ kind: "weapon_swing", x: target.x, y: target.y, r: 18, life: 0.2,
+        color: src.d.color, vfxSize: 56, rotation: Math.atan2(target.y - src.y, target.x - src.x) });
     }
     this.effects.push({ x: src.x, y: src.y, r: 8, life: 0.18, color: d.color, ring: true });
   }
@@ -3064,7 +3076,8 @@ export class Engine {
     if (weaponImage?.complete && weaponImage.naturalWidth > 0) {
       ctx.shadowBlur = 5;
       ctx.shadowColor = identityColor;
-      ctx.drawImage(weaponImage, 0, 0, 48, 48, -24, -44, 48, 48);
+      // Drawn a little larger than the body frame so the weapon reads clearly.
+      ctx.drawImage(weaponImage, 0, 0, 48, 48, -30, -50, 60, 60);
     }
     ctx.shadowBlur = 6;
     ctx.shadowColor = accentColor;

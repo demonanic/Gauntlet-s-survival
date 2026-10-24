@@ -1,8 +1,9 @@
+import { withPendingFight } from "../test/expeditionFixtures";
 import { Engine } from "../combat/engine";
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import { heroGearStats } from "../combat/gear";
 import { getEquippedHeroWeaponType } from "../combat/heroWeapon";
-import { createEncounterSim, buildEncounter } from "./encounters";
+import { buildWildEncounter, createEncounterSim } from "./encounters";
 import { createGuild, resolveEncounter, startExpedition, tick } from "./guild";
 import {
   bankLoot, buyConsumable, createGearItem, equipGear, heroCombatSummary, loadQuickSlot, migrateVaultItem,
@@ -141,7 +142,7 @@ describe("quick slots in battle", () => {
   function engineFor(heroes) {
     const region = getRegion("gutter");
     const sim = createEncounterSim(heroes, 1);
-    return new Engine({ getContext: () => null }, sim, buildEncounter(region, 0), {});
+    return new Engine({ getContext: () => null }, sim, buildWildEncounter(region, 0, () => 0.5), {});
   }
 
   test("a wounded hero bandages themself and spends the stack", () => {
@@ -171,7 +172,7 @@ describe("quick slots in battle", () => {
     const guild = createGuild();
     let state = loadQuickSlot(guild, heroId(guild), 0, "bandage").state;
     state = startExpedition(state, "gutter", [heroId(state)], T0).state;
-    state = tick(state, T0 + 20_000);
+    withPendingFight(state, T0 + 20_000);
     const party = structuredClone(state.heroes.slice(0, 1));
     party[0].quickSlots[0].qty = 2;
     const resolved = resolveEncounter(state, { victory: true, party, xpGains: {}, gold: 5, items: [] }, T0 + 21_000);
