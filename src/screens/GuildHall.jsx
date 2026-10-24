@@ -1,7 +1,7 @@
 import HallOfLegends from "../components/HallOfLegends";
 import HeroRow from "../components/HeroRow";
 import { NeonButton, Panel } from "../components/ui";
-import { GEAR_SLOT_LABELS } from "../combat/gear";
+import { GEAR_SLOT_LABELS, WEAPON_PROFILES } from "../combat/gear";
 import { heroStatus, recruitCost, treatmentCost } from "../game/guild";
 import { canRetire } from "../game/legacy";
 import { MAX_UPGRADE, RARITIES, RARITY_ORDER, formatGearStats, itemLabel, upgradeCost } from "../game/items";
@@ -78,7 +78,7 @@ export default function GuildHall({
               <li key={item.id} className="flex items-center justify-between gap-2 border-b border-white/5 pb-1">
                 <div className="min-w-0">
                   <span className="font-bold" style={{ color: (RARITIES[item.rarity] || RARITIES.common).color }}>{itemLabel(item)}</span>
-                  <span className="ml-2 text-slate-500">{GEAR_SLOT_LABELS[item.slot]} · T{item.tier}</span>
+                  <span className="ml-2 text-slate-500">{GEAR_SLOT_LABELS[item.slot]}{WEAPON_PROFILES[item.weaponType] ? ` · ${WEAPON_PROFILES[item.weaponType].label} (${WEAPON_PROFILES[item.weaponType].style})` : ""} · T{item.tier}</span>
                   <div className="text-slate-400">{formatGearStats(item.stats)}</div>
                 </div>
                 <div className="flex shrink-0 flex-col gap-1">

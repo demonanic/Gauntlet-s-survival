@@ -4,6 +4,7 @@ import {
   MAX_UPGRADE, RARITIES, formatGearStats, gearStatDelta, heroCombatSummary, itemLabel, upgradeCost,
 } from "../game/items";
 import { TRAITS } from "../combat/traits";
+import { WEAPON_PROFILES } from "../combat/gear";
 import { MAX_NAME_LENGTH, cleanHeroName } from "../game/guild";
 import { NeonButton } from "./ui";
 
@@ -26,6 +27,9 @@ function ItemName({ item }) {
   return (
     <span className="font-bold" style={{ color: rarity.color }}>
       {itemLabel(item)} <span className="font-normal text-slate-500">T{item.tier}</span>
+      {WEAPON_PROFILES[item.weaponType] && (
+        <span className="font-normal text-cyan-300"> · {WEAPON_PROFILES[item.weaponType].style}</span>
+      )}
     </span>
   );
 }

@@ -59,3 +59,17 @@ export function heroGearStats(hero) {
   }
   return total;
 }
+
+// How each weapon fights. Gauntlet weapons override the classless baseline
+// attack (a 220-range "midline" shot), so a sword closes in and slashes while a
+// bow and a staff shoot from range. Heroes with no Gauntlet weapon keep the
+// baseline attack.
+export const WEAPON_PROFILES = Object.freeze({
+  sword: Object.freeze({ label: "Sword", style: "Melee", rangeMode: "melee", range: 46, damage: 1.3, intervalScale: 0.9 }),
+  bow: Object.freeze({ label: "Bow", style: "Ranged", rangeMode: "midline", range: 250, damage: 1, intervalScale: 1 }),
+  staff: Object.freeze({ label: "Staff", style: "Magic", rangeMode: "midline", range: 200, damage: 1.1, intervalScale: 1.15 }),
+});
+
+export function heroWeaponProfile(hero) {
+  return WEAPON_PROFILES[hero?.equipment?.weapon?.weaponType] || null;
+}

@@ -112,6 +112,7 @@ describe("traits", () => {
   const heroWith = (trait) => {
     const hero = structuredClone(createGuild().heroes[0]);
     hero.traits = [trait];
+    delete hero.equipment.weapon; // unarmed, so only the trait changes the numbers
     return hero;
   };
 

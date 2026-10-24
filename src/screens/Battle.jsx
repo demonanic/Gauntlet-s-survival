@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Engine, LAYOUT } from "../combat/engine";
 import { Bar, NeonButton } from "../components/ui";
+import { heroWeaponProfile } from "../combat/gear";
 import { createEncounterSim, endlessWaveSource } from "../game/encounters";
 import { getRegion } from "../game/regions";
 
@@ -147,6 +148,9 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
             >
               <div className="truncate font-mono-g text-[10px] font-bold" style={{ color: hero.appearance?.identityColor }}>
                 {hero.identity.name}
+              </div>
+              <div className="truncate font-mono-g text-[9px] text-slate-400" data-testid={`battle-weapon-${index}`}>
+                {heroWeaponProfile(hero) ? `${heroWeaponProfile(hero).label} · ${heroWeaponProfile(hero).style}` : "Unarmed"}
               </div>
               <Bar value={status?.hp ?? hero.combat.hp} max={status?.maxHp ?? hero.combat.maxHp} color={status?.alive === false ? "#FF2A5F" : "#39FF14"} />
               <div className="mt-1 flex flex-col gap-1">
