@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { paletteForShift } from "../combat/heroPalette";
+import { distinctHueShift, paletteForShift } from "../combat/heroPalette";
 import { TRAITS } from "../combat/traits";
 import { CANDIDATE_REROLL_COST, MAX_NAME_LENGTH, cleanHeroName, recruitCost } from "../game/guild";
 import ClasslessHeroAvatar from "./ClasslessHeroAvatar";
@@ -37,7 +37,7 @@ export default function RecruitDialog({ guild, onHire, onReroll, onClose }) {
               type="button"
               className="mt-2 rounded border px-2 py-1 text-[10px] uppercase"
               style={{ borderColor: palette.identityColor, color: palette.identityColor }}
-              onClick={() => setHueShift(Math.floor(Math.random() * 360))}
+              onClick={() => setHueShift(distinctHueShift(guild.heroes.map((hero) => hero.appearance?.hueShift)))}
               data-testid="recruit-new-look"
             >
               New look

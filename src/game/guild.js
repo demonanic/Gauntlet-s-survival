@@ -3,7 +3,7 @@
 // touches its input. Combat itself lives in combat/ (vendored Demonanic).
 import { createHeroModel, serializeGameState } from "../combat/heroModel";
 import { awardClasslessXp } from "../combat/classlessProgression";
-import { rollHeroPalette, paletteForShift } from "../combat/heroPalette";
+import { distinctHueShift, paletteForShift, rollHeroPalette } from "../combat/heroPalette";
 import { TRAITS, heroTraitEffects, rollTrait } from "../combat/traits";
 import { mergeClasslessBattleResults } from "../combat/classlessBattleResults";
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
@@ -57,16 +57,19 @@ export function cleanHeroName(name) {
 export function rollCandidate(state, rng = Math.random) {
   return {
     trait: rollTrait(rng),
-    hueShift: rollHeroPalette(rng).hueShift,
+    hueShift: distinctHueShift((state.heroes || []).map((hero) => hero.appearance?.hueShift), rng),
     suggestedName: RECRUIT_NAMES[(state.recruits || 0) % RECRUIT_NAMES.length],
   };
 }
 
 export function createGuild() {
+  // The three starters are spread evenly around the color wheel.
+  const starterHue = Math.floor(Math.random() * 360);
   const state = {
     version: STATE_VERSION,
     gold: STARTING_GOLD,
-    heroes: STARTER_NAMES.map((name, index) => newHero(name, STARTER_WEAPONS[index % STARTER_WEAPONS.length])),
+    heroes: STARTER_NAMES.map((name, index) => newHero(name, STARTER_WEAPONS[index % STARTER_WEAPONS.length],
+      { hueShift: starterHue + index * (360 / STARTER_NAMES.length) })),
     bench: [],
     injuries: {},
     vault: [],

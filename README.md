@@ -59,13 +59,25 @@ their own in battle, or you can tap them.
 | Ashen Keep | 6 | 5 (rotating final boss) | 500g, +15% per boss rank |
 | The Endless Rift | 3 | endless | 10g per wave |
 
+## Play it
+
+**Online:** https://demonanic.github.io/Gauntlet-s-survival/ (rebuilt automatically from
+`main` by `.github/workflows/pages.yml`).
+
+**Test mode:** add `?debug` to the address
+(https://demonanic.github.io/Gauntlet-s-survival/?debug). A **TEST** button opens tools to
+add gold and renown, level every hero, skip travel and injury timers, set the boss rank,
+clear all regions, and drop a full gear set of any rarity and tier into the vault. Battles
+also get 4× and 8× speed. Everything it does is real save data, so use **Reset save** to
+start clean.
+
 ## Getting started
 
 Requires Node.js 22 (see `.nvmrc`).
 
 ```bash
 npm install
-npm run dev       # dev server at http://localhost:5173
+npm run dev       # dev server at http://localhost:5173 (add -- --host to open it on your phone)
 npm test          # Vitest: vendored Demonanic engine tests + Gauntlet game tests
 npm run build     # production build in dist/
 npm run preview   # serve the production build

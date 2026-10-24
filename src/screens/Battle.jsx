@@ -9,7 +9,7 @@ const HUD_THROTTLE_MS = 90;
 
 // One live encounter: the trimmed Demonanic engine on a canvas, plus a light
 // tactical HUD (abilities, move orders, speed). Hands the result back up.
-export default function Battle({ expedition, party, createWave, onComplete }) {
+export default function Battle({ expedition, party, createWave, onComplete, speeds = [1, 2] }) {
   const canvasRef = useRef(null);
   const engineRef = useRef(null);
   const simRef = useRef(null);
@@ -51,7 +51,7 @@ export default function Battle({ expedition, party, createWave, onComplete }) {
 
   const engine = engineRef.current;
   const toggleSpeed = () => {
-    const next = speed === 1 ? 2 : 1;
+    const next = speeds[(speeds.indexOf(speed) + 1) % speeds.length];
     setSpeed(next);
     engine?.setSpeed(next);
   };
