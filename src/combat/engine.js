@@ -1404,6 +1404,21 @@ export class Engine {
         continue;
       }
 
+      // Gauntlet encounters: an AUTO classless hero with nothing in range closes
+      // on the nearest enemy, so ranged enemies that out-range heroes (warlocks,
+      // the demon) cannot stall a fight indefinitely.
+      if (h.classless && !target && !h.manual) {
+        const nearest = this.active.reduce((best, enemy) => enemy.hp > 0 &&
+          (!best || Math.hypot(enemy.x - h.x, enemy.y - h.y) < Math.hypot(best.x - h.x, best.y - h.y)) ? enemy : best, null);
+        if (nearest) {
+          const dist = Math.hypot(nearest.x - h.x, nearest.y - h.y) || 1;
+          const step = Math.min(heroMovementSpeed(h, 155, this.time) * dt, Math.max(0, dist - (h.d.range - 10)));
+          h.x += ((nearest.x - h.x) / dist) * step;
+          h.y += ((nearest.y - h.y) / dist) * step;
+          continue;
+        }
+      }
+
       if (melee) {
         if (target) {
           const dist = Math.hypot(target.x - h.x, target.y - h.y) || 1;

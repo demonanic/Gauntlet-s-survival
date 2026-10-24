@@ -27,8 +27,8 @@ export const REGIONS = Object.freeze([
     color: "#FF3366",
     minLevel: 3,
     travelSeconds: 40,
-    hpScale: 0.95,
-    dmgScale: 0.85,
+    hpScale: 2.0,
+    dmgScale: 1.7,
     completionGold: 180,
     recoverySeconds: 120,
     encounters: [
@@ -45,8 +45,8 @@ export const REGIONS = Object.freeze([
     color: "#FF0055",
     minLevel: 6,
     travelSeconds: 60,
-    hpScale: 1,
-    dmgScale: 0.9,
+    hpScale: 2.2,
+    dmgScale: 1.6,
     completionGold: 500,
     recoverySeconds: 240,
     encounters: [

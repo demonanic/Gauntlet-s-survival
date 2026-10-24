@@ -11,7 +11,8 @@ abilities, move orders and speed controls.
 
 ## Gameplay
 
-1. **Guild Hall:** recruit classless heroes and spend AP/SP in the universal perk tree.
+1. **Guild Hall:** recruit classless heroes, spend AP/SP in the universal perk tree, equip
+   gear and buy supplies.
 2. **Expedition Board:** pick a destination and a party of 1–4 ready heroes.
 3. **Travel:** a timer runs until the next encounter.
 4. **Encounter:** a live fight against a small enemy squad. HP carries over between
@@ -19,6 +20,13 @@ abilities, move orders and speed controls.
    any time and keep the loot.
 5. **Return:** victory banks the full loot plus the region bounty. A routed party comes
    home with half the loot, and fallen heroes stay injured until they recover.
+
+### Gear and supplies
+
+Each hero has seven gear slots (head, chest, legs, arms, weapon, secondary, amulet/ring)
+and two quick slots for stacks of bandages, health potions or barbed ammo. Enemies drop
+gear in four rarities; better regions drop stronger gear. Heroes use their supplies on
+their own in battle, or you can tap them.
 
 ### Regions
 
@@ -38,6 +46,7 @@ npm run dev       # dev server at http://localhost:5173
 npm test          # Vitest: vendored Demonanic engine tests + Gauntlet game tests
 npm run build     # production build in dist/
 npm run preview   # serve the production build
+npm run balance   # simulate full playthroughs and report balance numbers
 ```
 
 Saves live in the browser's `localStorage`. Use **Reset save** at the bottom of the

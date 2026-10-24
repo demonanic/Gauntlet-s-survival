@@ -6,7 +6,8 @@ const MAX_SECONDS = 600;
 
 // Run one encounter without a canvas, the same way Demonanic's audit tests do.
 // Used by tests and balance checks; live play goes through the Battle screen.
-export function simulateEncounter(party, wave, { regionTier = 1 } = {}) {
+// `onStep(engine)` runs before every tick, e.g. to fire abilities like an active player.
+export function simulateEncounter(party, wave, { regionTier = 1, onStep = null } = {}) {
   const sim = createEncounterSim(party, regionTier);
   let result = null;
   const engine = new Engine({ getContext: () => null }, sim, structuredClone(wave), {
@@ -14,6 +15,7 @@ export function simulateEncounter(party, wave, { regionTier = 1 } = {}) {
   });
   let elapsed = 0;
   while (!result && elapsed < MAX_SECONDS) {
+    onStep?.(engine);
     engine.update(STEP_SECONDS);
     elapsed += STEP_SECONDS;
   }

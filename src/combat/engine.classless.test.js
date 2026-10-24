@@ -219,7 +219,7 @@ describe("bounded classless combat adapter", () => {
     expect(engine._heroDodgeChance(runtime, false)).toBeCloseTo(runtime.d.dodge + 0.16);
   });
 
-  test("midline uses its explicit mode even below the legacy numeric threshold and holds position", () => {
+  test("midline uses its explicit mode even below the legacy numeric threshold and stops at attack range", () => {
     const { engine, hero } = makeEngine();
     hero.d.range = 120;
     const target = enemy("Inside", hero.x + 110, hero.y);
@@ -227,10 +227,14 @@ describe("bounded classless combat adapter", () => {
     expect(engine.setTargetSelection(0)).toBe(true);
     expect(engine.getRangedTargetStatus(0).targets[0].enemy).toBe(target);
 
+    // Gauntlet: an AUTO hero closes on an out-of-range enemy but stops just
+    // inside attack range (range - 10) instead of advancing to melee distance.
     const start = { x: hero.x, y: hero.y };
-    engine.active = [enemy("Outside", hero.x + 121, hero.y)];
+    const outside = enemy("Outside", hero.x + 121, hero.y);
+    engine.active = [outside];
     engine.update(0.5);
-    expect({ x: hero.x, y: hero.y }).toEqual(start);
+    expect(hero.y).toBe(start.y);
+    expect(outside.x - hero.x).toBeCloseTo(110);
     expect(hero.currentTarget).toBeNull();
   });
 
