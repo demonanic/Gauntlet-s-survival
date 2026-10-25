@@ -555,3 +555,13 @@ export function gearStatDelta(candidate, current) {
   }
   return delta;
 }
+
+// A rough single number for comparing two pieces for the same slot (used by
+// the Guild Hall hints): core stats plus the specials most heroes want.
+export function gearScore(item) {
+  const stats = item?.stats || {};
+  if (!item) return 0;
+  return (stats.attack || 0) * 3 + (stats.defense || 0) * 2 + (stats.maxHp || 0) * 0.25 + (stats.agility || 0)
+    + (stats.critChance || 0) * 150 + ((stats.damageBonus || 0) + (stats.attackSpeed || 0) + (stats.lifesteal || 0)) * 120
+    + (stats.healthBonus || 0) * 100 + (stats.critDamage || 0) * 40;
+}

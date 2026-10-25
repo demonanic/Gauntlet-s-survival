@@ -77,7 +77,7 @@ function PendingPrompt({ pending, now, gold, onAttack, onChoose }) {
         </p>
       )}
       <div className="mt-2 flex flex-wrap gap-2">{actions}</div>
-      {pending.engagedAt == null && (
+      {pending.engagedAt == null && !pending.patient && (
         <p className="mt-1 font-mono-g text-[10px] text-slate-500">
           {pending.kind === "merchant" ? "The merchant moves on" : "The party decides on their own"} in {formatSeconds(decideIn)}.
         </p>

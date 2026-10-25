@@ -11,6 +11,13 @@ abilities, move orders and speed controls.
 
 ## Gameplay
 
+New players get a two-minute guided tour on their first visit: meet the heroes, open a
+hero's gear, send a first party to The Gutter, and face (and fight) a first, easy
+encounter. Each step moves on when you do what it asks. It can be skipped, and replayed
+from the link at the bottom of the page. Afterwards, a **Next up** panel in the Guild
+Hall points out what needs attention: unspent points, better gear in the vault, empty
+quick slots, low arrows, a newly opened region, a hero ready to retire.
+
 1. **Guild Hall:** recruit classless heroes, spend AP/SP in the universal perk tree, equip
    and upgrade gear, and treat injured heroes.
 2. **Market:** buy gear from the Armory (stock rotates every 4 hours, with one featured

@@ -10,6 +10,7 @@ import * as C from "../combat/config";
 import { createGearItem, normalizeHeroGear } from "./items";
 import { emptyLegacy, legacyBonuses, syncGuildBonuses } from "./legacy";
 import { normalizeQualityFields } from "./qualities";
+import { newTutorial } from "./tutorial";
 
 // Expeditions live in expedition.js; re-exported so the guild stays the one entry point.
 export {
@@ -85,6 +86,8 @@ export function createGuild() {
     // Prestige: renown, Hall of Legends upgrades and retired heroes.
     legacy: emptyLegacy(),
     candidate: null,
+    // First-run tutorial progress (tutorial.js).
+    tutorial: newTutorial(),
     lastTickAt: null,
   };
   state.candidate = rollCandidate(state);
