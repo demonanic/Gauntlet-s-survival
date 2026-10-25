@@ -77,6 +77,9 @@ export function createGuild() {
     crystals: {},
     // Familiars without a partner (a paired pet lives on its hero: hero.pet).
     kennel: [],
+    // Bosses that have already left a pet crate, and crates waiting to be opened.
+    crateBosses: [],
+    petCrates: [],
     stash: { ...STARTING_STASH },
     expedition: null,
     clears: {},

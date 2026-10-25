@@ -10,7 +10,7 @@ const STATUS_STYLE = {
   injured: { label: "INJURED", color: "#FF2A5F" },
 };
 
-export default function HeroRow({ hero, status, injuredUntil, now, selected, onSelect, actions }) {
+export default function HeroRow({ hero, status, injuredUntil, now, selected, onSelect, actions, leader }) {
   const maxHp = classlessMaxHp(hero);
   const style = STATUS_STYLE[status];
   const { level, ap, sp } = hero.progression;
@@ -25,12 +25,18 @@ export default function HeroRow({ hero, status, injuredUntil, now, selected, onS
         className="h-12 w-12 rounded border"
         identityColor={hero.appearance?.identityColor}
         appearance={hero.appearance}
+        equipment={hero.equipment}
         label={hero.identity.name}
       />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-2">
           <span className="max-w-full truncate font-display text-sm font-bold" style={{ color: hero.appearance?.identityColor }}>{hero.identity.name}</span>
           <span className="font-mono-g text-[10px] text-slate-400">LV {level}</span>
+          {leader && (
+            <span className="rounded border border-yellow-300/60 px-1 font-mono-g text-[9px] uppercase text-yellow-200" title="Leads the party. A familiar found on this trip bonds with the leader." data-testid="party-leader">
+              Leader
+            </span>
+          )}
           {heroQualities(hero).map((quality) => (
             <span
               key={quality.key}

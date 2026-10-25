@@ -39,7 +39,7 @@ export const TUTORIAL_STEPS = Object.freeze([
   {
     id: "gearSheet",
     title: "Gear and quick slots",
-    text: "Seven gear slots, and two quick slots for bandages, potions or arrows. Heroes use supplies on their own in battle. The weapon decides how they fight: swords up close, bows (which need arrows) and staves from range. Close this when you're done.",
+    text: "Seven gear slots; armor you put on shows on the hero in its rarity's colour. The weapon decides how they fight: swords up close, bows (which need arrows) and staves from range. Better gear has sockets for crystals (fire, frost, venom and more, from the Market). Quick slots hold bandages, potions or arrows, used on their own in battle; the supply style sets when. Close this when you're done.",
     target: "[data-testid='hero-gear'] section",
     // The sheet's Close button is at its top.
     placement: "bottom",
@@ -57,7 +57,7 @@ export const TUTORIAL_STEPS = Object.freeze([
   {
     id: "party",
     title: "Send a party",
-    text: "The Gutter, a short and safe 10-minute trip, is already picked. Tap each hero to add them to the party, then tap Send party.",
+    text: "The Gutter, a short and safe 10-minute trip, is already picked. Tap each hero to add them, then tap Send party. The first hero you pick is the Leader. Later regions have harsh weather: the readiness check tells you which provisions to pack.",
     target: "[data-testid='party-panel']",
     placement: "top",
     tab: "board",
@@ -90,7 +90,7 @@ export const TUTORIAL_STEPS = Object.freeze([
   {
     id: "done",
     title: "You're ready",
-    text: "The trip goes on with more fights, finds and choices until the timer runs out. When the party is home: spend points in Perks, restock in the Market, and push on to harder regions. Hints in the Guild Hall will point out what needs attention.",
+    text: "The trip goes on with more fights, finds and choices until the timer runs out. When the party is home: spend points in Perks, restock in the Market, and push on to harder regions. One secret for later: beat a boss for the first time with a level 10+ Leader, and it may leave a crate with breathing holes. Whatever is inside becomes the Leader's familiar. Hints in the Guild Hall will point out what needs attention.",
     next: "Let's go",
   },
 ]);

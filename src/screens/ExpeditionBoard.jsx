@@ -113,6 +113,11 @@ export default function ExpeditionBoard({ guild, now, onLaunch }) {
         {!busy && selected.length > 0 && partyLevel < region.minLevel && (
           <p className="mb-2 font-mono-g text-[11px] text-red-300">{region.name} needs a hero of level {region.minLevel}+.</p>
         )}
+        {!busy && selected.length > 0 && (
+          <p className="mb-2 font-mono-g text-[10px] text-slate-400" data-testid="leader-note">
+            The first hero you pick leads the party. Beat a boss for the first time with a level 10+ leader and a familiar may bond with them.
+          </p>
+        )}
         {!busy && <PartyReadiness guild={guild} region={region} heroIds={selected} />}
         <div className="space-y-2">
           {ready.length === 0 && <p className="font-mono-g text-[11px] text-slate-400">No heroes ready to travel.</p>}
@@ -123,6 +128,7 @@ export default function ExpeditionBoard({ guild, now, onLaunch }) {
               now={now}
               status="ready"
               selected={selected.includes(hero.identity.id)}
+              leader={selected[0] === hero.identity.id}
               onSelect={() => toggle(hero.identity.id)}
             />
           ))}

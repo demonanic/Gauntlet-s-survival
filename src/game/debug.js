@@ -119,6 +119,14 @@ export function debugCareer(state, now) {
 }
 
 // One of every familiar, at `level`, into the kennel.
+// A boss crate for the first hero, as if they had just led a boss fight.
+export function debugGiveCrate(state) {
+  const next = serializeGameState(state);
+  const options = [...PET_SPECIES_KEYS].sort(() => Math.random() - 0.5);
+  next.petCrates = [...(next.petCrates || []), { heroId: next.heroes[0].identity.id, bossType: "debug", options }];
+  return { ok: true, state: next };
+}
+
 export function debugGivePets(state, level = 6) {
   const next = serializeGameState(state);
   next.kennel = [...(next.kennel || []), ...PET_SPECIES_KEYS.map((species) => ({ ...createPet(species), level, xp: PET_XP[level - 1] }))];

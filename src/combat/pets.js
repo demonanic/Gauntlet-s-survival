@@ -16,7 +16,7 @@
 
 export const PET_SPECIES = Object.freeze({
   wolf: {
-    key: "wolf", name: "Wolf", role: "Hunter", color: "#CBD5E1", price: 150,
+    key: "wolf", name: "Wolf", role: "Hunter", color: "#CBD5E1",
     desc: "Lunges at whatever its partner is fighting.",
     attack: { range: 26, interval: 1.2, damage: 6, speed: 175 },
     mods: {
@@ -29,7 +29,7 @@ export const PET_SPECIES = Object.freeze({
     },
   },
   hawk: {
-    key: "hawk", name: "Hawk", role: "Scout", color: "#FBBF24", price: 150,
+    key: "hawk", name: "Hawk", role: "Scout", color: "#FBBF24",
     desc: "Strikes from the air and marks prey for its partner. Spots ambushes on the road.",
     attack: { range: 230, interval: 1.6, damage: 4, mark: 0.1 },
     road: { spotAmbush: 0.1, stalkerDetect: 0.06 },
@@ -43,7 +43,7 @@ export const PET_SPECIES = Object.freeze({
     },
   },
   imp: {
-    key: "imp", name: "Imp", role: "Firestarter", color: "#FB7185", price: 200,
+    key: "imp", name: "Imp", role: "Firestarter", color: "#FB7185",
     desc: "Flings sparks that set foes alight.",
     attack: { range: 200, interval: 2, damage: 5, burn: 0.5 },
     mods: {
@@ -56,7 +56,7 @@ export const PET_SPECIES = Object.freeze({
     },
   },
   sprite: {
-    key: "sprite", name: "Sprite", role: "Healer", color: "#A7F3D0", price: 200,
+    key: "sprite", name: "Sprite", role: "Healer", color: "#A7F3D0",
     desc: "Mends its partner's wounds in battle. Its glow lifts spirits on the road.",
     attack: null,
     support: { heal: 0.03, interval: 3 },
@@ -71,7 +71,7 @@ export const PET_SPECIES = Object.freeze({
     },
   },
   tortoise: {
-    key: "tortoise", name: "Stonebark Tortoise", role: "Guardian", color: "#86EFAC", price: 200,
+    key: "tortoise", name: "Stonebark Tortoise", role: "Guardian", color: "#86EFAC",
     desc: "Shields its partner: they take less damage and gain a stone shield every few seconds.",
     attack: null,
     support: { guard: 0.06, shield: 0.05, interval: 8 },

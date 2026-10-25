@@ -1,14 +1,18 @@
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import { Engine } from "../combat/engine";
 import { CONSUMABLES, crystalInfo, healThreshold, heroGearStats, itemSockets } from "../combat/gear";
-import { PET_SPECIES, PET_XP, petStats } from "../combat/pets";
+import { PET_SPECIES, PET_SPECIES_KEYS, PET_XP, petStats } from "../combat/pets";
+import { heroGearMarks } from "../combat/heroLook";
 import { heroRoadEffects, partyRoadEffects } from "../combat/traits";
 import { buildWildEncounter, createEncounterSim } from "./encounters";
-import { choosePending, createGuild, startExpedition } from "./guild";
+import { createGuild, resolveEncounter, startExpedition } from "./guild";
+import { withPendingFight } from "../test/expeditionFixtures";
 import {
   CRYSTAL_PRICE, EXTRACT_COST, buyCrystal, createGearItem, extractCrystal, fuseCrystals, infuseCrystal, setSupplyStyle,
 } from "./items";
-import { adoptPet, assignPet, awardPetXp, choosePetMod, createPet, pendingPetMods, unassignPet } from "./pets";
+import {
+  CRATE_LEVEL, assignPet, awardPetXp, choosePetMod, createPet, earnPetCrate, openPetCrate, pendingPetMods, unassignPet,
+} from "./pets";
 import { getRegion } from "./regions";
 import { parseGuild } from "./storage";
 
@@ -129,12 +133,59 @@ describe("crystals", () => {
 });
 
 describe("familiars", () => {
-  test("adopt into the kennel, pair with a hero, swap, send back", () => {
-    let state = { ...createGuild(), gold: 1000 };
+  test("a boss leaves a crate only for a level 10+ leader, once per boss", () => {
+    const state = createGuild();
+    const [leader, other] = state.heroes;
+    leader.progression.level = CRATE_LEVEL - 1;
+    expect(earnPetCrate(state, "boneLord", leader.identity.id)).toBe(false);
+    leader.progression.level = CRATE_LEVEL;
+    expect(earnPetCrate(state, "boneLord", leader.identity.id)).toBe(true);
+    expect(state.petCrates).toHaveLength(1);
+    expect([...state.petCrates[0].options].sort()).toEqual([...PET_SPECIES_KEYS].sort());
+    other.progression.level = 20;
+    expect(earnPetCrate(state, "boneLord", other.identity.id)).toBe(false);
+    expect(earnPetCrate(state, "frostQueen", other.identity.id)).toBe(true);
+    expect(state.crateBosses).toEqual(["boneLord", "frostQueen"]);
+  });
+
+  test("beating a boss on an expedition with a level 10 leader finds the crate", () => {
+    const beatBoss = (level) => {
+      let state = createGuild();
+      const ids = state.heroes.slice(0, 2).map((hero) => hero.identity.id);
+      state.heroes[0].progression.level = level;
+      state.heroes[1].progression.level = 12;
+      state = startExpedition(state, "ashen", ids, 0).state;
+      withPendingFight(state, 1000, "boss");
+      const party = structuredClone(state.heroes.slice(0, 2));
+      return resolveEncounter(state, { victory: true, party, xpGains: {}, gold: 0, items: [] }, 2000).state;
+    };
+    const found = beatBoss(10);
+    expect(found.petCrates).toHaveLength(1);
+    expect(found.petCrates[0].heroId).toBe(found.heroes[0].identity.id);
+    expect(found.lastReport.log.join(" ")).toMatch(/weird crate with breathing holes/);
+    // Only the leader's level counts.
+    expect(beatBoss(9).petCrates).toEqual([]);
+  });
+
+  test("the chosen crate's pet bonds with the leader; an old pet goes to the kennel", () => {
+    let state = createGuild();
+    const leader = state.heroes[0];
+    leader.progression.level = CRATE_LEVEL;
+    leader.pet = createPet("tortoise");
+    earnPetCrate(state, "boneLord", leader.identity.id, fixed(0));
+    const chosen = state.petCrates[0].options[2];
+    const opened = openPetCrate(state, 2);
+    expect(opened).toMatchObject({ ok: true, heroName: leader.identity.name });
+    state = opened.state;
+    expect(state.heroes[0].pet.species).toBe(chosen);
+    expect(state.kennel.map((pet) => pet.species)).toEqual(["tortoise"]);
+    expect(state.petCrates).toEqual([]);
+    expect(openPetCrate(state, 0).reason).toBe("no_crate");
+  });
+
+  test("pair a kennel pet with a hero, swap, send back", () => {
+    let state = { ...createGuild(), kennel: [createPet("wolf"), createPet("hawk")] };
     const id = state.heroes[0].identity.id;
-    state = adoptPet(state, "wolf", fixed(0.1)).state;
-    state = adoptPet(state, "hawk", fixed(0.2)).state;
-    expect(state.gold).toBe(1000 - PET_SPECIES.wolf.price - PET_SPECIES.hawk.price);
     const [wolf, hawk] = state.kennel;
     state = assignPet(state, id, wolf.id).state;
     expect(state.heroes[0].pet.species).toBe("wolf");
@@ -204,15 +255,6 @@ describe("familiars", () => {
     expect(partyRoadEffects([hero]).stalkerDetect).toBeCloseTo(0.12);
   });
 
-  test("a stray on the road can be taken in", () => {
-    let state = createGuild();
-    state = startExpedition(state, "gutter", [state.heroes[0].identity.id], 0).state;
-    const pet = createPet("sprite");
-    state.expedition.pending = { kind: "story", story: "stray", text: "", pet, at: 0, promptAt: 0, engagedAt: null };
-    state = choosePending(state, "adopt", 1000).state;
-    expect(state.kennel.map((entry) => entry.id)).toEqual([pet.id]);
-  });
-
   test("pets survive a save round trip; broken ones are dropped", () => {
     const state = createGuild();
     state.heroes[0].pet = createPet("imp");
@@ -220,5 +262,24 @@ describe("familiars", () => {
     const loaded = parseGuild(JSON.parse(JSON.stringify(state)));
     expect(loaded.heroes[0].pet.species).toBe("imp");
     expect(loaded.kennel.map((pet) => pet.species)).toEqual(["wolf"]);
+  });
+
+  test("unopened crates and beaten bosses survive a save round trip", () => {
+    const state = { ...createGuild(), crateBosses: ["boneLord"], petCrates: [{ heroId: "h1", bossType: "boneLord", options: ["wolf", "imp"] }, { heroId: "h1", options: ["dragon"] }] };
+    const loaded = parseGuild(JSON.parse(JSON.stringify(state)));
+    expect(loaded.crateBosses).toEqual(["boneLord"]);
+    expect(loaded.petCrates).toHaveLength(1);
+  });
+});
+
+describe("gear on the sprite", () => {
+  test("each armor piece adds marks in its rarity or set colour", () => {
+    expect(heroGearMarks({})).toEqual([]);
+    const helm = createGearItem({ slot: "head", rarity: "epic" });
+    const chest = createGearItem({ slot: "chest", rarity: "common", set: "gravewatch" });
+    const marks = heroGearMarks({ head: helm, chest, weapon: createGearItem({ slot: "weapon" }) });
+    expect(marks.filter((mark) => mark.slot === "head").every((mark) => mark.color === "#A855F7")).toBe(true);
+    expect(marks.filter((mark) => mark.slot === "chest").every((mark) => mark.color === "#FF3366")).toBe(true);
+    expect(marks.some((mark) => mark.slot === "weapon")).toBe(false);
   });
 });

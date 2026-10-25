@@ -23,7 +23,7 @@ import {
 import {
   buildBossEncounter, buildEndlessWave, buildLegendaryEncounter, buildStalkerEncounter, buildWildEncounter, describeSquad,
 } from "./encounters";
-import { awardPetXp, createPet, randomSpecies, takeInStray } from "./pets";
+import { awardPetXp, earnPetCrate } from "./pets";
 import { developQualities, recordFight, recordHistory, sharedQualities } from "./qualities";
 import { combatEnvironment, getEnvironment, heroResistance, rollEnvironmentEvent } from "./environment";
 import { bankLoot, createGearItem, normalizeHeroGear, randomCrystal, restockQuickSlots, tierMult } from "./items";
@@ -567,12 +567,6 @@ function rareEvent(state, region, hero, at, rng) {
   } else if (kind === "legend") {
     const progress = 1 - (run.endsAt - at) / run.durationMs;
     startEncounter(state, region, at, buildLegendaryEncounter(region, progress, rng), false);
-  } else if (kind === "stray") {
-    // A creature that has been trailing the party, hoping for scraps.
-    const pet = createPet(randomSpecies(rng), rng);
-    const text = `A small ${PET_SPECIES[pet.species].name.toLowerCase()} has been following the party for a while, hoping for scraps.`;
-    addFeed(run, at, text, "story", true);
-    openPending(run, at, { kind: "story", story: "stray", text, pet });
   } else {
     const rarity = pick(["uncommon", "rare", "rare", "epic"], rng);
     const item = createGearItem({ slot: pick(GEAR_SLOTS, rng), rarity, tier: region.tier + 1 }, rng);
@@ -835,12 +829,6 @@ function applyEffects(state, region, effects, at, rng) {
   }
   if (effects.text) addFeed(run, at, effects.text, effects.ambush || effects.hurtAll ? "danger" : "story");
   if (effects.stalker) return answerStalker(state, region, effects.stalker, at, rng);
-  if (effects.adoptStray) {
-    const { pet } = run.pending;
-    addFeed(run, at, takeInStray(state, pet)
-      ? `${pet.name} the ${PET_SPECIES[pet.species].name.toLowerCase()} joins the guild. They'll wait in the kennel for a partner.`
-      : "There's no room in the kennel. The creature trots off, disappointed.", "good");
-  }
   if (effects.gamble) {
     // Greedy hands are unlucky ones.
     const outcome = rng() < effects.gamble.chance + roadEffect(road(state), "gambleLuck") ? effects.gamble.win : effects.gamble.lose;
@@ -1011,6 +999,11 @@ function applyFightResult(state, region, { victory, party, xpGains, gold, items,
     const crystal = randomCrystal(2);
     run.loot.items.push(crystal);
     addFeed(run, at, `${region.name} conquered! +${bounty} gold bounty and a ${crystalInfo(crystal.key).fullName}.`, "good");
+    // The first time each boss falls to a party led by a level 10+ hero, a crate turns up.
+    const boss = pending.wave.enemies.find((enemy) => enemy.boss) || pending.wave.enemies[0];
+    if (earnPetCrate(state, boss.type, run.heroIds[0])) {
+      addFeed(run, at, `Among ${boss.name}'s hoard: a weird crate with breathing holes. Something inside is scratching.`, "loot", true);
+    }
     run.pending = null;
     completeExpedition(state, "victory", at);
     return;

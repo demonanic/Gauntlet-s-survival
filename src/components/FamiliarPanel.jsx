@@ -48,7 +48,10 @@ export default function FamiliarPanel({ hero, kennel, locked, onAssign, onUnassi
           ))}
         </>
       ) : (
-        <p className="text-slate-500">No familiar. Adopt one in the Market, or take in a stray on the road.</p>
+        <p className="text-slate-500">
+          No familiar. Familiars are rare: the first time your guild beats each boss with a level 10+ hero leading the party,
+          the boss leaves a strange crate behind, and whatever is inside bonds with that leader.
+        </p>
       )}
       {!locked && kennel.length > 0 && (
         <div className="mt-1 border-t border-white/10 pt-1">

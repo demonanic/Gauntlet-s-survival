@@ -198,15 +198,6 @@ export const STORIES = Object.freeze({
     ],
     auto: () => "safe",
   },
-  // A stray creature wants to come along (expedition.js puts the pet on the prompt).
-  stray: {
-    prompt: "A small creature has been following the party, hoping for scraps.",
-    options: [
-      { id: "adopt", label: "Take it in", result: "{hero} shares some rations. The creature follows happily.", effects: { adoptStray: true, morale: 5 } },
-      { id: "shoo", label: "Shoo it away", result: "The creature slinks off into the dark.", effects: { morale: -2 } },
-    ],
-    auto: () => "adopt",
-  },
   // Something has been following the party, and someone noticed (expedition.js).
   stalker: {
     prompt: "{hero} stops abruptly. Something has been following the party.",
@@ -343,7 +334,7 @@ export function conditionEffects(weatherKey, night, scouted = false) {
 }
 
 // ---------------- rare events ----------------
-export const RARE_EVENTS = Object.freeze(["merchant", "map", "legend", "stray"]);
+export const RARE_EVENTS = Object.freeze(["merchant", "map", "legend"]);
 export const LEGENDARY = Object.freeze({ hp: 5, dmg: 1.6, rewardGold: [60, 140] });
 const LEGEND_TITLES = ["the Undying", "Gutterking", "the Hollow", "Ironjaw", "the Ash-Born", "Old Bones", "the Patient"];
 

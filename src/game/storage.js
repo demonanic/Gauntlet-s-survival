@@ -6,6 +6,7 @@ import { paletteForShift } from "../combat/heroPalette";
 import { rollTrait, TRAITS } from "../combat/traits";
 import { bankLoot, migrateVaultItem, normalizeHeroGear } from "./items";
 import { normalizeQualityFields } from "./qualities";
+import { PET_SPECIES } from "../combat/pets";
 import { normalizePet } from "./pets";
 import { normalizeTutorial } from "./tutorial";
 import { STASH_KEYS, crystalInfo } from "../combat/gear";
@@ -63,6 +64,9 @@ export function parseGuild(parsed) {
       .filter(([id, count]) => crystalInfo(id) && count > 0).map(([id, count]) => [id, Math.floor(count)])),
     tutorial: normalizeTutorial(parsed.tutorial),
     kennel: (Array.isArray(parsed.kennel) ? parsed.kennel : []).map(normalizePet).filter(Boolean),
+    crateBosses: (Array.isArray(parsed.crateBosses) ? parsed.crateBosses : []).filter((key) => typeof key === "string"),
+    petCrates: (Array.isArray(parsed.petCrates) ? parsed.petCrates : [])
+      .filter((crate) => Array.isArray(crate?.options) && crate.options.length && crate.options.every((key) => PET_SPECIES[key])),
     legacy: { ...emptyLegacy(), ...(parsed.legacy && typeof parsed.legacy === "object" ? parsed.legacy : {}) },
   };
   state.candidate = parsed.candidate?.trait && TRAITS[parsed.candidate.trait] ? parsed.candidate : rollCandidate(state);

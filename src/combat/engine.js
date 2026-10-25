@@ -4,6 +4,7 @@
 // enters from the TOP and hunts the hero party at the BOTTOM.
 // Simulation is separate from React; mutates a cloned `sim` fragment and
 // accumulates XP gains, returned to the UI at wave end.
+import { drawGearMarks, heroGearMarks } from "./heroLook";
 import * as C from "./config";
 import { heroDerived, makeSingleEnemy } from "./logic";
 import { rollEquipmentDrop } from "./equipment";
@@ -3728,6 +3729,14 @@ export class Engine {
       ctx.shadowColor = identityColor;
       ctx.drawImage(image, frame.sx, frame.sy, frame.sw, frame.sh, -24, -44, 48, 48);
       ctx.filter = "none";
+      // Equipped armor shows as simple shapes in each piece's rarity colour.
+      if (h.alive && h.model?.equipment) {
+        ctx.save();
+        ctx.translate(-24, -44);
+        ctx.scale(0.75, 0.75);
+        drawGearMarks(ctx, heroGearMarks(h.model.equipment));
+        ctx.restore();
+      }
     } else {
       // Missing-image fallback is a neutral silhouette, never the old
       // class-specific procedural character artwork.

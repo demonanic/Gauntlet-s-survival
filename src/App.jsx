@@ -7,6 +7,7 @@ import RecruitDialog from "./components/RecruitDialog";
 import ExpeditionPanel from "./components/ExpeditionPanel";
 import GuildHints from "./components/GuildHints";
 import TutorialOverlay from "./components/TutorialOverlay";
+import CrateDialog from "./components/CrateDialog";
 import HeroGear from "./components/HeroGear";
 import { NeonButton, Panel } from "./components/ui";
 import { allocateClasslessStat, purchaseClasslessNode } from "./combat/classlessProgression";
@@ -22,7 +23,7 @@ import {
 import { buyShopItem, rerollShop } from "./game/shop";
 import { isDebugMode } from "./game/debug";
 import { guildHints } from "./game/hints";
-import { adoptPet, assignPet, choosePetMod, unassignPet } from "./game/pets";
+import { assignPet, choosePetMod, openPetCrate, unassignPet } from "./game/pets";
 import { getRegion } from "./game/regions";
 import {
   advanceTutorial, currentStep, nextTutorialStep, restartTutorial, skipTutorial, tutorialActive,
@@ -165,7 +166,6 @@ export default function App() {
           onFletch={(key) => apply((current) => fletchArrows(current, key))}
           onBuyCrystal={(key) => apply((current) => buyCrystal(current, key))}
           onFuseCrystal={(id) => apply((current) => fuseCrystals(current, id))}
-          onAdoptPet={(species) => apply((current) => adoptPet(current, species))}
         />
       )}
       {tab === "board" && (
@@ -273,6 +273,17 @@ export default function App() {
           onComplete={(outcome) => {
             apply((current) => resolveEncounter(current, outcome, Date.now()));
             setInBattle(false);
+          }}
+        />
+      )}
+      {!report && !inBattle && (
+        <CrateDialog
+          crate={guild.petCrates?.[0] || null}
+          guild={guild}
+          onOpen={(choice) => {
+            const result = openPetCrate(guild, choice);
+            if (result.ok) setGuild(result.state);
+            return result.ok ? result : null;
           }}
         />
       )}

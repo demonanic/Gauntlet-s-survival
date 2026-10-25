@@ -52,7 +52,8 @@ quick slots, low arrows, a newly opened region, a hero ready to retire.
 
 ### Heroes
 
-Every hero has an individual neon look (their sprite is tinted with their own hue) and is
+Every hero has an individual neon look (their sprite is tinted with their own hue, and the
+armor they wear shows on it as simple marks in each piece's rarity colour) and is
 born with a **quality**: who they are, not a choice you make. Some are combat qualities
 (Brawny, Berserker, Field Medic), some change the expedition itself (a **Tracker** notices
 things stalking the party, **Keen-Eared** heroes blunt ambushes, **Night Eyes**,
@@ -95,8 +96,11 @@ from the stash every time a party sets out.
 
 ### Familiars
 
-Adopt a familiar in the Market (or take in a stray on the road) and pair it with a hero
-from their Gear screen. Familiars fight on their own and can't be hurt: a **Wolf** bites
+Familiars are rare. The first time your guild beats each boss with a level 10+ hero
+leading the party (the first hero you pick), the boss leaves a **weird crate with
+breathing holes**: you choose one of several identical crates, blind, and whatever is
+inside bonds with the leader. A hero who already has a familiar sends the old one to the
+kennel, where any hero can take it along later from their Gear screen. Familiars fight on their own and can't be hurt: a **Wolf** bites
 whatever its partner is fighting, a **Hawk** strikes from the air and marks prey (and
 spots ambushes on the road), an **Imp** sets foes alight, a **Sprite** heals its partner,
 and a **Stonebark Tortoise** guards and shields them. Each is born with a quality

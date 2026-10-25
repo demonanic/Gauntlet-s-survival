@@ -1,17 +1,19 @@
-// Familiars in the guild: adopting, pairing a pet with a hero, levelling up
-// and choosing mods. Pets waiting for a partner live in guild.kennel; a
-// paired pet is stored on its hero (hero.pet). Mutators return { ok, state }.
+// Familiars in the guild. Pets are rare: the first time the guild beats each
+// boss with a level 10+ hero leading the party, it finds a weird crate with
+// breathing holes. The player picks one of several identical crates; the pet
+// inside bonds with the party's leader. Pets displaced by a newcomer wait in
+// guild.kennel and can be paired again; a paired pet lives on its hero
+// (hero.pet). Mutators return { ok, state }.
 import { serializeGameState } from "../combat/heroModel";
 import {
   PET_MAX_LEVEL, PET_MOD_LEVELS, PET_QUALITY_KEYS, PET_SPECIES, PET_SPECIES_KEYS, PET_XP,
 } from "../combat/pets";
 
 const PET_NAMES = ["Fang", "Ember", "Pip", "Moss", "Talon", "Biscuit", "Cinder", "Wisp", "Boulder", "Rook", "Nib", "Saffron", "Juniper", "Grit"];
-// Pets a guild can keep in total (paired and in the kennel).
-export const MAX_PETS = 8;
+// The party leader must be at least this level for a boss to leave a crate.
+export const CRATE_LEVEL = 10;
 
 const heroId = (hero) => hero.identity.id;
-const ownedPets = (state) => (state.kennel || []).length + state.heroes.filter((hero) => hero.pet).length;
 
 export function createPet(species, rng = Math.random) {
   return {
@@ -23,10 +25,6 @@ export function createPet(species, rng = Math.random) {
     xp: 0,
     mods: {},
   };
-}
-
-export function randomSpecies(rng = Math.random) {
-  return PET_SPECIES_KEYS[Math.floor(rng() * PET_SPECIES_KEYS.length)];
 }
 
 // Repair a saved pet, or drop it.
@@ -42,22 +40,43 @@ export function normalizePet(pet) {
   };
 }
 
-export function adoptPet(state, species, rng = Math.random) {
-  const info = PET_SPECIES[species];
-  if (!info) return { ok: false, reason: "unknown_species" };
-  if (ownedPets(state) >= MAX_PETS) return { ok: false, reason: "kennel_full" };
-  if (state.gold < info.price) return { ok: false, reason: "insufficient_gold" };
-  const next = serializeGameState(state);
-  next.gold -= info.price;
-  next.kennel = [...(next.kennel || []), createPet(species, rng)];
-  return { ok: true, state: next };
+// After a boss falls (mutates `state`): the first time each boss is beaten
+// with a level 10+ leader, a crate is waiting. Returns true if one was found.
+export function earnPetCrate(state, bossType, leaderId, rng = Math.random) {
+  const leader = state.heroes.find((hero) => heroId(hero) === leaderId);
+  if (!leader || leader.progression.level < CRATE_LEVEL) return false;
+  state.crateBosses ||= [];
+  if (state.crateBosses.includes(bossType)) return false;
+  state.crateBosses.push(bossType);
+  // Every species is in one of the crates, in an order the player can't see.
+  const options = [...PET_SPECIES_KEYS];
+  for (let index = options.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(rng() * (index + 1));
+    [options[index], options[swap]] = [options[swap], options[index]];
+  }
+  state.petCrates = [...(state.petCrates || []), { heroId: leaderId, bossType, options }];
+  return true;
 }
 
-// A stray found on the road joins the kennel for free (if there's room).
-export function takeInStray(state, pet) {
-  if (ownedPets(state) >= MAX_PETS) return false;
-  state.kennel = [...(state.kennel || []), pet];
-  return true;
+// Open crate number `choice` of the first waiting crate set. The pet bonds with
+// the leader who earned it (their old pet goes to the kennel); if that hero
+// has left the guild it waits in the kennel instead. Also returns the pet.
+export function openPetCrate(state, choice, rng = Math.random) {
+  const crate = state.petCrates?.[0];
+  if (!crate) return { ok: false, reason: "no_crate" };
+  const species = crate.options[choice];
+  if (!species) return { ok: false, reason: "invalid_choice" };
+  const next = serializeGameState(state);
+  next.petCrates = next.petCrates.slice(1);
+  const pet = createPet(species, rng);
+  const hero = next.heroes.find((entry) => heroId(entry) === crate.heroId);
+  if (hero) {
+    if (hero.pet) next.kennel = [...(next.kennel || []), hero.pet];
+    hero.pet = pet;
+  } else {
+    next.kennel = [...(next.kennel || []), pet];
+  }
+  return { ok: true, state: next, pet, heroName: hero?.identity.name || null };
 }
 
 // Pair a kennel pet with a hero who's home. A pet the hero already had goes back to the kennel.

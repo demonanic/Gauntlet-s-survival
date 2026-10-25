@@ -1,9 +1,7 @@
 import ItemDetails from "../components/ItemDetails";
 import { NeonButton, Panel, formatSeconds } from "../components/ui";
 import { CONSUMABLES, CRYSTALS, CRYSTAL_TIERS, FLETCHING, PROVISIONS, PROVISION_KEYS } from "../combat/gear";
-import { PET_QUALITIES, PET_SPECIES } from "../combat/pets";
 import { CRYSTAL_PRICE, FUSE_COUNT } from "../game/items";
-import { MAX_PETS } from "../game/pets";
 import { ENVIRONMENTS } from "../game/environment";
 import { REGIONS } from "../game/regions";
 import { shopStock } from "../game/shop";
@@ -103,36 +101,7 @@ function CrystalShop({ guild, onBuy, onFuse }) {
   );
 }
 
-// Familiars: adopt a pet; it waits in the kennel until a hero takes it along.
-function Menagerie({ guild, onAdopt }) {
-  const owned = (guild.kennel || []).length + guild.heroes.filter((hero) => hero.pet).length;
-  return (
-    <Panel data-testid="menagerie">
-      <h2 className="mb-1 font-display text-base font-bold text-cyan-200">FAMILIARS</h2>
-      <p className="mb-2 font-mono-g text-[10px] text-slate-500">
-        A familiar fights beside one hero on its own and can't be hurt. Each is born with a quality
-        ({Object.values(PET_QUALITIES).map((quality) => quality.name).join(", ")}) and learns a new trick of your choice at levels 3, 6
-        and 9. Pair them from a hero&apos;s Gear screen. {owned}/{MAX_PETS} pets.
-      </p>
-      <ul className="space-y-1.5 font-mono-g text-[11px]">
-        {Object.values(PET_SPECIES).map((species) => (
-          <li key={species.key} className="flex items-center justify-between gap-2 border-b border-white/5 pb-1.5">
-            <div className="min-w-0">
-              <span className="font-bold" style={{ color: species.color }}>{species.name}</span>
-              <span className="ml-2 text-[10px] uppercase text-slate-500">{species.role}</span>
-              <div className="text-[10px] text-slate-500">{species.desc}</div>
-            </div>
-            <NeonButton color="#FFE600" disabled={guild.gold < species.price || owned >= MAX_PETS} onClick={() => onAdopt(species.key)} data-testid={`adopt-${species.key}`}>
-              {species.price}g
-            </NeonButton>
-          </li>
-        ))}
-      </ul>
-    </Panel>
-  );
-}
-
-export default function Market({ guild, now, onBuyItem, onReroll, onBuySupply, onFletch, onBuyCrystal, onFuseCrystal, onAdoptPet }) {
+export default function Market({ guild, now, onBuyItem, onReroll, onBuySupply, onFletch, onBuyCrystal, onFuseCrystal }) {
   const stock = shopStock(guild, now);
   return (
     <div className="space-y-3">
@@ -174,8 +143,6 @@ export default function Market({ guild, now, onBuyItem, onReroll, onBuySupply, o
           ))}
         </ul>
       </Panel>
-
-      <Menagerie guild={guild} onAdopt={onAdoptPet} />
 
       <CrystalShop guild={guild} onBuy={onBuyCrystal} onFuse={onFuseCrystal} />
 

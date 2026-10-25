@@ -166,6 +166,11 @@ stash has one and their gear isn't already immune.
 - **Looks** (`src/combat/heroPalette.js`): each hero has a random `hueShift`; the shared
   sprite is drawn with `hue-rotate(hueShift)`, and the hero's identity (glow, name) and
   accent colors are the sprite's own magenta and cyan rotated by the same amount.
+- **Gear on the sprite** (`src/combat/heroLook.js`): `heroGearMarks(equipment)` gives a few
+  plain shapes per armor slot (helm band and crest, shoulder plate, bracers, boots,
+  shield/dagger/orb/quiver, amulet or ring) in sprite-frame coordinates, coloured by
+  rarity or set. The battle canvas draws them over the body (`drawGearMarks`); roster
+  portraits draw the same marks as SVG.
 - **Traits** (`src/combat/traits.js`): one per hero, rolled at creation. Combat traits
   feed `classlessHeroDerived` and the hit, heal and kill paths; XP traits apply when an
   encounter resolves. Older saves get a random trait on load.
@@ -182,8 +187,11 @@ damage, 5% max HP shield every 8s). Pets can't be targeted. One quality at birth
 Quick, Loyal, Keen Nose, Lucky, Brave); levels 1–10 from 50% of their partner's fight XP;
 a choice of two mods at levels 3, 6 and 9. Attack damage grows 12% per pet level and 8%
 per partner level; kills count for the partner. A pet's road effects join its partner's
-(`heroRoadEffects`). Adopt in the Market (150–200g, 8 pets per guild) or take in a stray
-(a rare road event). Measured (`npm run scenarios -- --group companions`, plus a direct
+(`heroRoadEffects`). Getting one: the first win over each boss type (`guild.crateBosses`)
+with a level 10+ leader (`heroIds[0]`, `CRATE_LEVEL`) queues a crate in `guild.petCrates`
+holding every species in shuffled order (`earnPetCrate`); `CrateDialog` shows identical
+crates and `openPetCrate` bonds the picked one with that leader (an old pet goes to
+`guild.kennel`). Measured (`npm run scenarios -- --group companions`, plus a direct
 Bog Lich fight): pets help without dominating; wolves cut that boss fight ~22%, sprites
 leave the party at 58% HP instead of 33%.
 
