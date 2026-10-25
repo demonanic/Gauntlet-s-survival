@@ -145,6 +145,13 @@ function heroMovementSpeed(hero, legacyBase, currentTime, applyLegacyModifiers =
 const LANES = 5;
 const ENDLESS_WAVE_BREAK_SECONDS = 3;
 // Enemy body radii for collisions (bosses and elites need more room).
+// Bulwarks: the share of a hit a Bulwark in the line of fire takes, and the
+// damage reduction for allies standing beside one.
+const BULWARK_COVER = 0.5;
+const BULWARK_GUARD = 0.1;
+const BULWARK_GUARD_RADIUS = 60;
+// Sappers sheltering behind a Bulwark break cover inside this range.
+const SAPPER_SPRINT_RANGE = 110;
 const ENEMY_BODY_RADIUS = (e) => (e.boss ? 29 : e.tier === "elite" ? 20 : 14);
 // Heroes this close to a boss are in melee with it: it won't lob bombs at them.
 const BOSS_MELEE_REACH = 90;
@@ -1795,14 +1802,57 @@ export class Engine {
         this._float(e.x, e.y - 20, "FUSE LIT!", "#FB923C");
         return true;
       }
+      // With a Bulwark in the squad it keeps to the shield's shadow until it
+      // is close enough to sprint the rest of the way.
+      const shield = distTo(nearest) > SAPPER_SPRINT_RANGE &&
+        this.active.find((ally) => ally.type === "bulwark" && ally.hp > 0);
+      if (shield) {
+        const away = Math.hypot(shield.x - nearest.x, shield.y - nearest.y) || 1;
+        const behind = { x: shield.x + ((shield.x - nearest.x) / away) * 22, y: shield.y + ((shield.y - nearest.y) / away) * 22 };
+        if (Math.hypot(behind.x - e.x, behind.y - e.y) > 4) move(behind, e.speed * 1.25);
+        return true;
+      }
       move(nearest, e.speed * 1.25);
       return true;
     }
 
+    if (e.type === "bulwark") {
+      // Anchor: fights whoever reaches it; otherwise plants itself between its
+      // most threatened ward (a support or control ally) and the hero closest
+      // to that ward. With no wards left it advances like any frontliner.
+      if (distTo(nearest) <= 32) {
+        if (e.atkCd <= 0) {
+          this._enemyAttack(e, { kind: "hero", obj: nearest });
+          e.atkCd = 1.25;
+        }
+        return true;
+      }
+      const ward = this._bulwarkWard(e, living);
+      e.guarding = ward?.ally || null;
+      if (!ward) {
+        move(nearest, e.speed);
+        return true;
+      }
+      const { ally, threat, dist } = ward;
+      const out = Math.min(44, dist * 0.5);
+      const post = { x: ally.x + ((threat.x - ally.x) / (dist || 1)) * out, y: ally.y + ((threat.y - ally.y) / (dist || 1)) * out };
+      // Hurries when a hero is closing in on its ward.
+      if (Math.hypot(post.x - e.x, post.y - e.y) > 3) move(post, e.speed * (dist < 200 ? 1.5 : 1.1));
+      return true;
+    }
+
     if (e.families?.includes("hunter") && !e.boss && e.type !== "bandit" && e.type !== "darkElf") {
-      // Hunters (Harriers, Stalkers, legends): go for the most wounded hero.
-      // A Stalker's first strike lands extra hard.
-      const prey = living.reduce((best, h) => (h.ref.hp / h.d.maxHp < best.ref.hp / best.d.maxHp ? h : best));
+      // Hunters (Harriers, Stalkers, legends) go for the most wounded hero. A
+      // Stalker's first strike lands extra hard. A Harrier only hunts when
+      // someone is hurt (below 70%); otherwise it skirmishes: strike the
+      // nearest hero, then fall back for a moment.
+      const weakest = living.reduce((best, h) => (h.ref.hp / h.d.maxHp < best.ref.hp / best.d.maxHp ? h : best));
+      const hunting = e.type !== "harrier" || weakest.ref.hp / weakest.d.maxHp < 0.7;
+      const prey = hunting ? weakest : nearest;
+      if (!hunting && e.fallBackUntil > this.time) {
+        move(prey, e.speed, true);
+        return true;
+      }
       if (distTo(prey) <= 30) {
         if (e.atkCd <= 0) {
           const base = e.damage;
@@ -1811,6 +1861,7 @@ export class Engine {
           e.damage = base;
           e.struck = true;
           e.atkCd = e.type === "harrier" ? 0.7 : 0.9;
+          if (!hunting) e.fallBackUntil = this.time + 0.6;
         }
         return true;
       }
@@ -1861,7 +1912,16 @@ export class Engine {
       if (dist < 160) move(nearest, e.speed * 1.1, true);
       else if (dist > 260) move(nearest, e.speed);
       else if (e.atkCd <= 0) {
-        const marked = living.find((h) => !(h.exposedUntil > this.time)) || nearest;
+        // It picks the hero its squad is best placed to punish: the most
+        // enemies close by, then the most wounded.
+        const unmarked = living.filter((h) => !(h.exposedUntil > this.time));
+        const pressure = (h) => this.active.filter((ally) => ally !== e && ally.hp > 0 && Math.hypot(ally.x - h.x, ally.y - h.y) <= 90).length;
+        const marked = unmarked.length
+          ? unmarked.reduce((best, h) => {
+            const diff = pressure(h) - pressure(best);
+            return diff > 0 || (diff === 0 && h.ref.hp / h.d.maxHp < best.ref.hp / best.d.maxHp) ? h : best;
+          })
+          : nearest;
         marked.exposedUntil = this.time + 4;
         this._float(marked.x, marked.y - 26, "MARKED", e.color);
         this._throwEnemyBolt(e, { kind: "hero", obj: marked }, e.damage, e.color, true);
@@ -2046,6 +2106,37 @@ export class Engine {
     if (!h?.classless || !(amount > 0)) return;
     const stats = (h.model.battleStats ||= {});
     stats[stat] = (stats[stat] || 0) + amount;
+  }
+
+  // A Bulwark's ward: the support or control ally (not another Bulwark)
+  // whose nearest hero is closest. Returns { ally, threat, dist } or null.
+  _bulwarkWard(e, living) {
+    let best = null;
+    for (const ally of this.active) {
+      if (ally === e || ally.hp <= 0 || ally.boss || !(C.ENEMY_ROLES[ally.type] || []).some((role) => C.WARDED_ROLES.includes(role))) continue;
+      for (const h of living) {
+        const dist = Math.hypot(h.x - ally.x, h.y - ally.y);
+        if (!best || dist < best.dist) best = { ally, threat: h, dist };
+      }
+    }
+    return best;
+  }
+
+  // A living Bulwark standing in the line of a hero's attack on someone
+  // else. Heroes right next to their target (within 70) have got past it.
+  _bulwarkCover(hero, target) {
+    if (target.type === "bulwark") return null;
+    const dx = target.x - hero.x, dy = target.y - hero.y;
+    const length = Math.hypot(dx, dy);
+    if (length <= 70) return null;
+    for (const shield of this.active) {
+      if (shield.type !== "bulwark" || shield.hp <= 0 || shield === target) continue;
+      const t = ((shield.x - hero.x) * dx + (shield.y - hero.y) * dy) / (length * length);
+      if (t <= 0.05 || t >= 0.95) continue;
+      const off = Math.hypot(hero.x + dx * t - shield.x, hero.y + dy * t - shield.y);
+      if (off <= 24) return shield;
+    }
+    return null;
   }
 
   // Heal living allies within `range` by `fraction` of max HP. `limit` heals
@@ -2789,6 +2880,27 @@ export class Engine {
       !target.boss && !target.legendary && target.tier !== "elite" && target.hp - damage <= target.maxHp * traits.execute) {
       damage = Math.max(damage, target.hp);
       this._float(target.x, target.y - 16, "EXECUTE", "#FFE600");
+    }
+    // Bulwarks: the shield turns arrows and lets spells through; a Bulwark in
+    // the line of fire takes most of a hit meant for the ally behind it, and
+    // allies at its side are a little harder to hurt.
+    if (target.shield && p.damageCategory === "weapon") {
+      damage *= target.shield[getEquippedHeroWeaponType(hero.model)] ?? 1;
+    }
+    if (!p.area && !p.damageOverTime && this.active.some((enemy) => enemy.type === "bulwark" && enemy.hp > 0 && enemy !== target)) {
+      const cover = this._bulwarkCover(hero, target);
+      if (cover) {
+        const blocked = damage * BULWARK_COVER;
+        damage -= blocked;
+        cover.hp = Math.max(0, cover.hp - blocked);
+        cover.dmgBy[p.sourceId] = (cover.dmgBy[p.sourceId] || 0) + blocked;
+        cover.hitUntil = this.time + 0.18;
+        this._float(cover.x, cover.y - 18, "BLOCKED", cover.color);
+        if (cover.hp <= 0) this._killEnemy(cover, p.sourceId);
+      } else if (this.active.some((enemy) => enemy.type === "bulwark" && enemy.hp > 0 && enemy !== target &&
+        Math.hypot(enemy.x - target.x, enemy.y - target.y) <= BULWARK_GUARD_RADIUS)) {
+        damage *= 1 - BULWARK_GUARD;
+      }
     }
     target.hp = Math.max(0, target.hp - damage);
     if (p.damageCategory === "weapon") {
@@ -3840,6 +3952,24 @@ export class Engine {
       ctx.moveTo(7, -5); ctx.lineTo(16, -11); ctx.lineTo(10, 1); ctx.closePath(); ctx.fill(); outline();
       eye(-3, 0, 1.8); eye(3, 0, 1.8);
       neon(2.3); ctx.beginPath(); ctx.moveTo(8, 7); ctx.lineTo(16, -5); ctx.stroke();
+    } else if (e.type === "bulwark") {
+      // Broad armored figure behind a tall tower shield; a faint tether shows
+      // which ally it is guarding.
+      if (e.guarding?.hp > 0) {
+        ctx.save();
+        ctx.globalAlpha = 0.28;
+        ctx.setLineDash?.([3, 4]);
+        neon(1);
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(e.guarding.x - e.x, e.guarding.y - e.y); ctx.stroke();
+        ctx.restore();
+      }
+      ctx.fillStyle = "#0E1622";
+      ctx.beginPath(); ctx.arc(0, -7, 10, 0, Math.PI * 2); ctx.fill(); outline();
+      eye(-3, -10, 1.6); eye(3, -10, 1.6);
+      ctx.fillStyle = "#132033";
+      ctx.beginPath(); ctx.moveTo(-14, -2); ctx.lineTo(14, -2); ctx.lineTo(14, 9); ctx.lineTo(0, 18); ctx.lineTo(-14, 9); ctx.closePath(); ctx.fill();
+      neon(2.4); ctx.stroke();
+      neon(1.2); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 15); ctx.moveTo(-11, 5); ctx.lineTo(11, 5); ctx.stroke();
     } else if (e.type === "gnome") {
       // Same family as goblin, but with the distinctive tall neon cap.
       ctx.fillStyle = "#172019";

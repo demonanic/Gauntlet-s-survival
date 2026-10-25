@@ -7,6 +7,7 @@ import { rollTrait, TRAITS } from "../combat/traits";
 import { bankLoot, migrateVaultItem, normalizeHeroGear } from "./items";
 import { normalizeQualityFields } from "./qualities";
 import { PET_SPECIES } from "../combat/pets";
+import { ECOLOGIES } from "./ecology";
 import { normalizePet } from "./pets";
 import { normalizeTutorial } from "./tutorial";
 import { STASH_KEYS, crystalInfo } from "../combat/gear";
@@ -65,6 +66,8 @@ export function parseGuild(parsed) {
     tutorial: normalizeTutorial(parsed.tutorial),
     kennel: (Array.isArray(parsed.kennel) ? parsed.kennel : []).map(normalizePet).filter(Boolean),
     crateBosses: (Array.isArray(parsed.crateBosses) ? parsed.crateBosses : []).filter((key) => typeof key === "string"),
+    ecologySeen: Object.fromEntries(Object.entries(parsed.ecologySeen && typeof parsed.ecologySeen === "object" ? parsed.ecologySeen : {})
+      .filter(([key, count]) => ECOLOGIES[key] && Number(count) > 0).map(([key, count]) => [key, Math.floor(Number(count))])),
     petCrates: (Array.isArray(parsed.petCrates) ? parsed.petCrates : [])
       .filter((crate) => Array.isArray(crate?.options) && crate.options.length && crate.options.every((key) => PET_SPECIES[key])),
     legacy: { ...emptyLegacy(), ...(parsed.legacy && typeof parsed.legacy === "object" ? parsed.legacy : {}) },

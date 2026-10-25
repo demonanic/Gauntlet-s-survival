@@ -1,5 +1,6 @@
 import * as C from "../combat/config";
 import { LEGENDARY, legendName } from "./adventure";
+import { constrainSquad, fillEcology, rollEcology } from "./ecology";
 import { rollLoot } from "./items";
 import { BOSS_RANK_SCALING, BOSS_ROTATION, bossForRank } from "./regions";
 
@@ -19,7 +20,7 @@ export const ENDLESS = Object.freeze({
 const ENDLESS_POOLS = [
   { fromWave: 1, enemies: ["goblin", "ghost", "slime"] },
   { fromWave: 4, enemies: ["skeleton", "orc"] },
-  { fromWave: 8, enemies: ["reaper", "darkElf", "warlock"] },
+  { fromWave: 8, enemies: ["reaper", "darkElf", "warlock", "bulwark"] },
 ];
 
 let enemySequence = 0;
@@ -42,21 +43,34 @@ function weightedPick(weights, rng) {
 
 // A random squad from the region's wildlife. `progress` is how far through
 // the expedition timer the party is (0 to 1).
-export function buildWildEncounter(region, progress = 0, rng = Math.random) {
+// Some regions field a tactical composition instead (ecology.js); pass
+// `ecology: false` for a squad that must stay ordinary (tutorial, escorts).
+export function buildWildEncounter(region, progress = 0, rng = Math.random, { ecology = true } = {}) {
   const wildlife = region?.wildlife;
   if (!wildlife) throw new RangeError(`Region ${region?.id} has no wildlife`);
-  const [min, max] = wildlife.squad;
-  const size = min + Math.floor(rng() * (max - min + 1 + Math.min(1, progress)));
-  const squad = Array.from({ length: Math.min(size, max + 1) }, () => weightedPick(wildlife.pool, rng));
-  if (rng() < (wildlife.eliteChance || 0)) squad[0] = "lieutenant";
+  const template = ecology ? rollEcology(wildlife, rng) : null;
+  let squad;
+  if (template) {
+    squad = fillEcology(template, wildlife.pool, rng);
+  } else {
+    const [min, max] = wildlife.squad;
+    const size = min + Math.floor(rng() * (max - min + 1 + Math.min(1, progress)));
+    squad = Array.from({ length: Math.min(size, max + 1) }, () => weightedPick(wildlife.pool, rng));
+    if (rng() < (wildlife.eliteChance || 0)) squad[0] = "lieutenant";
+  }
+  squad = constrainSquad(squad, wildlife.pool, rng);
   const depth = 1 + DEPTH_SCALE_AT_END * Math.max(0, Math.min(1, progress));
-  return { ...assembleWave(squad, { hp: region.hpScale * depth, dmg: region.dmgScale * depth }, region.tier), set: region.set || null };
+  return {
+    ...assembleWave(squad, { hp: region.hpScale * depth, dmg: region.dmgScale * depth }, region.tier),
+    set: region.set || null,
+    ...(template ? { ecology: template } : {}),
+  };
 }
 
 // A legendary monster: the toughest creature in the region's wildlife, grown
 // huge (LEGENDARY hp and damage), with two ordinary followers and better loot.
 export function buildLegendaryEncounter(region, progress = 0, rng = Math.random) {
-  const wave = buildWildEncounter({ ...region, wildlife: { ...region.wildlife, squad: [2, 2], eliteChance: 0 } }, progress, rng);
+  const wave = buildWildEncounter({ ...region, wildlife: { ...region.wildlife, squad: [2, 2], eliteChance: 0 } }, progress, rng, { ecology: false });
   const toughest = Object.keys(region.wildlife.pool).sort((a, b) => C.ENEMIES[b].hp - C.ENEMIES[a].hp)[0];
   const depth = 1 + DEPTH_SCALE_AT_END * Math.max(0, Math.min(1, progress));
   const legend = makeEnemy(C.ENEMIES[toughest], region.hpScale * depth * LEGENDARY.hp, region.dmgScale * depth * LEGENDARY.dmg);
@@ -94,7 +108,7 @@ export function describeSquad(wave) {
 // Something that has been following the party: a Stalker and one of the
 // region's creatures, at the expedition's current depth.
 export function buildStalkerEncounter(region, progress = 0, rng = Math.random) {
-  const wave = buildWildEncounter({ ...region, wildlife: { ...region.wildlife, squad: [1, 1], eliteChance: 0 } }, progress, rng);
+  const wave = buildWildEncounter({ ...region, wildlife: { ...region.wildlife, squad: [1, 1], eliteChance: 0 } }, progress, rng, { ecology: false });
   const depth = 1 + DEPTH_SCALE_AT_END * Math.max(0, Math.min(1, progress));
   wave.enemies.unshift(makeEnemy(C.ENEMIES.stalker, region.hpScale * depth, region.dmgScale * depth));
   return { ...wave, total: wave.enemies.length };
@@ -106,7 +120,8 @@ export function buildEndlessWave(waveNumber, rng = Math.random) {
   const n = Math.max(1, Math.floor(waveNumber));
   const pool = ENDLESS_POOLS.filter((entry) => n >= entry.fromWave).flatMap((entry) => entry.enemies);
   const size = Math.min(ENDLESS.maxSquad, 3 + Math.floor(n / 2));
-  const squad = Array.from({ length: size }, () => pool[Math.floor(rng() * pool.length)]);
+  const squad = constrainSquad(Array.from({ length: size }, () => pool[Math.floor(rng() * pool.length)]),
+    Object.fromEntries(pool.map((key) => [key, 1])), rng);
   if (n % ENDLESS.bossEvery === 0) {
     squad.splice(0, 3, BOSS_ROTATION[(n / ENDLESS.bossEvery - 1) % BOSS_ROTATION.length]);
   } else if (n % ENDLESS.eliteEvery === 0) {
@@ -136,6 +151,7 @@ function makeEnemy(base, hpScale, dmgScale) {
     ...(base.attackRange ? { attackRange: base.attackRange } : {}),
     ...(base.splashRadius ? { splashRadius: base.splashRadius } : {}),
     ...(base.bomber ? { bomber: true } : {}),
+    ...(base.shield ? { shield: { ...base.shield } } : {}),
     families: [...(C.ENEMY_FAMILIES[base.key] || [])],
   };
 }

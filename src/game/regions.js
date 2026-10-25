@@ -47,7 +47,12 @@ export const REGIONS = Object.freeze([
     dmgScale: 1.7,
     completionGold: 300,
     recoverySeconds: 120,
-    wildlife: { pool: { skeleton: 4, ghost: 3, reaper: 2, orc: 2, goblin: 1, lesserNecromancer: 1, gnome: 1, carrionPriest: 1 }, squad: [2, 4], eliteChance: 0.05 },
+    // Death sustains death: priests, necromancers and the shields that guard them.
+    wildlife: {
+      // The first formations a guild meets, so a little rarer than further out.
+      pool: { skeleton: 4, ghost: 3, reaper: 2, orc: 2, goblin: 1, lesserNecromancer: 1, gnome: 1, carrionPriest: 1 }, squad: [2, 4], eliteChance: 0.05,
+      ecology: { chance: 0.2, templates: { deathCult: 3, graveCourt: 3 } },
+    },
     boss: ["lieutenant", "skeleton", "skeleton"],
     environment: "darkness",
     set: "gravewatch",
@@ -64,7 +69,11 @@ export const REGIONS = Object.freeze([
     dmgScale: 1.6,
     completionGold: 500,
     recoverySeconds: 180,
-    wildlife: { pool: { bandit: 4, gnome: 3, harrier: 2, orc: 2, darkElf: 2, watcher: 1, ghost: 1 }, squad: [2, 4], eliteChance: 0.06 },
+    // Hunters: everything here goes for whoever is weakest.
+    wildlife: {
+      pool: { bandit: 4, gnome: 3, harrier: 2, orc: 2, darkElf: 2, watcher: 1, ghost: 1 }, squad: [2, 4], eliteChance: 0.06,
+      ecology: { chance: 0.3, templates: { huntPack: 3, killTeam: 2 } },
+    },
     boss: ["banditWarlord", "bandit", "bandit"],
     environment: "cold",
     set: "frostwarden",
@@ -82,7 +91,12 @@ export const REGIONS = Object.freeze([
     dmgScale: 1.5,
     completionGold: 800,
     recoverySeconds: 240,
-    wildlife: { pool: { darkElf: 3, orc: 3, warlock: 2, reaper: 2, skeleton: 2, gnome: 2, goblin: 1, lesserNecromancer: 1, harrier: 1, carrionPriest: 1, watcher: 1 }, squad: [2, 4], eliteChance: 0.08 },
+    // Organized warfare: shields, snipers and sappers in formation.
+    wildlife: {
+      pool: { darkElf: 3, orc: 3, warlock: 2, reaper: 2, skeleton: 2, gnome: 2, bulwark: 2, goblin: 1, lesserNecromancer: 1, harrier: 1, carrionPriest: 1, watcher: 1 },
+      squad: [2, 4], eliteChance: 0.08,
+      ecology: { chance: 0.35, templates: { demolitionCrew: 2, killTeam: 2, graveCourt: 1, deathCult: 1 } },
+    },
     boss: ["demon", "skeleton", "skeleton"],
     environment: "heat",
     set: "emberforged",
@@ -99,7 +113,12 @@ export const REGIONS = Object.freeze([
     dmgScale: 2.6,
     completionGold: 1600,
     recoverySeconds: 300,
-    wildlife: { pool: { slime: 3, lesserNecromancer: 3, skeleton: 2, bandit: 2, darkElf: 2, gnome: 2, reaper: 2, carrionPriest: 2, watcher: 1, harrier: 1 }, squad: [2, 4], eliteChance: 0.1 },
+    // Attrition and corruption: the dead get back up, the hunters wait for you to weaken.
+    wildlife: {
+      pool: { slime: 3, lesserNecromancer: 3, skeleton: 2, bandit: 2, darkElf: 2, gnome: 2, reaper: 2, carrionPriest: 2, watcher: 1, harrier: 1, bulwark: 1 },
+      squad: [2, 4], eliteChance: 0.1,
+      ecology: { chance: 0.35, templates: { deathCult: 2, huntPack: 2, graveCourt: 2 } },
+    },
     boss: ["bogLich", "skeleton", "skeleton"],
     environment: "toxic",
     set: "mirewalker",

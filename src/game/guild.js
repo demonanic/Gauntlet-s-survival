@@ -80,6 +80,8 @@ export function createGuild() {
     // Bosses that have already left a pet crate, and crates waiting to be opened.
     crateBosses: [],
     petCrates: [],
+    // Enemy formations (ecology.js) the guild has met, which it now knows by name.
+    ecologySeen: {},
     stash: { ...STARTING_STASH },
     expedition: null,
     clears: {},

@@ -280,6 +280,46 @@ below 25% HP to heal the squad 20% and empower it +15% damage for 6s, or devours
 for 10%), Watcher (marks a hero: +15% damage taken for 4s) and Stalker (elite; its first
 strike hits 1.5×).
 
+## Enemy ecology (`src/game/ecology.js`, `C.ENEMY_ROLES`)
+
+Squads are compositions, not piles. Rule for every future enemy: what decision does it
+force, which existing enemies does it interact with, and what can the player do about the
+combination? No enemy gets a bonus for its allies being present; synergy comes only from
+behaviors it already has.
+
+- **Roles** (`C.ENEMY_ROLES`, layered over families): pressure (Sapper, Harrier, Bandit,
+  Stalker, Reaper), support (Carrion Priest, Lesser Necromancer), control (Watcher, Dark
+  Elf, Warlock), anchor (Bulwark), wildcard (Sapper, Necromancer); the rest are frontline.
+  Shown on the prompt as "Roles".
+- **Bulwark** (protector + attrition, anchor; 180 HP, slow). Fights whoever reaches it;
+  otherwise stands 44 px out from its most threatened ward (support/control ally, by
+  nearest-hero distance) toward that hero, hurrying when the hero is within 200. Its shield
+  (`shield` on the enemy) multiplies weapon damage it takes: bow 0.8, staff 1.15. A hero
+  hit on another enemy whose line passes within 24 px of a Bulwark (hero more than 70 px
+  from the target) puts half the damage on the Bulwark (`BULWARK_COVER`); otherwise allies
+  within 60 px of one take 10% less. Area and damage-over-time hits ignore it.
+- **Battlefield reading:** Harriers hunt the most wounded only once someone is below 70%,
+  and otherwise skirmish (strike the nearest, fall back 0.6 s). Watchers mark the unmarked
+  hero with the most of their squad within 90 px (then the most wounded). Sappers with a
+  Bulwark keep 22 px behind it until they are within 110 px of a hero.
+- **Templates** (`ECOLOGIES`): Hunt Pack, Death Cult, Grave Court, Kill Team, Demolition
+  Crew. "fodder"/"frontline" slots draw plain fighters from the region's pool.
+  `region.wildlife.ecology = { chance, templates }`: Boneyard 20% (Death Cult, Grave
+  Court), Frostfang 30% (Hunt Pack, Kill Team), Ashen 35% (all but Hunt Pack), Blightmire
+  35% (Death Cult, Hunt Pack, Grave Court). The Gutter has none. Templated waves carry
+  `wave.ecology`; legendary, stalker and tutorial squads never use templates.
+- **Limits** (`SQUAD_LIMITS`, `constrainSquad`, every wild and Rift squad): ≤1 Bulwark,
+  Watcher, Necromancer, Priest; ≤2 Sappers, Dark Elves; ≤2 support and ≤2 control; never
+  all support/wildcard. Offenders become plain fighters.
+- **Threat intel** (`readFormation`): a formation's name shows once `guild.ecologySeen`
+  has it or a party hero is level 8+ (`FORMATION_VETERAN_LEVEL`); otherwise only its sign.
+- **Measured** (`npm run scenarios -- --group ecology`, single fights, and `--group party`
+  against main at 48 trips): no formation costs a baseline party a fight; they cost time
+  and arrows (Grave Court: ~40–47 arrows for a bow party vs ~20–26 for an ordinary squad).
+  Whole-trip win rates for every party make-up stay within noise of the pre-ecology game.
+  Known, pre-existing: all-bow parties win far less than all-sword parties past the
+  Boneyard (Frostfang ~25–40%, Ashen ~20%, Blightmire 0%), with or without ecology.
+
 ## Prestige (`src/game/legacy.js`)
 
 Retire a level 20 hero for 3 Renown (+1 per 5 boss ranks); their gear returns to the vault

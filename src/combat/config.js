@@ -351,6 +351,10 @@ imperialNecromancer: { key: "imperialNecromancer", name: "Imperial Necromancer",
   gnome: { key: "gnome", name: "Gnome Sapper", tier: "basic", hp: 38, speed: 44, damage: 7, color: "#FB923C", bomber: true },
   bandit: { key: "bandit", name: "Bandit", tier: "specialized", hp: 80, speed: 42, damage: 12, color: "#FBBF24" },
   lesserNecromancer: { key: "lesserNecromancer", name: "Lesser Necromancer", tier: "specialized", hp: 90, speed: 22, damage: 9, color: "#8B5CF6", affinities: { [DAMAGE_TYPES.DARK_SOUL]: "resistant" } },
+  // The anchor: a slow shield-bearer that stands between the heroes and its
+  // squad's casters and archers (engine._updateSpecialEnemy). Arrows glance
+  // off the shield, spells get around it (`shield`: damage taken by weapon).
+  bulwark: { key: "bulwark", name: "Bulwark", tier: "specialized", hp: 180, speed: 26, damage: 12, color: "#60A5FA", shield: { bow: 0.8, staff: 1.15 } },
   banditWarlord: { key: "banditWarlord", name: "Bandit Warlord", tier: "boss", hp: 1500, speed: 30, damage: 32, color: "#FBBF24", boss: true },
   bogLich: { key: "bogLich", name: "The Bog Lich", tier: "boss", hp: 9000, speed: 16, damage: 70, color: "#A3E635", boss: true, attackRange: 400, splashRadius: 60, affinities: BOSS_AFFINITIES.imperialNecromancer },
 nuclearBehemoth: { key: "nuclearBehemoth", name: "The Abomination", tier: "boss", hp: 3800, speed: 16, damage: 60, color: "#84CC16", boss: true, affinities: BOSS_AFFINITIES.nuclearBehemoth },
@@ -365,8 +369,28 @@ export const ENEMY_FAMILIES = Object.freeze({
   reaper: ["hunter"], darkElf: ["hunter", "skirmisher"], warlock: ["disruptor"], lieutenant: ["protector"],
   gnome: ["ambusher", "attrition"], bandit: ["hunter", "ambusher"], lesserNecromancer: ["protector"],
   harrier: ["hunter", "predator"], carrionPriest: ["protector"], watcher: ["watcher", "disruptor"],
-  stalker: ["hunter", "predator", "ambusher"],
+  stalker: ["hunter", "predator", "ambusher"], bulwark: ["protector", "attrition"],
 });
+
+// Encounter-composition roles, layered over the behavior families: what an
+// enemy does for its squad. Pressure forces an immediate reaction; support
+// grows stronger while allies live; control bends positioning, targeting or
+// vulnerability; an anchor holds the heroes off its squad; a wildcard changes
+// the normal rules of a fight. Plain fighters are "frontline". Encounter
+// generation (game/ecology.js) builds squads from these.
+export const ENEMY_ROLES = Object.freeze({
+  ghost: ["frontline"], slime: ["frontline"], goblin: ["frontline"], skeleton: ["frontline"], orc: ["frontline"],
+  reaper: ["pressure"], lieutenant: ["frontline"],
+  harrier: ["pressure"], bandit: ["pressure"], stalker: ["pressure"], gnome: ["pressure", "wildcard"],
+  carrionPriest: ["support"], lesserNecromancer: ["support", "wildcard"],
+  watcher: ["control"], darkElf: ["control"], warlock: ["control"],
+  bulwark: ["anchor"],
+});
+export const ROLE_LABELS = Object.freeze({
+  pressure: "Pressure", support: "Support", control: "Control", anchor: "Anchor", wildcard: "Wildcard", frontline: "Frontline",
+});
+// Allies a Bulwark keeps behind its shield.
+export const WARDED_ROLES = Object.freeze(["support", "control"]);
 export const FAMILY_LABELS = Object.freeze({
   hunter: "Hunter", predator: "Predator", protector: "Protector", disruptor: "Disruptor", attrition: "Attrition",
   ambusher: "Ambusher", skirmisher: "Skirmisher", watcher: "Watcher",
