@@ -126,7 +126,7 @@ describe("arrows", () => {
     party[0].arrowsSpent = { arrows: 14 };
     const done = resolveEncounter(state, { victory: true, party, xpGains: {}, gold: 0, items: [] }, T0 + 2000).state;
     const hero = done.heroes.find((entry) => entry.identity.id === archer.identity.id);
-    expect(hero.quickSlots[0]).toEqual({ key: "arrows", qty: 15 });
+    expect(hero.quickSlots[0]).toEqual({ key: "arrows", qty: 16 });
     expect(hero.arrowsSpent).toBeUndefined();
   });
 

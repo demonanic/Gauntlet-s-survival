@@ -58,4 +58,33 @@ describe("weapons decide how a hero fights", () => {
     expect(engine.projectiles.some((shot) => shot.visualType === "arrow")).toBe(true);
     expect({ x: hero.x, y: hero.y }).toEqual(start);
   });
+
+  test("a sword reaches a boss despite its bigger body, and can't shove it off the field", () => {
+    const engine = engineWith([heroWithWeapon("sword")]);
+    const hero = engine.heroes[0];
+    engine.spawnQueue = [];
+    const boss = { ...enemyAt(hero.x, 20), boss: true, tier: "boss", hp: 50_000, maxHp: 50_000 };
+    engine.active = [boss];
+    hero.y = 60;
+    for (let step = 0; step < 300; step += 1) engine.update(1 / 30);
+    expect(boss.hp).toBeLessThan(50_000);
+    expect(boss.y).toBeGreaterThan(0);
+  });
+
+  test("bosses lob bombs at heroes keeping their distance, not at those in melee", () => {
+    const engine = engineWith([heroWithWeapon("sword"), heroWithWeapon("bow")]);
+    const [sword, bow] = engine.heroes;
+    engine.spawnQueue = [];
+    const demon = { ...enemyAt(200, 300), type: "demon", boss: true, tier: "boss", hp: 50_000, maxHp: 50_000, abilityCd: 0, damage: 10 };
+    engine.active = [demon];
+    sword.x = 200; sword.y = 345;
+    bow.x = 200; bow.y = 600;
+    engine._updateEnemy(demon, 1 / 30);
+    expect(engine.projectiles.find((shot) => shot.kind === "napalm").target).toBe(bow);
+    engine.projectiles = [];
+    bow.alive = false;
+    demon.abilityCd = 0;
+    engine._updateEnemy(demon, 1 / 30);
+    expect(engine.projectiles.some((shot) => shot.kind === "napalm")).toBe(false);
+  });
 });

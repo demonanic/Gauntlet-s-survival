@@ -13,8 +13,14 @@ on the Demonanic combat engine.
    flavor 38, find 20, hazard 10, encounter 26, story choice 6, rare 3 (plus environment 12
    in harsh regions). Encounters are the backbone: after 3 events in a row without one,
    the next event is always an encounter, so a trip sees a fight about every 1–1.5 min.
-   Before an end boss the party takes a breather: everyone heals 30% and heroes knocked
-   out on the road get back up for the final fight.
+   Before an end boss the party takes a breather: everyone heals 30%, heroes knocked
+   out on the road get back up for the final fight, and archers gather 15 spent arrows.
+   At camp (20+ minute trips), fallen heroes come around at 10% HP, anyone below 40% HP
+   uses a bandage or potion from their quick slots, and archers whittle 15 arrows; after
+   that it's natural healing (1/450 max HP per second) or the camp's Rest option.
+   `startExpedition(..., { revives })` grants second chances: a lost fight puts the whole
+   party back on its feet at 50% HP (an end boss must be fought again). Nothing in the
+   game grants them yet; the scenarios use them to model revive items or ad revives.
 4. **Encounters:** random squads from the region's wildlife, tougher the deeper into the
    timer (+30% HP/damage at the end). 65% are **sightings** (Attack or Sneak, chance from
    party agility, Shadowcraft/Illusion perks, Nimble/Swift traits, level vs region, party
@@ -75,6 +81,13 @@ on the Demonanic combat engine.
   items (gear, loot, supplies), local save, headless encounter simulator.
 - `scripts/balance.js` (`npm run balance`): plays scripted guilds from a fresh save through
   the real game code and reports first-clear times, attempts, levels and win rates.
+- `scripts/scenarios.js` (`npm run scenarios`): plays the same expedition many times with
+  one thing changed and reports the results side by side: party make-ups (all swords,
+  all bows, all staves, mixed, trio, duo, solo), every innate quality and best/worst
+  loadouts, and revive rules (Gravebinder Ring, one or two second chances). Reports win
+  rate, fights, sneaks, ambushes, knockouts, morale and HP at the end of the trip.
+- `scripts/simKit.js`: the scripted player both scripts share (perk and stat build,
+  "active" ability use).
 - `src/screens/`, `src/components/`: React UI (Tailwind).
 
 ## Equipment
@@ -113,7 +126,7 @@ A deliberately small model (not Demonanic's 11 slots), defined in `src/combat/ge
   the Mountain (chest, immune to environments), Gnomebane Buckler (halves explosions,
   thorns), Gravebinder Ring (revive once per fight at 30%).
 - **Arrows:** bows draw one arrow per shot from the first quick slot holding arrows; no
-  arrows means no shooting (the hero falls back). Stacks of 50; 70% of plain arrows fired
+  arrows means no shooting (the hero falls back). Stacks of 50; 75% of plain arrows fired
   are recovered after a won fight. Special arrows (Fletcher: 10 plain + 25–30g) are spent:
   venom 60% of the hit over 4s, flame 35% splash + 30% burn, frost 35% slow for 2.5s.
   Departure restocks every loaded slot from the stash and gives an arrowless archer
@@ -272,7 +285,22 @@ out-range the party and stall a fight until it wiped).
 | Boneyard Crypt | 2.0 | 1.7 | First clear on the first try, about an hour into the game (LV 4–5) |
 | Frostfang Pass | 2.1 | 1.6 | First clear about 1.5 hours in (LV 6–7) |
 | Ashen Keep | 2.0 | 1.5 | First clear about 2–3 hours in (1–4 attempts, LV 7–11) |
-| The Blightmire | 3.0 | 2.2 | First clear 3–10 hours in (LV 10–14, 25–45% of runs win) |
+| The Blightmire | 3.6 | 2.6 | First clear 3–9 hours in (LV 11–15); about half of unattended runs win, active players win |
+
+The Bog Lich has 9,000 base HP and 70 damage. Bosses lob bombs and bile only at heroes
+more than 90 px away (heroes in melee face their regular attacks); the Abomination's slam
+still punishes melee. Melee reach is measured from the edge of the target's body, so
+swords can hit bosses and elites (before this fix a sword could never reach a boss, and
+heroes crowding a boss could shove it off the top of the field).
+
+**Scenarios** (`npm run scenarios`, Oct 2026): every party make-up of three or four
+heroes clears every region; duos and solo heroes struggle from Frostfang Pass on. Without
+spare arrows an all-bow party could run dry on the 40-minute Blightmire trip (fixed by
+camp arrows, pre-boss arrow gathering and 75% recovery). No quality changes win rates
+beyond the noise; road qualities show up where they should (Keen-Eared, Trailwise and
+Paranoid halve ambushes; Nimble and Swift parties sneak past far more fights; morale
+qualities push morale to its cap). Revives mostly show up as HP left at the end of a trip
+(a Gravebinder Ring on everyone: 57% vs 24% in the Blightmire).
 
 Since environments and gear sets (Oct 2026), gear tiers are 1–5 for the five campaign
 regions (Ashen Keep went from tier 3 to tier 4).

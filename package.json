@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "balance": "vite-node scripts/balance.js"
+    "balance": "vite-node scripts/balance.js",
+    "scenarios": "vite-node scripts/scenarios.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",

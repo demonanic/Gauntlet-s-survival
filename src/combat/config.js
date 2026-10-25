@@ -352,7 +352,7 @@ imperialNecromancer: { key: "imperialNecromancer", name: "Imperial Necromancer",
   bandit: { key: "bandit", name: "Bandit", tier: "specialized", hp: 80, speed: 42, damage: 12, color: "#FBBF24" },
   lesserNecromancer: { key: "lesserNecromancer", name: "Lesser Necromancer", tier: "specialized", hp: 90, speed: 22, damage: 9, color: "#8B5CF6", affinities: { [DAMAGE_TYPES.DARK_SOUL]: "resistant" } },
   banditWarlord: { key: "banditWarlord", name: "Bandit Warlord", tier: "boss", hp: 1500, speed: 30, damage: 32, color: "#FBBF24", boss: true },
-  bogLich: { key: "bogLich", name: "The Bog Lich", tier: "boss", hp: 4400, speed: 16, damage: 50, color: "#A3E635", boss: true, attackRange: 400, splashRadius: 60, affinities: BOSS_AFFINITIES.imperialNecromancer },
+  bogLich: { key: "bogLich", name: "The Bog Lich", tier: "boss", hp: 9000, speed: 16, damage: 70, color: "#A3E635", boss: true, attackRange: 400, splashRadius: 60, affinities: BOSS_AFFINITIES.imperialNecromancer },
 nuclearBehemoth: { key: "nuclearBehemoth", name: "The Abomination", tier: "boss", hp: 3800, speed: 16, damage: 60, color: "#84CC16", boss: true, affinities: BOSS_AFFINITIES.nuclearBehemoth },
 };
 // Gauntlet behavior families. Squads are read by what they do, not just how

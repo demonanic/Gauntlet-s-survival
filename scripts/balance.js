@@ -15,16 +15,16 @@
 // After the first Ashen Keep clear the guild keeps playing: it challenges the
 // rotating boss, falls back to the Endless Rift after two straight losses,
 // and spends spare gold in the Armory and the Forge.
-import { allocateClasslessStat, purchaseClasslessNode } from "../src/combat/classlessProgression";
 import { classlessMaxHp } from "../src/combat/classlessCombatEffects";
 import {
-  createGuild, expeditionDurationMs, recruitCost, recruitHero, startExpedition, tick, updateHero,
+  createGuild, expeditionDurationMs, recruitCost, recruitHero, startExpedition, tick,
 } from "../src/game/guild";
 import { PROVISIONS, heroUsesArrows } from "../src/combat/gear";
 import { getEnvironment } from "../src/game/environment";
 import { buyConsumable, equipGear, loadQuickSlot, sellGear, upgradeCost, upgradeGear } from "../src/game/items";
 import { heroQualities } from "../src/combat/traits";
 import { REGIONS, getRegion } from "../src/game/regions";
+import { activePlayer, developHeroes } from "./simKit";
 import { buyShopItem, shopStock } from "../src/game/shop";
 
 const args = process.argv.slice(2);
@@ -37,33 +37,11 @@ const MAX_EXPEDITIONS = 160;
 const CAMPAIGN = REGIONS.filter((region) => !region.endless);
 // Gold kept back for supplies before spending in the Armory or Forge.
 const GOLD_RESERVE = 250;
-// A sensible generic build: survivability and damage first, then actives.
-const PERK_ORDER = ["V1", "W1", "P1", "V2", "W2", "P2a", "P3", "W2a", "S1", "P2", "V3", "T1", "S2", "F1"];
-const SP_ORDER = ["attack", "defense", "attack"];
-
 const power = (item) => !item ? 0 : (item.stats.attack || 0) * 3 + (item.stats.defense || 0) * 2
   + (item.stats.maxHp || 0) * 0.25 + (item.stats.agility || 0) + (item.stats.critChance || 0) * 150
   + ((item.stats.damageBonus || 0) + (item.stats.attackSpeed || 0) + (item.stats.lifesteal || 0)) * 120
   + (item.stats.healthBonus || 0) * 100 + (item.stats.critDamage || 0) * 40
   + ((item.stats.darkResist || 0) + (item.stats.coldResist || 0) + (item.stats.heatResist || 0) + (item.stats.toxicResist || 0)) * 15;
-
-function developHeroes(state) {
-  for (const original of state.heroes) {
-    let hero = original;
-    for (const nodeId of PERK_ORDER) {
-      const bought = purchaseClasslessNode(hero, nodeId);
-      if (bought.ok) hero = bought.hero || { ...hero, progression: bought.progression };
-    }
-    let spent = 0;
-    while (hero.progression.sp > 0) {
-      const result = allocateClasslessStat(hero, SP_ORDER[spent++ % SP_ORDER.length]);
-      if (!result.ok) break;
-      hero = result.hero;
-    }
-    state = updateHero(state, hero);
-  }
-  return state;
-}
 
 function gearUp(state) {
   if (NO_GEAR) {
@@ -165,12 +143,6 @@ function chooseRun(state, clock, preferHarder) {
   const region = [...unlocked].reverse().find((entry, index) => index === 0 && (preferHarder(entry) || unlocked.length === 1))
     || unlocked[unlocked.length - 2] || unlocked[0];
   return { region, party: party.map((hero) => hero.identity.id) };
-}
-
-function activePlayer(engine) {
-  engine.heroes.forEach((hero) => {
-    for (const ability of engine.getHeroAbilityStatus(hero.i)) if (ability.available) engine.useHeroAbility(hero.i, ability.id);
-  });
 }
 
 // Run one expedition to completion through the real guild code. Nobody answers

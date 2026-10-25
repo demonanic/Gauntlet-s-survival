@@ -30,7 +30,8 @@ abilities, move orders and speed controls.
    away.
 6. **Morale** rises and falls with the feed (wins, finds, scares) and gives up to ±10%
    damage. HP carries over between fights, with slow healing on the road; fallen heroes
-   sit out until the party regroups before the end boss. Recall the party at any time to keep the loot.
+   come around (weak) when the party makes camp on long trips, and get back up for the
+   end boss; bandages and natural healing do the rest. Recall the party at any time to keep the loot.
 7. **World:** each trip has weather (clear, rain, fog, storm) and knows whether it's
    night (local time). Night means more ambushes but better finds; fog helps sneaking;
    storms bring hazards. Heroes banter in the feed about their traits and the mood.
@@ -82,7 +83,7 @@ from the stash every time a party sets out.
 - **Forge, Salvage, Reforge:** upgrade gear with gold; break spare gear down into essence;
   spend essence to reroll an item's affixes.
 - **Arrows:** bows can't shoot without arrows in a quick slot (stacks of 50, one per shot,
-  70% picked back up after a win). The Fletcher in the Market turns plain arrows into
+  75% picked back up after a win). The Fletcher in the Market turns plain arrows into
   venom (poison), flame (burst and burn) or frost (slow) arrows.
 
 ### Environments
@@ -149,6 +150,7 @@ npm test          # Vitest: vendored Demonanic engine tests + Gauntlet game test
 npm run build     # production build in dist/
 npm run preview   # serve the production build
 npm run balance   # simulate full playthroughs and report balance numbers
+npm run scenarios # compare party make-ups, qualities and revive rules side by side
 ```
 
 Saves live in the browser's `localStorage`. Use **Reset save** at the bottom of the
@@ -183,7 +185,7 @@ src/
 public/sprites Hero atlas, weapon icons, projectile and impact VFX
 docs/          Design notes
 supabase/      Database migrations for cloud saves
-scripts/       Balance simulator (npm run balance)
+scripts/       Balance simulator (npm run balance) and scenarios (npm run scenarios)
 ```
 
 ## Documentation
