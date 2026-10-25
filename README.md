@@ -52,7 +52,8 @@ quick slots, low arrows, a newly opened region, a hero ready to retire.
 
 ### Heroes
 
-Every hero has an individual neon look (their sprite is tinted with their own hue) and is
+Every hero has an individual neon look (their sprite is tinted with their own hue, and the
+armor they wear shows on it as simple marks in each piece's rarity colour) and is
 born with a **quality**: who they are, not a choice you make. Some are combat qualities
 (Brawny, Berserker, Field Medic), some change the expedition itself (a **Tracker** notices
 things stalking the party, **Keen-Eared** heroes blunt ambushes, **Night Eyes**,
@@ -92,6 +93,35 @@ from the stash every time a party sets out.
 - **Arrows:** bows can't shoot without arrows in a quick slot (stacks of 50, one per shot,
   75% picked back up after a win). The Fletcher in the Market turns plain arrows into
   venom (poison), flame (burst and burn) or frost (slow) arrows.
+
+### Familiars
+
+Familiars are rare. The first time your guild beats each boss with a level 10+ hero
+leading the party (the first hero you pick), the boss leaves a **weird crate with
+breathing holes**: you choose one of several identical crates, blind, and whatever is
+inside bonds with the leader. A hero who already has a familiar sends the old one to the
+kennel, where any hero can take it along later from their Gear screen. Familiars fight on their own and can't be hurt: a **Wolf** bites
+whatever its partner is fighting, a **Hawk** strikes from the air and marks prey (and
+spots ambushes on the road), an **Imp** sets foes alight, a **Sprite** heals its partner,
+and a **Stonebark Tortoise** guards and shields them. Each is born with a quality
+(Fierce, Quick, Loyal, Keen Nose, Lucky, Brave) and grows with its partner's fights; at
+levels 3, 6 and 9 you choose one of two new tricks.
+
+### Crystals
+
+Gear has sockets (more on rarer gear, one extra on weapons). Infuse crystals from the Gear
+screen: weapon crystals add **Ember** (burn), **Frost** (slow), **Venom** (poison),
+**Storm** (lightning that arcs to another foe), **Swiftness** or **Blood** (lifesteal);
+armor crystals add resistances (**Hearth**, **Tide**, **Purity**, **Dawn**), **Vigor** or
+**Stone**. Three of a kind fuse into the next tier (Chipped → Flawless → Radiant). Buy them
+in the Market; bosses, treasure and tough enemies drop them. Extract one for a little gold.
+
+### Supplies
+
+Heroes use quick-slot supplies on their own: bandages below 50% HP, potions below 30%,
+whetstones against elites and bosses, arrows every shot. Each hero's Gear screen sets
+their **supply style** (Cautious, Balanced, Thrifty) and whether to **save potions for
+bosses**.
 
 ### Environments
 

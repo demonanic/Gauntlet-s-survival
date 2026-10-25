@@ -9,6 +9,8 @@
 // finds, hazards, stalkers): see partyRoadEffects and game/expedition.js.
 // Evolved qualities have three tiers; hero.qualityTiers[key] says which one.
 
+import { petRoadEffects } from "./pets";
+
 const tiers = (names, list) => list.map((tier, index) => ({ name: names[index], ...tier }));
 
 export const TRAITS = Object.freeze({
@@ -185,10 +187,12 @@ const ROAD_CAPS = Object.freeze({
   scavengeOnWin: 0.6, findChance: 1, rareChance: 1.5, moraleBase: 20, postFightHeal: 0.1,
 });
 
+// A hero's road effects: their qualities, plus their familiar's.
 export function heroRoadEffects(hero) {
   const total = {};
-  for (const quality of heroQualities(hero)) {
-    for (const [stat, value] of Object.entries(quality.road || {})) total[stat] = (total[stat] || 0) + value;
+  const sources = [...heroQualities(hero).map((quality) => quality.road), hero?.pet ? petRoadEffects(hero.pet) : null];
+  for (const road of sources) {
+    for (const [stat, value] of Object.entries(road || {})) total[stat] = (total[stat] || 0) + value;
   }
   return total;
 }

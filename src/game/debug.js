@@ -4,7 +4,9 @@
 import { awardClasslessXp } from "../combat/classlessProgression";
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import * as C from "../combat/config";
-import { GEAR_SLOTS, STASH_KEYS } from "../combat/gear";
+import { CRYSTAL_KEYS, GEAR_SLOTS, STASH_KEYS } from "../combat/gear";
+import { PET_SPECIES_KEYS, PET_XP } from "../combat/pets";
+import { createPet } from "./pets";
 import { serializeGameState } from "../combat/heroModel";
 import { LEGENDARY_KEYS, createGearItem } from "./items";
 import { emptyLegacy } from "./legacy";
@@ -90,6 +92,8 @@ export function debugGiveSupplies(state, amount = 10) {
   const next = serializeGameState(state);
   for (const key of STASH_KEYS) next.stash[key] = (next.stash[key] || 0) + (key === "arrows" ? amount * 4 : amount);
   next.essence = (next.essence || 0) + amount * 10;
+  next.crystals ||= {};
+  for (const key of CRYSTAL_KEYS) next.crystals[`${key}-1`] = (next.crystals[`${key}-1`] || 0) + 3;
   return { ok: true, state: next };
 }
 
@@ -111,5 +115,20 @@ export function debugCareer(state, now) {
     });
     developQualities(hero, now, Math.random, sharedQualities(next.heroes, hero));
   }
+  return { ok: true, state: next };
+}
+
+// One of every familiar, at `level`, into the kennel.
+// A boss crate for the first hero, as if they had just led a boss fight.
+export function debugGiveCrate(state) {
+  const next = serializeGameState(state);
+  const options = [...PET_SPECIES_KEYS].sort(() => Math.random() - 0.5);
+  next.petCrates = [...(next.petCrates || []), { heroId: next.heroes[0].identity.id, bossType: "debug", options }];
+  return { ok: true, state: next };
+}
+
+export function debugGivePets(state, level = 6) {
+  const next = serializeGameState(state);
+  next.kennel = [...(next.kennel || []), ...PET_SPECIES_KEYS.map((species) => ({ ...createPet(species), level, xp: PET_XP[level - 1] }))];
   return { ok: true, state: next };
 }

@@ -6,8 +6,10 @@ import { paletteForShift } from "../combat/heroPalette";
 import { rollTrait, TRAITS } from "../combat/traits";
 import { bankLoot, migrateVaultItem, normalizeHeroGear } from "./items";
 import { normalizeQualityFields } from "./qualities";
+import { PET_SPECIES } from "../combat/pets";
+import { normalizePet } from "./pets";
 import { normalizeTutorial } from "./tutorial";
-import { STASH_KEYS } from "../combat/gear";
+import { STASH_KEYS, crystalInfo } from "../combat/gear";
 
 const STORAGE_KEY = "gauntlet.save.v1";
 
@@ -16,8 +18,10 @@ const STORAGE_KEY = "gauntlet.save.v1";
 function normalizeHeroExtras(hero) {
   const traits = (Array.isArray(hero.traits) ? hero.traits : []).filter((key) => TRAITS[key]);
   const shift = Number(hero.appearance?.hueShift);
+  const pet = normalizePet(hero.pet);
   return {
     ...normalizeQualityFields(hero),
+    pet: pet || undefined,
     traits: traits.length ? traits : [rollTrait()],
     appearance: Number.isFinite(shift) ? { ...hero.appearance, ...paletteForShift(shift) } : hero.appearance,
   };
@@ -56,7 +60,13 @@ export function parseGuild(parsed) {
     vault: (Array.isArray(parsed.vault) ? parsed.vault : []).map(migrateVaultItem).filter(Boolean),
     stash: parsed.stash ? stash : base.stash,
     essence: Math.max(0, Math.floor(Number(parsed.essence) || 0)),
+    crystals: Object.fromEntries(Object.entries(parsed.crystals && typeof parsed.crystals === "object" ? parsed.crystals : {})
+      .filter(([id, count]) => crystalInfo(id) && count > 0).map(([id, count]) => [id, Math.floor(count)])),
     tutorial: normalizeTutorial(parsed.tutorial),
+    kennel: (Array.isArray(parsed.kennel) ? parsed.kennel : []).map(normalizePet).filter(Boolean),
+    crateBosses: (Array.isArray(parsed.crateBosses) ? parsed.crateBosses : []).filter((key) => typeof key === "string"),
+    petCrates: (Array.isArray(parsed.petCrates) ? parsed.petCrates : [])
+      .filter((crate) => Array.isArray(crate?.options) && crate.options.length && crate.options.every((key) => PET_SPECIES[key])),
     legacy: { ...emptyLegacy(), ...(parsed.legacy && typeof parsed.legacy === "object" ? parsed.legacy : {}) },
   };
   state.candidate = parsed.candidate?.trait && TRAITS[parsed.candidate.trait] ? parsed.candidate : rollCandidate(state);

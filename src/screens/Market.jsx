@@ -1,6 +1,7 @@
 import ItemDetails from "../components/ItemDetails";
 import { NeonButton, Panel, formatSeconds } from "../components/ui";
-import { CONSUMABLES, FLETCHING, PROVISIONS, PROVISION_KEYS } from "../combat/gear";
+import { CONSUMABLES, CRYSTALS, CRYSTAL_TIERS, FLETCHING, PROVISIONS, PROVISION_KEYS } from "../combat/gear";
+import { CRYSTAL_PRICE, FUSE_COUNT } from "../game/items";
 import { ENVIRONMENTS } from "../game/environment";
 import { REGIONS } from "../game/regions";
 import { shopStock } from "../game/shop";
@@ -55,7 +56,52 @@ function SupplyRow({ item, owned, gold, onBuy, amounts = [1, 5], testId }) {
   );
 }
 
-export default function Market({ guild, now, onBuyItem, onReroll, onBuySupply, onFletch }) {
+// Crystals: buy Chipped ones, and fuse three of a kind into the next tier.
+function CrystalShop({ guild, onBuy, onFuse }) {
+  const owned = guild.crystals || {};
+  return (
+    <Panel data-testid="crystal-shop">
+      <h2 className="mb-1 font-display text-base font-bold text-cyan-200">CRYSTALS</h2>
+      <p className="mb-2 font-mono-g text-[10px] text-slate-500">
+        Infuse crystals into gear sockets from a hero&apos;s Gear screen: weapon crystals into weapons, armor crystals into
+        everything else. Fuse {FUSE_COUNT} of a kind into the next tier ({CRYSTAL_TIERS.join(" → ")}). Bosses, treasure and
+        tough enemies drop them too.
+      </p>
+      <ul className="space-y-1.5 font-mono-g text-[11px]">
+        {Object.values(CRYSTALS).map((crystal) => (
+          <li key={crystal.key} className="border-b border-white/5 pb-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <span className="font-bold" style={{ color: crystal.color }}>{crystal.name}</span>
+                <span className="ml-2 text-[10px] uppercase text-slate-500">{crystal.kind}</span>
+                <div className="text-[10px] text-slate-500">{crystal.desc} ({crystal.values.map((value) => (crystal.stat === "defense" ? value : `${Math.round(value * 100)}%`)).join(" / ")})</div>
+              </div>
+              <NeonButton color="#FFE600" disabled={guild.gold < CRYSTAL_PRICE} onClick={() => onBuy(crystal.key)} data-testid={`buy-crystal-${crystal.key}`}>
+                {CRYSTAL_PRICE}g
+              </NeonButton>
+            </div>
+            <div className="mt-0.5 flex flex-wrap gap-2 text-[10px] text-slate-400">
+              {CRYSTAL_TIERS.map((tier, index) => {
+                const id = `${crystal.key}-${index + 1}`;
+                const count = owned[id] || 0;
+                return (
+                  <span key={id}>
+                    {tier} ×{count}
+                    {index < 2 && count >= FUSE_COUNT && (
+                      <button type="button" className="ml-1 text-cyan-300 underline" onClick={() => onFuse(id)} data-testid={`fuse-${id}`}>fuse</button>
+                    )}
+                  </span>
+                );
+              })}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </Panel>
+  );
+}
+
+export default function Market({ guild, now, onBuyItem, onReroll, onBuySupply, onFletch, onBuyCrystal, onFuseCrystal }) {
   const stock = shopStock(guild, now);
   return (
     <div className="space-y-3">
@@ -97,6 +143,8 @@ export default function Market({ guild, now, onBuyItem, onReroll, onBuySupply, o
           ))}
         </ul>
       </Panel>
+
+      <CrystalShop guild={guild} onBuy={onBuyCrystal} onFuse={onFuseCrystal} />
 
       <Panel data-testid="fletcher">
         <h2 className="mb-1 font-display text-base font-bold text-cyan-200">FLETCHER</h2>

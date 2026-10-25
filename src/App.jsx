@@ -7,6 +7,7 @@ import RecruitDialog from "./components/RecruitDialog";
 import ExpeditionPanel from "./components/ExpeditionPanel";
 import GuildHints from "./components/GuildHints";
 import TutorialOverlay from "./components/TutorialOverlay";
+import CrateDialog from "./components/CrateDialog";
 import HeroGear from "./components/HeroGear";
 import { NeonButton, Panel } from "./components/ui";
 import { allocateClasslessStat, purchaseClasslessNode } from "./combat/classlessProgression";
@@ -16,12 +17,13 @@ import {
 } from "./game/guild";
 import { buyLegacyUpgrade, renownForRetiring, retireHero } from "./game/legacy";
 import {
-  buyConsumable, equipGear, fletchArrows, loadQuickSlot, reforgeGear, salvageGear, sellGear, unequipGear, unloadQuickSlot,
-  upgradeGear,
+  buyConsumable, buyCrystal, equipGear, extractCrystal, fletchArrows, fuseCrystals, infuseCrystal, loadQuickSlot, reforgeGear,
+  salvageGear, sellGear, setSupplyStyle, unequipGear, unloadQuickSlot, upgradeGear,
 } from "./game/items";
 import { buyShopItem, rerollShop } from "./game/shop";
 import { isDebugMode } from "./game/debug";
 import { guildHints } from "./game/hints";
+import { assignPet, choosePetMod, openPetCrate, unassignPet } from "./game/pets";
 import { getRegion } from "./game/regions";
 import {
   advanceTutorial, currentStep, nextTutorialStep, restartTutorial, skipTutorial, tutorialActive,
@@ -162,6 +164,8 @@ export default function App() {
           onReroll={() => apply((current) => rerollShop(current, Date.now()))}
           onBuySupply={(key, qty) => apply((current) => buyConsumable(current, key, qty))}
           onFletch={(key) => apply((current) => fletchArrows(current, key))}
+          onBuyCrystal={(key) => apply((current) => buyCrystal(current, key))}
+          onFuseCrystal={(id) => apply((current) => fuseCrystals(current, id))}
         />
       )}
       {tab === "board" && (
@@ -218,6 +222,14 @@ export default function App() {
           onUpgrade={(itemId) => apply((current) => upgradeGear(current, itemId))}
           onReforge={(itemId) => apply((current) => reforgeGear(current, itemId))}
           onRename={(name) => apply((current) => renameHero(current, gearHeroId, name))}
+          onSupplyStyle={(choice) => apply((current) => setSupplyStyle(current, gearHeroId, choice))}
+          crystals={guild.crystals || {}}
+          kennel={guild.kennel || []}
+          onAssignPet={(petId) => apply((current) => assignPet(current, gearHeroId, petId))}
+          onUnassignPet={() => apply((current) => unassignPet(current, gearHeroId))}
+          onChoosePetMod={(level, modId) => apply((current) => choosePetMod(current, gearHeroId, level, modId))}
+          onInfuse={(itemId, crystalId) => apply((current) => infuseCrystal(current, itemId, crystalId))}
+          onExtract={(itemId, index) => apply((current) => extractCrystal(current, itemId, index))}
           gold={guild.gold}
           essence={guild.essence || 0}
           onClose={() => setGearHeroId(null)}
@@ -261,6 +273,17 @@ export default function App() {
           onComplete={(outcome) => {
             apply((current) => resolveEncounter(current, outcome, Date.now()));
             setInBattle(false);
+          }}
+        />
+      )}
+      {!report && !inBattle && (
+        <CrateDialog
+          crate={guild.petCrates?.[0] || null}
+          guild={guild}
+          onOpen={(choice) => {
+            const result = openPetCrate(guild, choice);
+            if (result.ok) setGuild(result.state);
+            return result.ok ? result : null;
           }}
         />
       )}

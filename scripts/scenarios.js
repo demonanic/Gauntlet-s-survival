@@ -7,6 +7,7 @@
 //   npm run scenarios -- --group party        # party make-ups only
 //   npm run scenarios -- --group qualities    # every innate quality (whole party), plus best/worst loadouts
 //   npm run scenarios -- --group revives      # revive rules
+//   npm run scenarios -- --group companions   # familiars and weapon crystals
 //   npm run scenarios -- --trips 40           # more trips per scenario (less noise)
 //   npm run scenarios -- --regions ashen,blightmire
 //   npm run scenarios -- --active             # fire abilities as soon as they're ready
@@ -16,11 +17,13 @@
 // (on 20+ minute trips) revives fallen heroes at 10% HP in every scenario.
 // Half the trips start at noon and half at midnight.
 import { classlessMaxHp } from "../src/combat/classlessCombatEffects";
-import { GEAR_SLOTS, PROVISION_KEYS } from "../src/combat/gear";
+import { GEAR_SLOTS, PROVISION_KEYS, itemSockets } from "../src/combat/gear";
+import { PET_SPECIES_KEYS, PET_XP } from "../src/combat/pets";
 import { INNATE_KEYS, TRAITS } from "../src/combat/traits";
 import { debugSetLevels } from "../src/game/debug";
 import { createGuild, expeditionDurationMs, recruitHero, startExpedition, tick } from "../src/game/guild";
-import { createGearItem } from "../src/game/items";
+import { composeStats, createGearItem } from "../src/game/items";
+import { createPet } from "../src/game/pets";
 import { getRegion } from "../src/game/regions";
 import { activePlayer, developHeroes } from "./simKit";
 
@@ -46,7 +49,7 @@ const REGIONS = (flag("--regions") || (GROUP === "qualities" ? "frostfang" : Obj
 const MIXED = ["sword", "bow", "staff", "sword"];
 
 // Build a guild for one scenario. `weapons` sets the party size and make-up.
-function buildGuild(region, { weapons = MIXED, qualities = null, ring = null, quivers = 1 }) {
+function buildGuild(region, { weapons = MIXED, qualities = null, ring = null, quivers = 1, pet = null, crystal = null }) {
   const { level, tier } = SETUPS[region];
   let state = createGuild();
   state.gold = 1e9;
@@ -65,6 +68,14 @@ function buildGuild(region, { weapons = MIXED, qualities = null, ring = null, qu
         : createGearItem({ slot, rarity: GEAR, tier });
     }
     if (ring) hero.equipment.trinket = createGearItem({ legendary: ring, tier });
+    if (pet) hero.pet = { ...createPet(pet, () => 0.3), level: 6, xp: PET_XP[5], quality: "quick" };
+    if (crystal) {
+      // Fill every weapon socket with this crystal.
+      const weapon = hero.equipment.weapon;
+      weapon.baseStats ||= { ...weapon.stats };
+      weapon.runes = Array.from({ length: itemSockets(weapon) }, () => crystal);
+      weapon.stats = composeStats(weapon);
+    }
     hero.quickSlots = [
       weapons[index] === "bow" && quivers > 1 ? { key: "arrows", qty: 50 } : { key: "bandage", qty: 5 },
       weapons[index] === "bow" ? { key: "arrows", qty: 50 } : { key: "potion", qty: 3 },
@@ -140,6 +151,11 @@ const groups = {
     { name: "best: Tracker/Keen-Eared/Charismatic/Medic", qualities: ["tracker", "keenEared", "charismatic", "medic"] },
     { name: "worst: Frail/Loud/Reckless/Greedy", qualities: ["frail", "loud", "reckless", "greedy"] },
     ...INNATE_KEYS.map((key) => ({ name: TRAITS[key].name, qualities: [key] })),
+  ]),
+  companions: () => runGroup("Familiars (level 6, on every hero) and weapon crystals (Flawless, every weapon socket)", [
+    { name: "none" },
+    ...PET_SPECIES_KEYS.map((key) => ({ name: `pet: ${key}`, pet: key })),
+    ...["ember-2", "frost-2", "venom-2", "storm-2", "swift-2", "blood-2"].map((id) => ({ name: `crystal: ${id}`, crystal: id })),
   ]),
   revives: () => runGroup("Revives (mixed party, no qualities)", [
     { name: "current rules (camp + boss rest)" },

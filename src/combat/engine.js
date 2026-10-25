@@ -4,6 +4,7 @@
 // enters from the TOP and hunts the hero party at the BOTTOM.
 // Simulation is separate from React; mutates a cloned `sim` fragment and
 // accumulates XP gains, returned to the UI at wave end.
+import { drawGearMarks, heroGearMarks } from "./heroLook";
 import * as C from "./config";
 import { heroDerived, makeSingleEnemy } from "./logic";
 import { rollEquipmentDrop } from "./equipment";
@@ -13,7 +14,8 @@ import { classlessCombatEffects, classlessMaxHp } from "./classlessCombatEffects
 import { getUnlockedClasslessAbilities, validateClasslessAbilityUse } from "./classlessAbilities";
 import { HERO_SPRITE_ATLAS, selectHeroSpriteFrame } from "./heroSprite";
 import { getEquippedHeroWeaponType, HERO_WEAPON_ASSETS } from "./heroWeapon";
-import { CONSUMABLES, QUICK_ITEM_COOLDOWN, heroGearStats, heroUsesArrows, heroWeaponProfile } from "./gear";
+import { CONSUMABLES, QUICK_ITEM_COOLDOWN, healThreshold, heroGearStats, heroUsesArrows, heroWeaponProfile } from "./gear";
+import { petStats } from "./pets";
 import { heroTraitEffects } from "./traits";
 import { isNeonIdentityColor } from "./heroModel";
 import { heroSpriteFilter } from "./heroPalette";
@@ -234,6 +236,13 @@ export class Engine {
           echoReadyAt: 0 } : null,
       };
     });
+
+    // Gauntlet familiars: one per hero that has a pet. They can't be hurt.
+    this.pets = this.heroes.filter((h) => h.classless && h.model.pet).map((h) => {
+      const stats = petStats(h.model.pet, h.model.progression?.level || 1);
+      h.petGuard = stats?.guard || 0;
+      return stats && { owner: h, name: h.model.pet.name, stats, x: h.x + 18, y: h.y + 14, cd: 1, supportCd: stats.support?.interval || 0, target: null };
+    }).filter(Boolean);
 
     // Encounters have no castle defenses. Shared targeting helpers still
     // iterate these, so they stay as empty arrays.
@@ -1209,8 +1218,9 @@ export class Engine {
     return false;
   }
 
-  // Heroes use their own quick slots: heals below the item's HP threshold,
-  // ammo while an elite or boss is on the field.
+  // Heroes use their own quick slots: heals below the item's HP threshold
+  // (scaled by the hero's supply style), whetstones while an elite or boss is
+  // on the field. A hero told to save potions for bosses keeps them until one shows up.
   _tickQuickItems(h, dt) {
     h.quickCd = Math.max(0, h.quickCd - dt);
     if (!h.classless || h.quickCd > 0) return;
@@ -1220,7 +1230,8 @@ export class Engine {
     for (let i = 0; i < slots.length; i++) {
       const item = slots[i] && CONSUMABLES[slots[i].key];
       if (!item || !(slots[i].qty > 0)) continue;
-      const wants = item.heal ? hpFraction < item.autoBelowHp : !!item.autoVsElite && eliteOnField;
+      const saving = item.key === "potion" && h.model.savePotions && !eliteOnField;
+      const wants = item.heal ? !saving && hpFraction < healThreshold(h.model, item) : !!item.autoVsElite && eliteOnField;
       if (wants && this.useQuickItem(h.i, i)) return;
     }
   }
@@ -1523,6 +1534,8 @@ export class Engine {
         this._completeTacticalAction(h.i, "completed");
       }
     }
+
+    this._updatePets(dt);
 
     // Resolve body collisions after movement so living units cannot occupy the same space.
     this._resolveUnitCollisions();
@@ -1950,6 +1963,83 @@ export class Engine {
     return false;
   }
 
+  // Familiars: attackers go for whatever is closest to their partner (melee
+  // pets run in, ranged pets keep to their partner's side); support pets stay
+  // close and heal or shield on a timer.
+  _updatePets(dt) {
+    for (const pet of this.pets) {
+      const owner = pet.owner;
+      if (!owner.alive) continue;
+      const follow = (speed) => {
+        const tx = owner.x + 18, ty = owner.y + 14;
+        const dist = Math.hypot(tx - pet.x, ty - pet.y);
+        if (dist > 2) {
+          const step = Math.min(dist, speed * dt);
+          pet.x += ((tx - pet.x) / dist) * step;
+          pet.y += ((ty - pet.y) / dist) * step;
+        }
+      };
+      const { attack, support } = pet.stats;
+      if (support) {
+        follow(220);
+        pet.supportCd -= dt;
+        if (pet.supportCd <= 0) {
+          pet.supportCd = support.interval;
+          if (support.heal && owner.ref.hp < owner.d.maxHp * 0.95) {
+            const healed = this._classlessHeal(owner, owner.d.maxHp * support.heal);
+            if (healed > 0) this._float(owner.x, owner.y - 26, `+${Math.round(healed)}`, pet.stats.color);
+          }
+          if (support.shield) {
+            owner.ref.shield = Math.min(owner.d.maxHp * 0.3, owner.ref.shield + owner.d.maxHp * support.shield);
+            this.effects.push({ kind: "shield", x: owner.x, y: owner.y, r: 18, life: 0.4, color: pet.stats.color });
+          }
+        }
+        continue;
+      }
+      if (!attack) continue;
+      pet.cd -= dt;
+      if (!pet.target || pet.target.hp <= 0 || Math.hypot(pet.target.x - owner.x, pet.target.y - owner.y) > 320) {
+        pet.target = this.active.filter((enemy) => enemy.hp > 0)
+          .sort((a, b) => Math.hypot(a.x - owner.x, a.y - owner.y) - Math.hypot(b.x - owner.x, b.y - owner.y))
+          .find((enemy) => Math.hypot(enemy.x - owner.x, enemy.y - owner.y) <= 320) || null;
+      }
+      const target = pet.target;
+      if (!target) {
+        follow(220);
+        continue;
+      }
+      const dist = Math.hypot(target.x - pet.x, target.y - pet.y) || 1;
+      if (attack.moveSpeed && dist > attack.range) {
+        const step = Math.min(dist - attack.range * 0.8, attack.moveSpeed * dt);
+        pet.x += ((target.x - pet.x) / dist) * step;
+        pet.y += ((target.y - pet.y) / dist) * step;
+        continue;
+      }
+      if (!attack.moveSpeed) follow(220);
+      if (dist > attack.range || pet.cd > 0) continue;
+      pet.cd = attack.interval;
+      this._petStrike(pet, target);
+    }
+  }
+
+  _petStrike(pet, target) {
+    const { attack, color } = pet.stats;
+    const owner = pet.owner;
+    const sourceId = "H" + owner.i;
+    const damage = attack.damage;
+    this.effects.push({ kind: "impact", x: target.x, y: target.y, r: 8, life: 0.2, color });
+    if (attack.mark > 0) {
+      target.petMarkUntil = this.time + 3;
+      target.petMarkOwner = owner.i;
+      target.petMarkBonus = attack.mark;
+    }
+    if (attack.slow > 0) this._slowEnemy(target, attack.slow, 2);
+    if (attack.burn > 0) this._applyDot(target, damage * attack.burn, 3, "#FF6600", sourceId);
+    if (attack.bleed > 0) this._applyDot(target, damage * attack.bleed, 3, "#DC2626", sourceId);
+    if (attack.lifelink > 0) this._classlessHeal(owner, damage * attack.lifelink);
+    this._bonusDamage(target, damage, sourceId, color);
+  }
+
   // Gauntlet hero history: what each hero did in this fight, carried back on
   // the hero model and folded into hero.history (game/qualities.js).
   _tally(h, stat, amount) {
@@ -2176,7 +2266,8 @@ export class Engine {
     // Gauntlet: Survivor quality below 30% HP; a Watcher's mark leaves a hero exposed.
     const guard = hero.ref.hp < hero.d.maxHp * 0.3 ? hero.d.traits?.lowHpGuard || 0 : 0;
     const exposed = hero.exposedUntil > this.time ? 1.15 : 1;
-    return C.damageAfterDefense(rawDamage, hero.d.defense) * (1 - reduction) * (1 - (hero.d.traits?.damageTaken || 0)) * (1 - guard) * exposed;
+    return C.damageAfterDefense(rawDamage, hero.d.defense) * (1 - reduction) * (1 - (hero.d.traits?.damageTaken || 0)) * (1 - guard) * exposed
+      * (1 - (hero.petGuard || 0));
   }
 
   _classlessFormationReduction(hero) {
@@ -2657,6 +2748,8 @@ export class Engine {
     // Evolved qualities: Bladesworn (melee) and Giantslayer (elites and bosses).
     if (p.damageCategory === "weapon" && hero.d.rangeMode === "melee") damage *= 1 + (traits?.meleeDamage || 0);
     if (target.boss || target.tier === "elite") damage *= 1 + (traits?.eliteDamage || 0);
+    // A hawk's mark: its partner hits the marked foe harder.
+    if (target.petMarkUntil > this.time && target.petMarkOwner === hero.i) damage *= 1 + target.petMarkBonus;
     if (p.damageType === C.DAMAGE_TYPES.ARCANE) damage *= 1 + (effects.arcaneDamage || 0);
     let situationalBonus = p.situationalBonus || 0;
     if (p.ability) situationalBonus += hero.d.bloodPriceBonus || 0;
@@ -2784,6 +2877,17 @@ export class Engine {
       }
     }
     if (gear.burn > 0) this._applyDot(target, damage * gear.burn, 3, "#FF6600", p.sourceId);
+    if (gear.venom > 0) this._applyDot(target, damage * gear.venom, 4, "#39FF14", p.sourceId);
+    // Storm crystals: a chance to arc lightning to the nearest other foe.
+    if (gear.shock > 0 && Math.random() < gear.shock) {
+      const arc = this.active
+        .filter((other) => other !== target && other.hp > 0 && Math.hypot(other.x - target.x, other.y - target.y) <= 110)
+        .sort((a, b) => Math.hypot(a.x - target.x, a.y - target.y) - Math.hypot(b.x - target.x, b.y - target.y))[0];
+      if (arc) {
+        this.effects.push({ kind: "impact", x: arc.x, y: arc.y, r: 14, life: 0.3, color: "#FDE047" });
+        this._bonusDamage(arc, damage * 0.6, p.sourceId, "#FDE047");
+      }
+    }
     if (gear.chill > 0 && target.hp > 0) this._slowEnemy(target, gear.chill, 2);
     if (gear.cleave > 0 && hero.d.rangeMode === "melee") {
       const next = this.active
@@ -3316,6 +3420,7 @@ export class Engine {
       this._drawHeroSprite(h);
       this._bar(h.x - 18, h.y + 20, 36, 4, Math.max(0, h.ref.hp) / h.d.maxHp, h.d.color);
     }
+    for (const pet of this.pets) this._drawPet(pet);
 
     // Manual command markers make every battlefield command visually verifiable.
     for (const h of this.heroes) {
@@ -3553,6 +3658,38 @@ export class Engine {
     }
   }
 
+  // A small neon familiar, shaped by species, outlined in its partner's color.
+  _drawPet(pet) {
+    const ctx = this.ctx;
+    const { species, color } = pet.stats;
+    ctx.save();
+    ctx.translate(pet.x, pet.y + Math.sin(this.time * 4 + pet.owner.i) * (species === "hawk" || species === "sprite" ? 3 : 0.5));
+    ctx.scale(1.4, 1.4);
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = color;
+    ctx.fillStyle = "#0B1018";
+    ctx.lineWidth = 1.4;
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = pet.owner.d.color;
+    ctx.beginPath();
+    if (species === "wolf") {
+      ctx.moveTo(-7, 3); ctx.lineTo(-3, -2); ctx.lineTo(4, -2); ctx.lineTo(7, -6); ctx.lineTo(8, -1); ctx.lineTo(5, 3); ctx.lineTo(5, 6); ctx.lineTo(-6, 6); ctx.closePath();
+    } else if (species === "hawk") {
+      ctx.moveTo(-9, -1); ctx.lineTo(0, -4); ctx.lineTo(9, -1); ctx.lineTo(2, 1); ctx.lineTo(0, 5); ctx.lineTo(-2, 1); ctx.closePath();
+    } else if (species === "imp") {
+      ctx.moveTo(-5, 5); ctx.lineTo(-5, -3); ctx.lineTo(-7, -7); ctx.lineTo(-2, -4); ctx.lineTo(2, -4); ctx.lineTo(7, -7); ctx.lineTo(5, -3); ctx.lineTo(5, 5); ctx.closePath();
+    } else if (species === "sprite") {
+      ctx.arc(0, 0, 4, 0, Math.PI * 2);
+      ctx.moveTo(-4, -1); ctx.quadraticCurveTo(-10, -7, -6, 2); ctx.moveTo(4, -1); ctx.quadraticCurveTo(10, -7, 6, 2);
+    } else {
+      ctx.ellipse(0, 1, 8, 5, 0, 0, Math.PI * 2);
+      ctx.moveTo(8, 0); ctx.arc(10, -1, 2.5, 0, Math.PI * 2);
+    }
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
   _drawHeroSprite(h) {
     const ctx = this.ctx;
     const previous = h.lastDrawPosition || { x: h.x, y: h.y };
@@ -3592,6 +3729,14 @@ export class Engine {
       ctx.shadowColor = identityColor;
       ctx.drawImage(image, frame.sx, frame.sy, frame.sw, frame.sh, -24, -44, 48, 48);
       ctx.filter = "none";
+      // Equipped armor shows as simple shapes in each piece's rarity colour.
+      if (h.alive && h.model?.equipment) {
+        ctx.save();
+        ctx.translate(-24, -44);
+        ctx.scale(0.75, 0.75);
+        drawGearMarks(ctx, heroGearMarks(h.model.equipment));
+        ctx.restore();
+      }
     } else {
       // Missing-image fallback is a neutral silhouette, never the old
       // class-specific procedural character artwork.
