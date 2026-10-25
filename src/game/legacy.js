@@ -80,6 +80,9 @@ export function retireHero(state, id, now) {
     name: hero.identity.name,
     appearance: hero.appearance,
     traits: hero.traits || [],
+    qualityTiers: hero.qualityTiers || {},
+    // A few numbers from their career, for the Hall of Legends.
+    career: { trips: hero.history?.trips || 0, kills: hero.history?.kills || 0, bossKills: hero.history?.bossKills || 0 },
     level: hero.progression.level,
     bossRank: next.bossRank || 0,
     renown,

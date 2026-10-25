@@ -5,6 +5,7 @@
 // packed from the stash adds more for one trip. 100% resistance is immunity.
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import { PROVISIONS, heroGearStats } from "../combat/gear";
+import { heroRoadEffects } from "../combat/traits";
 
 export const ENVIRONMENTS = Object.freeze({
   darkness: Object.freeze({
@@ -81,7 +82,8 @@ export function rollEnvironmentEvent(environment, party, packedIds, rng = Math.r
   const line = environment.lines[Math.floor(rng() * environment.lines.length)].replaceAll("{hero}", hero.identity.name);
   const hurt = [];
   for (const member of party) {
-    const left = 1 - heroResistance(member, environment, packedIds.includes(member.identity.id));
+    // Sure-Footed heroes shrug off part of the toll.
+    const left = (1 - heroResistance(member, environment, packedIds.includes(member.identity.id))) * (1 - (heroRoadEffects(member).envDrain || 0));
     if (left <= 0.05) continue;
     const amount = Math.round(classlessMaxHp(member) * environment.road.drain * left);
     if (amount <= 0) continue;

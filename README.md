@@ -43,11 +43,22 @@ abilities, move orders and speed controls.
 
 ### Heroes
 
-Every hero has an individual neon look (their sprite is tinted with their own hue) and
-one random trait, such as Brawny (+12% HP), Berserker (+20% damage below half HP) or
-Field Medic (supplies heal 40% more). Recruits are shown before you hire them: name them
-yourself, pick a new look for free, or pay 25g to see a different candidate. Heroes can
-be renamed from their Gear screen.
+Every hero has an individual neon look (their sprite is tinted with their own hue) and is
+born with a **quality**: who they are, not a choice you make. Some are combat qualities
+(Brawny, Berserker, Field Medic), some change the expedition itself (a **Tracker** notices
+things stalking the party, **Keen-Eared** heroes blunt ambushes, **Night Eyes**,
+**Trailwise**, **Light Sleeper**, **Sure-Footed**, **Scavenger**, **Bloodhound**,
+**Charismatic**, **Inspiring**, **Steadfast**, **Optimist**), and some are mixed blessings
+(**Reckless**, **Loud**, **Frail**, **Greedy**, **Paranoid**).
+
+Veterans develop more qualities from how they actually fought and travelled: at level 10
+and 16 the game looks back over the hero's career and they may become a **Marksman**,
+**Bladesworn**, **Survivor**, **Giantslayer**, **Ghost-Step**, **Bulwark**, **Field
+Surgeon**, **Unshakable** or **Rallying Heart**, at a strength that matches how strongly
+they showed it. You see the result and the story, never the counters.
+
+Recruits are shown before you hire them: name them yourself, pick a new look for free, or
+pay 25g to see a different candidate. Heroes can be renamed from their Gear screen.
 
 **Prestige:** retire a level 20 hero to earn Renown, and spend it in the Hall of Legends
 on permanent upgrades (damage, HP, gold, XP, travel time, and recruits that start at a
@@ -83,10 +94,17 @@ Cooling Salves, Antitoxins): each hero packs one when the party sets out.
 
 ### Enemies
 
-Alongside the original roster: **Gnome Sappers** run at the party and blow up (they go
-off even when killed), **Bandits** blitz the weakest hero, **Dark Elf** snipers aim at
-ranged heroes and fire one heavy shot, and **Lesser Necromancers** heal their allies and
-raise a fallen one.
+Enemies come in behavior families (hunters, predators, protectors, disruptors, attrition,
+ambushers, skirmishers, watchers), shown on every encounter prompt. **Gnome Sappers** run
+at the party and blow up (they go off even when killed), **Bandits** blitz the weakest hero,
+**Dark Elf** snipers aim at ranged heroes, **Lesser Necromancers** heal and raise the
+fallen, **Harriers** hunt and maul wounded heroes, **Carrion Priests** sacrifice dying
+allies to heal and empower the rest, and **Watchers** make sneaking past a squad much harder
+and mark heroes in battle. Legendary monsters hunt the wounded.
+
+**Stalkers** don't attack right away: something starts following the party, unseen, and
+strikes when a hero is badly hurt. A Tracker (or a lucky glance) may notice it first, and
+then the party can turn and fight, try to lose it, or keep going ready for it.
 
 ### Endgame
 

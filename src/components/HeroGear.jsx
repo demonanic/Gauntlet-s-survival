@@ -6,7 +6,7 @@ import {
 import {
   MAX_UPGRADE, formatGearStats, formatStatValue, gearStatDelta, heroCombatSummary, reforgeCost, upgradeCost,
 } from "../game/items";
-import { TRAITS } from "../combat/traits";
+import { heroQualities } from "../combat/traits";
 import { MAX_NAME_LENGTH, cleanHeroName } from "../game/guild";
 import ItemDetails from "./ItemDetails";
 import { NeonButton } from "./ui";
@@ -23,6 +23,33 @@ function DeltaText({ delta }) {
     );
   });
 }
+
+// Who the hero is: the quality they were born with and the ones their
+// career has given them, with the story behind each. Never the counters.
+function Qualities({ hero }) {
+  const stories = Object.fromEntries((hero.qualityLog || []).map((entry) => [entry.key, entry]));
+  return (
+    <div className="font-mono-g text-[11px]" data-testid="qualities">
+      {heroQualities(hero).map((quality, index) => (
+        <div key={quality.key}>
+          <p className={quality.kind === "evolved" ? "text-amber-300" : "text-yellow-300"}>
+            {quality.name}: <span className="text-slate-300">{quality.desc}</span>
+          </p>
+          <p className="text-[10px] italic text-slate-500">
+            {stories[quality.key]
+              ? `${storyLine(stories[quality.key], hero)} (level ${stories[quality.key].level})`
+              : index === 0 ? "Born with it." : ""}
+          </p>
+        </div>
+      ))}
+      {hero.progression.level < 16 && (
+        <p className="text-[10px] text-slate-500">Veterans develop new qualities from how they fight and travel.</p>
+      )}
+    </div>
+  );
+}
+
+const storyLine = (entry, hero) => entry.text.replace(/^NEW QUALITY: [^.]+\. /, "").replace(`${hero.identity.name} has grown into a `, "Grew into a ");
 
 // The hero's gear specials (resistances, lifesteal, ...) and active set bonuses.
 function GearSpecials({ hero }) {
@@ -48,7 +75,6 @@ export default function HeroGear({
 }) {
   const [picking, setPicking] = useState(null); // { type: "gear", slot } | { type: "quick", index }
   const [renaming, setRenaming] = useState(null); // draft name while editing
-  const trait = TRAITS[hero.traits?.[0]];
   const summary = heroCombatSummary(hero);
   const equipment = hero.equipment || {};
   const quickSlots = hero.quickSlots || [];
@@ -82,7 +108,7 @@ export default function HeroGear({
                 <NeonButton type="submit" color="#39FF14" disabled={!cleanHeroName(renaming)}>Save</NeonButton>
               </form>
             )}
-            {trait && <p className="font-mono-g text-[11px] text-yellow-300">{trait.name}: <span className="text-slate-300">{trait.desc}</span></p>}
+            <Qualities hero={hero} />
             <p className="font-mono-g text-[11px] text-slate-300">
               ATK {summary.attack} · DEF {summary.defense} · HP {summary.maxHp} · DODGE {Math.round(summary.dodge * 100)}% · CRIT {Math.round(summary.critChance * 100)}%
             </p>

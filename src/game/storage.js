@@ -5,6 +5,7 @@ import { emptyLegacy, syncGuildBonuses } from "./legacy";
 import { paletteForShift } from "../combat/heroPalette";
 import { rollTrait, TRAITS } from "../combat/traits";
 import { bankLoot, migrateVaultItem, normalizeHeroGear } from "./items";
+import { normalizeQualityFields } from "./qualities";
 import { STASH_KEYS } from "../combat/gear";
 
 const STORAGE_KEY = "gauntlet.save.v1";
@@ -15,7 +16,7 @@ function normalizeHeroExtras(hero) {
   const traits = (Array.isArray(hero.traits) ? hero.traits : []).filter((key) => TRAITS[key]);
   const shift = Number(hero.appearance?.hueShift);
   return {
-    ...hero,
+    ...normalizeQualityFields(hero),
     traits: traits.length ? traits : [rollTrait()],
     appearance: Number.isFinite(shift) ? { ...hero.appearance, ...paletteForShift(shift) } : hero.appearance,
   };

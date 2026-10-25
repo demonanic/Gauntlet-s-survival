@@ -344,6 +344,10 @@ export const ENEMIES = {
   demon: { key: "demon", name: "Three-Headed Demon", tier: "boss", hp: 2800, speed: 20, damage: 55, color: "#FF0055", boss: true, attackFx: "napalm", attackRange: 420, splashRadius: 68, affinities: BOSS_AFFINITIES.threeHeadedDemon },
 imperialNecromancer: { key: "imperialNecromancer", name: "Imperial Necromancer", tier: "boss", hp: 3300, speed: 18, damage: 48, color: "#8B5CF6", boss: true, attackRange: 380, splashRadius: 52, affinities: BOSS_AFFINITIES.imperialNecromancer },
   // Gauntlet roster additions: each has a role in engine._updateSpecialEnemy.
+  harrier: { key: "harrier", name: "Harrier", tier: "specialized", hp: 75, speed: 46, damage: 11, color: "#F97316" },
+  carrionPriest: { key: "carrionPriest", name: "Carrion Priest", tier: "specialized", hp: 95, speed: 22, damage: 8, color: "#BE123C", affinities: { [DAMAGE_TYPES.DARK_SOUL]: "resistant" } },
+  watcher: { key: "watcher", name: "Watcher", tier: "specialized", hp: 70, speed: 26, damage: 9, color: "#2DD4BF", floats: true },
+  stalker: { key: "stalker", name: "Stalker", tier: "elite", hp: 210, speed: 40, damage: 20, color: "#A16207" },
   gnome: { key: "gnome", name: "Gnome Sapper", tier: "basic", hp: 38, speed: 44, damage: 7, color: "#FB923C", bomber: true },
   bandit: { key: "bandit", name: "Bandit", tier: "specialized", hp: 80, speed: 42, damage: 12, color: "#FBBF24" },
   lesserNecromancer: { key: "lesserNecromancer", name: "Lesser Necromancer", tier: "specialized", hp: 90, speed: 22, damage: 9, color: "#8B5CF6", affinities: { [DAMAGE_TYPES.DARK_SOUL]: "resistant" } },
@@ -351,6 +355,23 @@ imperialNecromancer: { key: "imperialNecromancer", name: "Imperial Necromancer",
   bogLich: { key: "bogLich", name: "The Bog Lich", tier: "boss", hp: 4400, speed: 16, damage: 50, color: "#A3E635", boss: true, attackRange: 400, splashRadius: 60, affinities: BOSS_AFFINITIES.imperialNecromancer },
 nuclearBehemoth: { key: "nuclearBehemoth", name: "The Abomination", tier: "boss", hp: 3800, speed: 16, damage: 60, color: "#84CC16", boss: true, affinities: BOSS_AFFINITIES.nuclearBehemoth },
 };
+// Gauntlet behavior families. Squads are read by what they do, not just how
+// tough they are. Some families drive engine behavior directly: "hunter"
+// (chases the most wounded hero) and "predator" (hits wounded heroes 40%
+// harder); "watcher" makes sneaking past a squad harder (adventure.js). The
+// rest describe roles implemented per enemy in engine._updateSpecialEnemy.
+export const ENEMY_FAMILIES = Object.freeze({
+  ghost: ["skirmisher"], slime: ["attrition"], goblin: ["skirmisher"], skeleton: [], orc: [],
+  reaper: ["hunter"], darkElf: ["hunter", "skirmisher"], warlock: ["disruptor"], lieutenant: ["protector"],
+  gnome: ["ambusher", "attrition"], bandit: ["hunter", "ambusher"], lesserNecromancer: ["protector"],
+  harrier: ["hunter", "predator"], carrionPriest: ["protector"], watcher: ["watcher", "disruptor"],
+  stalker: ["hunter", "predator", "ambusher"],
+});
+export const FAMILY_LABELS = Object.freeze({
+  hunter: "Hunter", predator: "Predator", protector: "Protector", disruptor: "Disruptor", attrition: "Attrition",
+  ambusher: "Ambusher", skirmisher: "Skirmisher", watcher: "Watcher",
+});
+
 export const BASIC_POOL = ["ghost", "slime", "goblin"];
 export const SPEC_POOL = ["skeleton", "orc", "reaper", "darkElf", "warlock"];
 

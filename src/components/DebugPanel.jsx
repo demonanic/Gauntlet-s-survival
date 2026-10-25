@@ -2,7 +2,7 @@ import { useState } from "react";
 import { GEAR_SETS } from "../combat/gear";
 import { MAX_GEAR_TIER, RARITY_ORDER, RARITIES } from "../game/items";
 import {
-  MAX_HERO_LEVEL, debugAddGold, debugAddRenown, debugClearRegions, debugEndExpedition, debugGiveGearSet, debugGiveSupplies,
+  MAX_HERO_LEVEL, debugAddGold, debugAddRenown, debugCareer, debugClearRegions, debugEndExpedition, debugGiveGearSet, debugGiveSupplies,
   debugSetBossRank, debugSetLevels, debugSkipTimers,
 } from "../game/debug";
 import { NeonButton } from "./ui";
@@ -60,6 +60,7 @@ export default function DebugPanel({ guild, apply }) {
             {[3, 6, 10, 15, MAX_HERO_LEVEL].map((value) => <option key={value} value={value}>{value}</option>)}
           </select>
           <NeonButton color="#A855F7" onClick={() => apply((state) => debugSetLevels(state, level))} data-testid="debug-level">Set</NeonButton>
+          <NeonButton color="#FBBF24" onClick={() => apply((state) => debugCareer(state, Date.now()))} data-testid="debug-career">Career</NeonButton>
         </div>
         <div className={row}>
           <span>Boss rank</span>

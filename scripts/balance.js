@@ -6,7 +6,8 @@
 //   npm run balance -- --no-gear    # never equip drops (sell everything)
 //   npm run balance -- --no-supplies  # never buy or load quick-slot supplies
 //   npm run balance -- --no-shop    # never buy from the Armory or use the Forge
-//   npm run balance -- --hours 12   # endgame length after the first Ashen clear
+//   npm run balance -- --hours 12   # endgame length after the campaign
+//   npm run balance -- --histories  # print each hero's career history (quality calibration)
 //
 // "Idle" players never tap abilities (heroes only auto-attack and auto-use
 // supplies). "Active" players fire every ability the moment it is ready.
@@ -22,6 +23,7 @@ import {
 import { PROVISIONS, heroUsesArrows } from "../src/combat/gear";
 import { getEnvironment } from "../src/game/environment";
 import { buyConsumable, equipGear, loadQuickSlot, sellGear, upgradeCost, upgradeGear } from "../src/game/items";
+import { heroQualities } from "../src/combat/traits";
 import { REGIONS, getRegion } from "../src/game/regions";
 import { buyShopItem, shopStock } from "../src/game/shop";
 
@@ -271,9 +273,15 @@ function summarize(label, results) {
       ` · levels ${result.state.heroes.map((hero) => hero.progression.level).join("/")} · gold ${result.state.gold}` +
       ` · best Rift wave ${result.state.records.riftBest}` +
       ` · gear ${["common", "uncommon", "rare", "epic", "legendary"].map((rarity) => result.rarities.filter((entry) => entry === rarity).length).join("/")} (C/U/R/E/L)` +
+      ` · qualities ${result.state.heroes.map((hero) => heroQualities(hero).map((quality) => quality.name).join("+")).join(", ")}` +
       ` · avg +${Math.round(result.state.heroes.flatMap((hero) => Object.values(hero.equipment || {})).reduce((sum, item, _, all) => sum + (item.upgrade || 0) / all.length, 0) * 10) / 10}`);
   }
 }
 
+if (args.includes("--histories")) {
+  const result = playthrough(false);
+  for (const hero of result.state.heroes) console.log(hero.identity.name, hero.progression.level, hero.equipment.weapon?.weaponType, JSON.stringify(hero.history));
+  process.exit(0);
+}
 summarize("Idle", Array.from({ length: RUNS }, () => playthrough(false)));
 summarize("Active", Array.from({ length: RUNS }, () => playthrough(true)));

@@ -1,7 +1,7 @@
 import ClasslessHeroAvatar from "./ClasslessHeroAvatar";
 import { Bar, formatSeconds } from "./ui";
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
-import { TRAITS } from "../combat/traits";
+import { heroQualities } from "../combat/traits";
 
 const STATUS_STYLE = {
   ready: { label: "READY", color: "#39FF14" },
@@ -30,11 +30,16 @@ export default function HeroRow({ hero, status, injuredUntil, now, selected, onS
         <div className="flex flex-wrap items-baseline gap-x-2">
           <span className="max-w-full truncate font-display text-sm font-bold" style={{ color: hero.appearance?.identityColor }}>{hero.identity.name}</span>
           <span className="font-mono-g text-[10px] text-slate-400">LV {level}</span>
-          {TRAITS[hero.traits?.[0]] && (
-            <span className="truncate font-mono-g text-[10px] text-slate-500" title={TRAITS[hero.traits[0]].desc}>
-              {TRAITS[hero.traits[0]].name}
+          {heroQualities(hero).map((quality) => (
+            <span
+              key={quality.key}
+              className={`truncate font-mono-g text-[10px] ${quality.kind === "evolved" ? "text-amber-300" : "text-slate-500"}`}
+              title={quality.desc}
+              data-testid="hero-quality"
+            >
+              {quality.name}
             </span>
-          )}
+          ))}
           {(ap > 0 || sp > 0) && (
             <span className="font-mono-g text-[10px] text-yellow-300">{ap} AP · {sp} SP</span>
           )}

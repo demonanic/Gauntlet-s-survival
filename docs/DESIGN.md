@@ -156,6 +156,57 @@ stash has one and their gear isn't already immune.
   them (16 characters max), may pick another look for free, or pays 25g for a different
   candidate. Recruit cost scales with the roster size, so retiring keeps it affordable.
 
+## Qualities (`src/combat/traits.js`, `src/game/qualities.js`)
+
+Qualities are who a hero is (stored as `hero.traits`). Perks, abilities and gear are the
+player's build; qualities are never chosen.
+
+- **Innate** (one at recruitment, `INNATE_KEYS`): combat qualities (numbers in
+  `effects`), road qualities (`road` effects read by the expedition), and mixed ones with a
+  drawback. Road effects are summed across the living party with caps
+  (`partyRoadEffects`): `ambush`, `ambushVolley`, `spotAmbush`, `nightAmbush`, `campGuard`,
+  `stalkerDetect`, `sneak`, `moraleBase`, `moraleLossCut`, `moraleOnWin`, `moraleWhenLow`,
+  `moralePerDanger`, `findChance`, `rareChance`, `goldFind`, `gambleLuck`, `scavengeOnWin`,
+  `postFightHeal`; `hazardDodge` and `envDrain` are personal.
+- **Evolved** (`EVOLVED_KEYS`, three tiers each, `hero.qualityTiers`): developed at levels
+  10 and 16 (`QUALITY_MILESTONES`) once the hero has 15+ fights on record. Each evolved
+  quality scores the hero's history (`hero.history`: trips, fights, wins, kills,
+  elite/boss kills, melee/ranged hits, crits, damage dealt/taken, heals, narrow escapes,
+  knockouts, sneaks, hard ambushes, low-morale wins). Scores mostly compare against normal
+  rates (calibrated with `npm run balance -- --histories`). Candidates scoring 0.8 / 1.6 /
+  2.4 earn tier I / II / III; one is picked at random weighted by score (×0.4 if another
+  hero in the guild already has it); a later milestone can deepen a quality instead. With
+  no candidate, the hero gains a new innate quality. The player sees the story
+  (`hero.qualityLog`), never the numbers.
+- **Combat effects of evolved qualities:** `rangedCrit`, `critDamage`, `execute` (Master
+  Marksman: a ranged crit finishes a non-elite, non-boss, non-legendary foe left below 20%
+  HP), `meleeDamage`, `lowHpGuard` (below 30% HP), `eliteDamage`.
+- **History** is tallied by the engine per hero (`_tally` → `hero.battleStats` on the
+  runtime model) and folded in by `recordFight` when a fight resolves; sneaks and trips are
+  recorded by the expedition.
+
+## Stalkers (`expedition.js`)
+
+In regions of tier 2+, 15% of encounters become a stalker instead: `run.stalker` (a
+Stalker plus one regional creature) follows the party with only a vague feed line. Each
+event: it strikes if a hero is below 35% HP, the party below 55%, or after 12 events; an
+unnoticed strike hurts the weakest hero an extra 12% and opens with a volley. Otherwise
+the party notices it with 3% + `stalkerDetect` (Tracker 18%, Paranoid 12%, Keen-Eared 5%)
+→ a story prompt: turn and fight (no volley), try to lose it (a sneak roll), or keep going
+ready for it (its strike loses the volley). Camp rests have a 20% chance of a raid; a Light
+Sleeper turns the raid's volley into a warning.
+
+## Enemy behavior families (`C.ENEMY_FAMILIES`)
+
+Hunter, predator, protector, disruptor, attrition, ambusher, skirmisher and watcher tags
+on every enemy type, shown on encounter prompts as "Threats". Generic behavior: `hunter`
+chases the hero with the lowest HP share; `predator` hits heroes below half HP 40% harder;
+`watcher` lowers the party's sneak chance by 12% each. Legendary monsters gain hunter and
+predator. New enemies: Harrier (hunter + predator), Carrion Priest (sacrifices an ally
+below 25% HP to heal the squad 20% and empower it +15% damage for 6s, or devours a corpse
+for 10%), Watcher (marks a hero: +15% damage taken for 4s) and Stalker (elite; its first
+strike hits 1.5×).
+
 ## Prestige (`src/game/legacy.js`)
 
 Retire a level 20 hero for 3 Renown (+1 per 5 boss ranks); their gear returns to the vault

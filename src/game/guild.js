@@ -9,6 +9,7 @@ import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import * as C from "../combat/config";
 import { createGearItem, normalizeHeroGear } from "./items";
 import { emptyLegacy, legacyBonuses, syncGuildBonuses } from "./legacy";
+import { normalizeQualityFields } from "./qualities";
 
 // Expeditions live in expedition.js; re-exported so the guild stays the one entry point.
 export {
@@ -32,7 +33,7 @@ export const CANDIDATE_REROLL_COST = 25;
 // sheet and a common weapon. Mentorship can start them above level 1.
 function newHero(name, weaponVariant, { trait = rollTrait(), hueShift = null, level = 1 } = {}) {
   const palette = hueShift == null ? rollHeroPalette() : paletteForShift(hueShift);
-  const hero = normalizeHeroGear(createHeroModel({ name, identityColor: palette.identityColor }));
+  const hero = normalizeQualityFields(normalizeHeroGear(createHeroModel({ name, identityColor: palette.identityColor })));
   hero.appearance = { ...hero.appearance, ...palette };
   hero.traits = [trait];
   hero.equipment.weapon = createGearItem({ slot: "weapon", variant: weaponVariant, rarity: "common", tier: 1 });

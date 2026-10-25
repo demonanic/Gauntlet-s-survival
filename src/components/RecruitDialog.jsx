@@ -31,6 +31,7 @@ export default function RecruitDialog({ guild, onHire, onReroll, onClose }) {
         <div className="mt-3 flex items-center gap-3">
           <ClasslessHeroAvatar className="h-20 w-20 rounded border-2" identityColor={palette.identityColor} appearance={palette} label="Recruit preview" />
           <div className="min-w-0 flex-1 font-mono-g text-[11px]">
+            <div className="text-[9px] uppercase text-slate-500">Born with</div>
             <div className="font-bold uppercase text-yellow-300">{trait?.name}</div>
             <div className="text-slate-300">{trait?.desc}</div>
             <button

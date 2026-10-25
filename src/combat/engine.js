@@ -102,8 +102,9 @@ function classlessHeroDerived(hero) {
     defense: stats.defense + gear.defense + traits.defense,
     agility: stats.agility + gear.agility + traits.agility,
     intelligence: stats.intelligence,
-    critChance: Math.min(0.5, attack.criticalChance + effects.critChance + gear.critChance + traits.critChance),
-    critMult: Math.min(3, attack.criticalDamageMultiplier + effects.critDamage + gear.critDamage),
+    critChance: Math.min(0.5, attack.criticalChance + effects.critChance + gear.critChance + traits.critChance
+      + ((weapon?.rangeMode ?? attack.rangeMode) === "midline" ? traits.rangedCrit : 0)),
+    critMult: Math.min(3, attack.criticalDamageMultiplier + effects.critDamage + gear.critDamage + traits.critDamage),
     dodge: C.dodgeChance(stats.agility + gear.agility + traits.agility),
     lowHpDodge: 0,
     moveSpeedMultiplier: 1,
@@ -1182,6 +1183,7 @@ export class Engine {
     if (!item || !(slot.qty > 0) || !h.alive || h.quickCd > 0 || this.ended || !this._quickItemUseful(h, item)) return false;
     slot.qty -= 1;
     h.quickCd = QUICK_ITEM_COOLDOWN;
+    if (item.heal) this._tally(h, "heals", 1);
     if (item.heal) {
       const amount = Math.min(h.d.maxHp - h.ref.hp, h.d.maxHp * item.heal * (1 + (h.d.traits?.healBonus || 0)) * (1 - (h.d.env?.healCut || 0)));
       h.ref.hp += amount;
@@ -1777,6 +1779,77 @@ export class Engine {
       return true;
     }
 
+    if (e.families?.includes("hunter") && !e.boss && e.type !== "bandit" && e.type !== "darkElf") {
+      // Hunters (Harriers, Stalkers, legends): go for the most wounded hero.
+      // A Stalker's first strike lands extra hard.
+      const prey = living.reduce((best, h) => (h.ref.hp / h.d.maxHp < best.ref.hp / best.d.maxHp ? h : best));
+      if (distTo(prey) <= 30) {
+        if (e.atkCd <= 0) {
+          const base = e.damage;
+          if (e.type === "stalker" && !e.struck) e.damage *= 1.5;
+          this._enemyAttack(e, { kind: "hero", obj: prey });
+          e.damage = base;
+          e.struck = true;
+          e.atkCd = e.type === "harrier" ? 0.7 : 0.9;
+        }
+        return true;
+      }
+      move(prey, e.speed * 1.1);
+      return true;
+    }
+
+    if (e.type === "carrionPriest") {
+      // Protector: feeds on the weak. Sacrifices a dying ally (or eats a
+      // corpse) to heal and empower the rest of the squad.
+      e.feedCd = (e.feedCd ?? 3) - dt;
+      if (e.feedCd <= 0) {
+        const victim = this.active.find((ally) => ally !== e && ally.hp > 0 && !ally.boss && ally.type !== "carrionPriest" &&
+          ally.hp < ally.maxHp * 0.25 && Math.hypot(ally.x - e.x, ally.y - e.y) <= 220);
+        const corpse = victim ? null : this._fallenNear(e, 220);
+        if (victim || corpse) {
+          e.feedCd = 5;
+          if (victim) {
+            victim.hp = 0;
+            victim._dead = true;
+            this.killed += 1;
+            this.effects.push({ kind: "death", x: victim.x, y: victim.y, r: 14, life: 0.5, color: e.color });
+            this._float(victim.x, victim.y - 16, "SACRIFICED", e.color);
+          } else {
+            this.fallen.splice(this.fallen.indexOf(corpse), 1);
+            this._float(corpse.x, corpse.y - 16, "DEVOURED", e.color);
+          }
+          this._healAllies(e, 220, victim ? 0.2 : 0.1);
+          if (victim) for (const ally of this.active) if (ally.hp > 0 && Math.hypot(ally.x - e.x, ally.y - e.y) <= 220) ally.empoweredUntil = this.time + 6;
+          return true;
+        }
+        e.feedCd = 0.5;
+      }
+      const dist = distTo(nearest);
+      if (dist < 170) move(nearest, e.speed * 1.2, true);
+      else if (dist > 240) move(nearest, e.speed);
+      else if (e.atkCd <= 0) {
+        this._throwEnemyBolt(e, { kind: "hero", obj: nearest }, e.damage, e.color, true);
+        e.atkCd = 2.2;
+      }
+      return true;
+    }
+
+    if (e.type === "watcher") {
+      // Watchers make sneaking past them hard; in a fight they mark a hero,
+      // leaving them exposed (+15% damage taken) for a few seconds.
+      const dist = distTo(nearest);
+      if (dist < 160) move(nearest, e.speed * 1.1, true);
+      else if (dist > 260) move(nearest, e.speed);
+      else if (e.atkCd <= 0) {
+        const marked = living.find((h) => !(h.exposedUntil > this.time)) || nearest;
+        marked.exposedUntil = this.time + 4;
+        this._float(marked.x, marked.y - 26, "MARKED", e.color);
+        this._throwEnemyBolt(e, { kind: "hero", obj: marked }, e.damage, e.color, true);
+        e.atkCd = 2.4;
+      }
+      return true;
+    }
+
     if (e.type === "bandit" || (e.type === "banditWarlord" && e.blitzUntil > this.time)) {
       // Bandits blitz the weakest hero: a burst of speed and a heavy first strike.
       const prey = living.reduce((best, h) => (h.ref.hp / h.d.maxHp < best.ref.hp / best.d.maxHp ? h : best));
@@ -1868,6 +1941,14 @@ export class Engine {
       return true;
     }
     return false;
+  }
+
+  // Gauntlet hero history: what each hero did in this fight, carried back on
+  // the hero model and folded into hero.history (game/qualities.js).
+  _tally(h, stat, amount) {
+    if (!h?.classless || !(amount > 0)) return;
+    const stats = (h.model.battleStats ||= {});
+    stats[stat] = (stats[stat] || 0) + amount;
   }
 
   // Heal living allies within `range` by `fraction` of max HP. `limit` heals
@@ -2070,7 +2151,10 @@ export class Engine {
     const interpose = hero.interposeUntil > this.time ? hero.interposeReduction : 0;
     const formation = this._classlessFormationReduction(hero);
     const reduction = Math.min(0.30, Math.max(0, hero.d.damageReduction + lastStand + interpose + formation));
-    return C.damageAfterDefense(rawDamage, hero.d.defense) * (1 - reduction) * (1 - (hero.d.traits?.damageTaken || 0));
+    // Gauntlet: Survivor quality below 30% HP; a Watcher's mark leaves a hero exposed.
+    const guard = hero.ref.hp < hero.d.maxHp * 0.3 ? hero.d.traits?.lowHpGuard || 0 : 0;
+    const exposed = hero.exposedUntil > this.time ? 1.15 : 1;
+    return C.damageAfterDefense(rawDamage, hero.d.defense) * (1 - reduction) * (1 - (hero.d.traits?.damageTaken || 0)) * (1 - guard) * exposed;
   }
 
   _classlessFormationReduction(hero) {
@@ -2141,6 +2225,7 @@ export class Engine {
       this.effects.push({ kind: "shield", x: hero.x, y: hero.y, r: 18, life: 0.45, color: "#A78BFA" });
     }
     hero.ref.hp = Math.max(0, hero.ref.hp - remaining);
+    this._tally(hero, "taken", remaining);
     if (remaining > 0) {
       state.lastDamageAt = this.time;
       state.nextRegenAt = this.time + 5;
@@ -2365,7 +2450,12 @@ export class Engine {
         h.ref.shield = 0;
       }
       if (Math.random() < this._heroDodgeChance(h)) { this._float(h.x, h.y - 20, "DODGE", "#00F3FF"); return; }
-      let dmg = h.classless ? this._classlessReducedDamage(h, e.damage) : this._legacyInterposedDamage(h, e.damage);
+      // Gauntlet behavior families: predators maul the wounded; a Carrion
+      // Priest's sacrifice empowers its allies for a while.
+      const predator = e.families?.includes("predator") && h.ref.hp < h.d.maxHp * 0.5 ? 1.4 : 1;
+      const empowered = e.empoweredUntil > this.time ? 1.15 : 1;
+      const raw = e.damage * predator * empowered;
+      let dmg = h.classless ? this._classlessReducedDamage(h, raw) : this._legacyInterposedDamage(h, raw);
       if (h.ref.shield > 0) { const ab = Math.min(h.ref.shield, dmg); h.ref.shield -= ab; dmg -= ab; }
       if (h.classless) this._resolveClasslessHeroDamage(h, dmg);
       else h.ref.hp = Math.max(0, h.ref.hp - dmg);
@@ -2542,6 +2632,9 @@ export class Engine {
     const traits = hero.d.traits;
     if (traits) damage *= 1 + traits.damage + (hero.ref.hp < hero.d.maxHp * 0.5 ? traits.berserk : 0);
     damage *= 1 + (hero.d.gear?.damageBonus || 0);
+    // Evolved qualities: Bladesworn (melee) and Giantslayer (elites and bosses).
+    if (p.damageCategory === "weapon" && hero.d.rangeMode === "melee") damage *= 1 + (traits?.meleeDamage || 0);
+    if (target.boss || target.tier === "elite") damage *= 1 + (traits?.eliteDamage || 0);
     if (p.damageType === C.DAMAGE_TYPES.ARCANE) damage *= 1 + (effects.arcaneDamage || 0);
     let situationalBonus = p.situationalBonus || 0;
     if (p.ability) situationalBonus += hero.d.bloodPriceBonus || 0;
@@ -2576,7 +2669,18 @@ export class Engine {
     // therefore obeys its canonical +50% cap in the damage pipeline.
     const crit = p.guaranteedCrit || Math.random() < hero.d.critChance;
     if (crit) damage *= hero.d.critMult;
+    // Master Marksman: a ranged crit finishes off a badly wounded common foe.
+    if (crit && p.damageCategory === "weapon" && hero.d.rangeMode === "midline" && traits?.execute > 0 &&
+      !target.boss && !target.legendary && target.tier !== "elite" && target.hp - damage <= target.maxHp * traits.execute) {
+      damage = Math.max(damage, target.hp);
+      this._float(target.x, target.y - 16, "EXECUTE", "#FFE600");
+    }
     target.hp = Math.max(0, target.hp - damage);
+    if (p.damageCategory === "weapon") {
+      this._tally(hero, hero.d.rangeMode === "melee" ? "meleeHits" : "rangedHits", 1);
+      if (crit) this._tally(hero, "crits", 1);
+    }
+    this._tally(hero, "damage", damage);
     if (consumesVanish) state.vanishDamagePending = 0;
     target.dmgBy[p.sourceId] = (target.dmgBy[p.sourceId] || 0) + damage;
     let killSourceId = p.sourceId;
@@ -2696,6 +2800,10 @@ export class Engine {
     // reward gold continuously
     const tier = C.ENEMY_TIERS[e.tier] || C.ENEMY_TIERS.basic;
     const killer = typeof sourceId === "string" && sourceId.startsWith("H") ? this.heroes[Number(sourceId.slice(1))] : null;
+    if (killer) {
+      this._tally(killer, "kills", 1);
+      if (e.boss || e.tier === "elite") this._tally(killer, e.boss ? "bossKills" : "eliteKills", 1);
+    }
     this.sim.gold += Math.round(tier.gold * (1 + (killer?.d?.traits?.goldFind || 0)));
 
     // Equipment drops are deposited directly into the community Vault.
@@ -3580,6 +3688,33 @@ export class Engine {
       eye(-2.5, -4, 1.6); eye(2.5, -4, 1.6);
       neon(1.8); ctx.beginPath(); ctx.moveTo(-10, 12); ctx.lineTo(-13, -14); ctx.stroke();
       ctx.beginPath(); ctx.arc(-13, -17, 3.5, 0, Math.PI * 2); ctx.stroke();
+    } else if (e.type === "harrier" || e.type === "stalker") {
+      // Low four-legged hunters: a lean body, pointed ears and a long tail.
+      const big = e.type === "stalker" ? 1.25 : 1;
+      ctx.scale(big, big);
+      ctx.fillStyle = "#14100A";
+      ctx.beginPath(); ctx.moveTo(-12, 4); ctx.lineTo(-6, -4); ctx.lineTo(6, -5); ctx.lineTo(12, -11); ctx.lineTo(14, -3);
+      ctx.lineTo(9, 3); ctx.lineTo(8, 10); ctx.lineTo(4, 4); ctx.lineTo(-6, 5); ctx.lineTo(-8, 11); ctx.closePath(); ctx.fill(); outline();
+      neon(1.4); ctx.beginPath(); ctx.moveTo(-12, 4); ctx.quadraticCurveTo(-18, -2, -16, -9); ctx.stroke();
+      eye(11, -6, 1.6);
+    } else if (e.type === "carrionPriest") {
+      // Hunched, beaked figure with a hooked staff.
+      ctx.fillStyle = "#170C10";
+      ctx.beginPath(); ctx.moveTo(-10, 12); ctx.lineTo(-9, -2); ctx.lineTo(-2, -12); ctx.lineTo(6, -9); ctx.lineTo(10, 12); ctx.closePath(); ctx.fill(); outline();
+      ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(1, -7); ctx.lineTo(11, -4); ctx.lineTo(2, -3); ctx.fill();
+      eye(-1, -7, 1.5);
+      neon(1.8); ctx.beginPath(); ctx.moveTo(-11, 12); ctx.lineTo(-13, -12); ctx.quadraticCurveTo(-8, -18, -6, -12); ctx.stroke();
+    } else if (e.type === "watcher") {
+      // A floating eye in a ring of spines.
+      ctx.fillStyle = "#0C1418";
+      ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI * 2); ctx.fill(); outline();
+      ctx.fillStyle = color; ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#05080A"; ctx.beginPath(); ctx.arc(0, 0, 1.8, 0, Math.PI * 2); ctx.fill();
+      neon(1.2);
+      for (let k = 0; k < 8; k += 1) {
+        const a = (k / 8) * Math.PI * 2;
+        ctx.beginPath(); ctx.moveTo(Math.cos(a) * 11, Math.sin(a) * 11); ctx.lineTo(Math.cos(a) * 16, Math.sin(a) * 16); ctx.stroke();
+      }
     } else if (e.type === "skeleton") {
       // Minimal skull/ribcage silhouette — intentionally readable at small size.
       ctx.fillStyle = "#111922";

@@ -63,6 +63,8 @@ export function buildLegendaryEncounter(region, progress = 0, rng = Math.random)
   legend.name = legendName(C.ENEMIES[toughest].name, rng);
   legend.tier = "elite";
   legend.legendary = true;
+  // Legends combine archetypes: whatever they were, they now hunt the wounded.
+  legend.families = [...new Set([...legend.families, "hunter", "predator"])];
   wave.enemies.unshift(legend);
   return { ...wave, total: wave.enemies.length, lootTier: region.tier + 1, legendary: true };
 }
@@ -87,6 +89,15 @@ export function describeSquad(wave) {
   for (const enemy of wave.enemies) counts.set(enemy.name, (counts.get(enemy.name) || 0) + 1);
   const parts = [...counts].map(([name, count]) => (count > 1 ? `${count} ${name}s` : `${/^[AEIOU]/i.test(name) ? "an" : "a"} ${name}`));
   return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0] || "nothing";
+}
+
+// Something that has been following the party: a Stalker and one of the
+// region's creatures, at the expedition's current depth.
+export function buildStalkerEncounter(region, progress = 0, rng = Math.random) {
+  const wave = buildWildEncounter({ ...region, wildlife: { ...region.wildlife, squad: [1, 1], eliteChance: 0 } }, progress, rng);
+  const depth = 1 + DEPTH_SCALE_AT_END * Math.max(0, Math.min(1, progress));
+  wave.enemies.unshift(makeEnemy(C.ENEMIES.stalker, region.hpScale * depth, region.dmgScale * depth));
+  return { ...wave, total: wave.enemies.length };
 }
 
 // One Endless Rift wave. Squads grow, then tougher enemy types join; every 5th
@@ -125,6 +136,7 @@ function makeEnemy(base, hpScale, dmgScale) {
     ...(base.attackRange ? { attackRange: base.attackRange } : {}),
     ...(base.splashRadius ? { splashRadius: base.splashRadius } : {}),
     ...(base.bomber ? { bomber: true } : {}),
+    families: [...(C.ENEMY_FAMILIES[base.key] || [])],
   };
 }
 
