@@ -9,8 +9,12 @@ on the Demonanic combat engine.
    gear from the vault, buy supplies and load them into quick slots.
 2. **Expedition Board:** choose a destination and a party of 1–4 ready heroes.
 3. **Adventure (timed, `src/game/expedition.js` + `adventure.js`):** the party explores
-   for the region's duration (10 / 20 / 30 min). Every 20–40s a feed event fires:
-   flavor 40%, find 20%, hazard 12%, encounter 22%, story choice 6%.
+   for the region's duration (10–40 min). Every 20–40s a feed event fires, weighted
+   flavor 38, find 20, hazard 10, encounter 26, story choice 6, rare 3 (plus environment 12
+   in harsh regions). Encounters are the backbone: after 3 events in a row without one,
+   the next event is always an encounter, so a trip sees a fight about every 1–1.5 min.
+   Before an end boss the party takes a breather: everyone heals 30% and heroes knocked
+   out on the road get back up for the final fight.
 4. **Encounters:** random squads from the region's wildlife, tougher the deeper into the
    timer (+30% HP/damage at the end). 65% are **sightings** (Attack or Sneak, chance from
    party agility, Shadowcraft/Illusion perks, Nimble/Swift traits, level vs region, party
@@ -25,7 +29,7 @@ on the Demonanic combat engine.
 6. **Morale (0–100, starts 60):** moved by flavor, finds, hazards, wins (+8), sneaks (+4)
    and ambushes (−8), drifting 10% back toward 60 each event. Gives −10% to +10% damage
    and nudges sneak odds.
-7. **HP:** carries over between fights; living heroes heal 1/900 of max HP per second on
+7. **HP:** carries over between fights; living heroes heal 1/450 of max HP per second on
    the road (not during prompts). Fallen heroes sit out and are injured on return.
 8. **End:** Boneyard and Ashen Keep end with their boss (fight or head home without the
    bounty); The Gutter just ends. A wipe brings the party home with half the loot.
@@ -109,7 +113,7 @@ A deliberately small model (not Demonanic's 11 slots), defined in `src/combat/ge
   the Mountain (chest, immune to environments), Gnomebane Buckler (halves explosions,
   thorns), Gravebinder Ring (revive once per fight at 30%).
 - **Arrows:** bows draw one arrow per shot from the first quick slot holding arrows; no
-  arrows means no shooting (the hero falls back). Stacks of 50; 60% of plain arrows fired
+  arrows means no shooting (the hero falls back). Stacks of 50; 70% of plain arrows fired
   are recovered after a won fight. Special arrows (Fletcher: 10 plain + 25–30g) are spent:
   venom 60% of the hit over 4s, flame 35% splash + 30% burn, frost 35% slow for 2.5s.
   Departure restocks every loaded slot from the stash and gives an arrowless archer

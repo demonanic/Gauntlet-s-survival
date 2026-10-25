@@ -59,7 +59,7 @@ export const GEAR_SETS = Object.freeze({
 // Arrows: a bow fires one per shot from the hero's quick slots and cannot
 // shoot without them. Plain arrows are bought; the others are made from plain
 // arrows at the Fletcher. `effect` is applied to the enemy hit.
-const ARROW_DESC = "Bows need arrows: one per shot. 60% are picked back up after a won fight.";
+const ARROW_DESC = "Bows need arrows: one per shot. 70% are picked back up after a won fight.";
 export const ARROW_KEYS = Object.freeze(["arrows", "venomArrows", "flameArrows", "frostArrows"]);
 
 // Consumables live in the guild stash and are loaded into quick slots in
@@ -109,7 +109,7 @@ export const FLETCHING = Object.freeze({
 });
 
 // Share of plain arrows a party picks back up after winning a fight.
-export const ARROW_RECOVERY = 0.6;
+export const ARROW_RECOVERY = 0.7;
 
 // Provisions are packed from the stash when a party sets out for a region
 // with harsh conditions: one per hero, adding `resist` against that

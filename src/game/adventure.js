@@ -8,7 +8,10 @@ import { heroRoadEffects, heroTraitEffects, partyRoadEffects } from "../combat/t
 export const ADVENTURE = Object.freeze({
   // Seconds between feed events (random within the range).
   eventEverySeconds: [20, 40],
-  eventWeights: Object.freeze({ flavor: 40, find: 20, hazard: 12, encounter: 22, story: 6, rare: 3 }),
+  // Encounters are the backbone of a trip: about a third of all events.
+  eventWeights: Object.freeze({ flavor: 38, find: 20, hazard: 10, encounter: 26, story: 6, rare: 3 }),
+  // A run of this many events without a fight forces the next one to be an encounter.
+  maxQuietEvents: 3,
   // Share of flavor events told as a hero's own banter instead.
   banterShare: 0.35,
   // Chance per event that the weather turns.

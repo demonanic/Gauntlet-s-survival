@@ -20,7 +20,8 @@ abilities, move orders and speed controls.
    A live feed fills with what happens on the road every 20–40 seconds: flavor ("the air
    is still, the vibes are chill"), finds (gold, supplies, gear), close calls and hazards,
    and story choices (pray at a shrine or loot it? open the chest?).
-5. **Encounters** are random and frequent. **Sightings** let you **Attack** or **Sneak
+5. **Encounters** are the heart of a trip: one about every minute or so, and never more
+   than three quiet events in a row. **Sightings** let you **Attack** or **Sneak
    by**; the sneak chance depends on the party's agility, stealth perks and traits, level,
    party size, morale, and how many and which enemies there are. A failed sneak, or a
    surprise **ambush**, opens with a volley and forces a fight. While the game is open the
@@ -29,7 +30,7 @@ abilities, move orders and speed controls.
    away.
 6. **Morale** rises and falls with the feed (wins, finds, scares) and gives up to ±10%
    damage. HP carries over between fights, with slow healing on the road; fallen heroes
-   sit out the rest of the trip. Recall the party at any time to keep the loot.
+   sit out until the party regroups before the end boss. Recall the party at any time to keep the loot.
 7. **World:** each trip has weather (clear, rain, fog, storm) and knows whether it's
    night (local time). Night means more ambushes but better finds; fog helps sneaking;
    storms bring hazards. Heroes banter in the feed about their traits and the mood.
@@ -81,7 +82,7 @@ from the stash every time a party sets out.
 - **Forge, Salvage, Reforge:** upgrade gear with gold; break spare gear down into essence;
   spend essence to reroll an item's affixes.
 - **Arrows:** bows can't shoot without arrows in a quick slot (stacks of 50, one per shot,
-  60% picked back up after a win). The Fletcher in the Market turns plain arrows into
+  70% picked back up after a win). The Fletcher in the Market turns plain arrows into
   venom (poison), flame (burst and burn) or frost (slow) arrows.
 
 ### Environments

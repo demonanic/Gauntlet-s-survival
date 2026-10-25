@@ -271,7 +271,7 @@ describe("stalkers", () => {
     const ids = state.heroes.map((hero) => hero.identity.id);
     state = startExpedition(state, "boneyard", ids, T0).state;
     state.expedition.stalker = { wave: buildStalkerEncounter(getRegion("boneyard"), 0.3, fixed(0.5)), since: T0, events: 0, detected: false, braced: false };
-    state.heroes[2].combat.hp = Math.round(classlessMaxHp(state.heroes[2]) * 0.3);
+    state.heroes[2].combat.hp = Math.round(classlessMaxHp(state.heroes[2]) * 0.2);
     const before = state.heroes[2].combat.hp;
     const next = tick(state, state.expedition.nextEventAt, { interactive: true, rng: fixed(0.9) });
     expect(next.expedition.pending).toMatchObject({ kind: "ambush" });

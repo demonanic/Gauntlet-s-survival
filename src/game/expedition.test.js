@@ -176,15 +176,25 @@ describe("timed expeditions", () => {
     expect(home.clears.gutter).toBe(1);
   });
 
+  test("encounters come often: never more than a few quiet events in a row", () => {
+    let state = gutterRun(() => 0.05); // every roll lands on flavor
+    for (let index = 0; index < ADVENTURE.maxQuietEvents; index += 1) {
+      state = tick(state, state.expedition.nextEventAt, { interactive: true, rng: () => 0.05 });
+      expect(state.expedition.pending).toBeNull();
+    }
+    state = tick(state, state.expedition.nextEventAt, { interactive: true, rng: () => 0.05 });
+    expect(["sighting", "ambush"]).toContain(state.expedition.pending?.kind);
+  });
+
   test("the party patches up slowly between events, but not while a prompt holds it", () => {
     let state = gutterRun(() => 0.999); // first event at 40s
     state.heroes[0].traits = [];
     state.heroes[0].combat.hp = 100;
     state = tick(state, T0 + 30_000, { interactive: true });
-    expect(state.heroes[0].combat.hp).toBeCloseTo(110, 0); // 300 max HP / 900 per second x 30s
+    expect(state.heroes[0].combat.hp).toBeCloseTo(120, 0); // 300 max HP / 450 per second x 30s
     withPendingFight(state, T0 + 30_000);
     state = tick(state, T0 + 90_000, { interactive: true });
-    expect(state.heroes[0].combat.hp).toBeCloseTo(110, 0);
+    expect(state.heroes[0].combat.hp).toBeCloseTo(120, 0);
   });
 
   test("an unattended party heads home after a fight leaves it badly hurt", () => {

@@ -33,7 +33,7 @@ export const MAX_PARTY_SIZE = 4;
 // Heroes resting at the guild recover this fraction of max HP per second;
 // heroes out exploring patch themselves up much more slowly between events.
 const REST_HEAL_FRACTION_PER_SECOND = 1 / 90;
-const EXPLORE_HEAL_FRACTION_PER_SECOND = 1 / 900;
+const EXPLORE_HEAL_FRACTION_PER_SECOND = 1 / 450;
 // Loot share kept when a defeated party limps home.
 const RETREAT_LOOT_SHARE = 0.5;
 const MAX_FEED_LINES = 200;
@@ -66,6 +66,8 @@ const STALKER_STRIKE_HERO_HP = 0.35;
 const STALKER_STRIKE_PARTY_HP = 0.55;
 // Extra opening blow an unnoticed stalker lands on the weakest hero.
 const STALKER_POUNCE = 0.12;
+// Share of max HP each hero recovers just before the end boss.
+const BOSS_BREATHER_HEAL = 0.3;
 // Chance the camp is raided while the party rests.
 const CAMP_RAID_CHANCE = 0.2;
 // The wandering merchant charges this multiple of an item's sell value.
@@ -301,6 +303,16 @@ function advanceExpedition(state, now, options) {
 function reachEnd(state, region, at) {
   const run = state.expedition;
   if (region.boss && !run.bossDone) {
+    // A last breather before the final fight, so the boss tests the party,
+    // not just how worn down the road left it.
+    // Heroes knocked out on the road are helped back to their feet for it.
+    const party = run.heroIds.map((id) => findHero(state, id)).filter(Boolean);
+    const fallen = party.filter((hero) => hero.combat.hp <= 0);
+    for (const hero of fallen) hero.combat.hp = 1;
+    for (const hero of party) heal(hero, BOSS_BREATHER_HEAL);
+    addFeed(run, at, fallen.length
+      ? `The party catches its breath before the final stretch. ${fallen.map((hero) => hero.identity.name).join(" and ")} ${fallen.length > 1 ? "are" : "is"} back on their feet.`
+      : "The party catches its breath and binds its wounds before the final stretch.", "good");
     const wave = buildBossEncounter(region, state.bossRank || 0);
     const boss = wave.enemies.find((enemy) => enemy.boss || enemy.tier === "elite") || wave.enemies[0];
     addFeed(run, at, `The way out is blocked: ${boss.name} stands guard with ${describeSquad({ enemies: wave.enemies.filter((enemy) => enemy !== boss) })}.`, "danger", true);
@@ -338,7 +350,10 @@ function runEvent(state, region, at, rng) {
   };
   const roll = rng() * Object.values(weights).reduce((sum, weight) => sum + weight, 0);
   let cursor = 0;
-  const kind = Object.entries(weights).find(([, weight]) => (cursor += weight) > roll)[0];
+  // Never a long dry spell: after maxQuietEvents events without a fight, it's an encounter.
+  const quiet = (run.quietEvents || 0) >= ADVENTURE.maxQuietEvents;
+  const kind = quiet ? "encounter" : Object.entries(weights).find(([, weight]) => (cursor += weight) > roll)[0];
+  run.quietEvents = (run.quietEvents || 0) + 1;
 
   const banter = kind === "flavor" && rng() < ADVENTURE.banterShare ? rollBanter(hero, run.morale, rng) : null;
   if (banter) {
@@ -433,6 +448,7 @@ function stalkerStrikes(state, at, weakest) {
   const { wave, braced } = run.stalker;
   run.stalker = null;
   run.stats.encounters += 1;
+  run.quietEvents = 0;
   const label = describeSquad(wave);
   if (braced) {
     addFeed(run, at, `The thing that was following the party finally attacks, but they were ready for it: ${label}!`, "danger", true);
@@ -562,6 +578,7 @@ function findSomething(state, region, hero, at, rng) {
 function startEncounter(state, region, at, wave, ambush) {
   const run = state.expedition;
   run.stats.encounters += 1;
+  run.quietEvents = 0;
   const legend = wave.enemies.find((enemy) => enemy.legendary);
   const squad = legend
     ? `${legend.name} with ${describeSquad({ enemies: wave.enemies.filter((enemy) => enemy !== legend) })}`
@@ -841,7 +858,7 @@ function applyFightResult(state, region, { victory, party, xpGains, gold, items,
   const fallen = party.filter((hero) => hero.combat.hp <= 0);
   for (const hero of fallen) state.injuries[heroId(hero)] = at + region.recoverySeconds * 1000;
   if (fallen.length && victory) {
-    addFeed(run, at, `${fallen.map((hero) => hero.identity.name).join(" and ")} ${fallen.length > 1 ? "are" : "is"} down and will sit out the rest of the trip.`, "danger");
+    addFeed(run, at, `${fallen.map((hero) => hero.identity.name).join(" and ")} ${fallen.length > 1 ? "are" : "is"} down${region.boss && !run.bossDone ? " until the party regroups for the final fight" : " and will sit out the rest of the trip"}.`, "danger");
   }
   const { pending } = run;
   run.stats.fights += 1;
