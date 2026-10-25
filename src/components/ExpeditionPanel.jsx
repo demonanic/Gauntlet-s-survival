@@ -1,6 +1,8 @@
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
+import { FAMILY_LABELS } from "../combat/config";
 import { ADVENTURE, STORIES, WEATHER, moraleLabel } from "../game/adventure";
 import { RARITIES, formatGearStats } from "../game/items";
+import { getEnvironment } from "../game/environment";
 import { getRegion } from "../game/regions";
 import { Bar, NeonButton, Panel, formatSeconds } from "./ui";
 
@@ -21,6 +23,8 @@ function clock(ms) {
 // The prompt for whatever the party is waiting on: a fight, a sneak, a story choice.
 function PendingPrompt({ pending, now, gold, onAttack, onChoose }) {
   const decideIn = ADVENTURE.autoDecideMs - (now - pending.promptAt);
+  // What the squad does, so the choice is about which enemies, not how many.
+  const threats = [...new Set((pending.wave?.enemies || []).flatMap((enemy) => enemy.families || []))].map((family) => FAMILY_LABELS[family]).filter(Boolean);
   const button = (label, color, onClick, testId) => (
     <NeonButton key={testId} color={color} onClick={onClick} data-testid={testId}>{label}</NeonButton>
   );
@@ -63,6 +67,9 @@ function PendingPrompt({ pending, now, gold, onAttack, onChoose }) {
   return (
     <div className="mt-2 rounded border border-yellow-300/50 bg-yellow-300/5 p-2" data-testid="expedition-prompt">
       <p className="font-mono-g text-[11px] font-bold text-yellow-200">{title}</p>
+      {threats.length > 0 && (
+        <p className="font-mono-g text-[10px] text-slate-400" data-testid="prompt-threats">Threats: {threats.join(", ")}</p>
+      )}
       {pending.kind === "merchant" && (
         <p className="font-mono-g text-[10px]">
           <span style={{ color: (RARITIES[pending.item.rarity] || RARITIES.common).color }}>{pending.item.name}</span>
@@ -100,7 +107,8 @@ export default function ExpeditionPanel({ guild, now, onAttack, onChoose, onReca
       {run.durationMs && <Bar value={Math.max(0, run.durationMs - remaining)} max={run.durationMs} color={region.color} className="my-1.5" />}
       {run.weather && (
         <p className="mb-1 font-mono-g text-[10px] text-slate-400" data-testid="expedition-conditions">
-          {run.night ? "Night" : "Day"} · {WEATHER[run.weather]?.name}{run.scouted ? " · Scouted ahead" : ""}{run.treasureAt != null ? " · Following a treasure map" : ""}
+          {run.night ? "Night" : "Day"} · {WEATHER[run.weather]?.name}{getEnvironment(region) ? ` · ${getEnvironment(region).name}` : ""}
+          {run.packed?.length ? ` (${run.packed.length} warded)` : ""}{run.scouted ? " · Scouted ahead" : ""}{run.treasureAt != null ? " · Following a treasure map" : ""}
         </p>
       )}
 

@@ -13,7 +13,7 @@ import { classlessCombatEffects, classlessMaxHp } from "./classlessCombatEffects
 import { getUnlockedClasslessAbilities, validateClasslessAbilityUse } from "./classlessAbilities";
 import { HERO_SPRITE_ATLAS, selectHeroSpriteFrame } from "./heroSprite";
 import { getEquippedHeroWeaponType, HERO_WEAPON_ASSETS } from "./heroWeapon";
-import { CONSUMABLES, QUICK_ITEM_COOLDOWN, heroGearStats, heroWeaponProfile } from "./gear";
+import { CONSUMABLES, QUICK_ITEM_COOLDOWN, heroGearStats, heroUsesArrows, heroWeaponProfile } from "./gear";
 import { heroTraitEffects } from "./traits";
 import { isNeonIdentityColor } from "./heroModel";
 import { heroSpriteFilter } from "./heroPalette";
@@ -81,6 +81,9 @@ function classlessHeroDerived(hero) {
   const traits = heroTraitEffects(hero);
   // Gauntlet: the equipped weapon decides range, melee vs ranged, and pace.
   const weapon = heroWeaponProfile(hero);
+  // Gauntlet environments (darkness, cold, heat, toxins), already reduced by
+  // the hero's resistance: see game/environment.js.
+  const env = hero.environment || null;
   const baseDamage = attack.damage + ((Number(stats.attack) || 10) - HERO_BASELINE.stats.attack) + gear.attack;
   const attackDamage = baseDamage * (weapon?.damage ?? 1);
   return {
@@ -91,15 +94,17 @@ function classlessHeroDerived(hero) {
     damage: attackDamage,
     range: weapon?.range ?? attack.range,
     rangeMode: weapon?.rangeMode ?? attack.rangeMode,
-    rate: (attack.intervalSeconds * (weapon?.intervalScale ?? 1)) / ((1 + effects.attackSpeed) * (1 + traits.attackSpeed)),
-    movementSpeed: attack.movementSpeed * (1 + traits.moveSpeed),
+    rate: (attack.intervalSeconds * (weapon?.intervalScale ?? 1) * (1 + (env?.attackSlow || 0)))
+      / ((1 + effects.attackSpeed) * (1 + traits.attackSpeed) * (1 + gear.attackSpeed)),
+    movementSpeed: attack.movementSpeed * (1 + traits.moveSpeed) * (1 - (env?.moveSlow || 0)),
     magic: false,
     damageType: null,
     defense: stats.defense + gear.defense + traits.defense,
     agility: stats.agility + gear.agility + traits.agility,
     intelligence: stats.intelligence,
-    critChance: Math.min(0.5, attack.criticalChance + effects.critChance + gear.critChance + traits.critChance),
-    critMult: Math.min(2.5, attack.criticalDamageMultiplier + effects.critDamage),
+    critChance: Math.min(0.5, attack.criticalChance + effects.critChance + gear.critChance + traits.critChance
+      + ((weapon?.rangeMode ?? attack.rangeMode) === "midline" ? traits.rangedCrit : 0)),
+    critMult: Math.min(3, attack.criticalDamageMultiplier + effects.critDamage + gear.critDamage + traits.critDamage),
     dodge: C.dodgeChance(stats.agility + gear.agility + traits.agility),
     lowHpDodge: 0,
     moveSpeedMultiplier: 1,
@@ -112,10 +117,14 @@ function classlessHeroDerived(hero) {
     evasion: effects.evasion,
     fullHpEvasion: effects.fullHpEvasion,
     lastStand: effects.lastStand,
-    lifesteal: effects.lifesteal,
+    lifesteal: effects.lifesteal + gear.lifesteal,
     decoyChance: effects.decoyChance,
     classlessEffects: effects,
     traits,
+    // Gauntlet gear specials (thorns, burn, chill, cleave, volley, revive, ...).
+    gear,
+    env,
+    usesArrows: heroUsesArrows(hero),
     bloodPriceBonus: effects.bloodPriceBonus,
     bloodPriceCost: effects.bloodPriceCost,
     color: hero.appearance?.identityColor || "#22D3EE",
@@ -152,6 +161,7 @@ export class Engine {
     this.active = [];           // live enemies
     this.projectiles = [];
     this.actionCompletions = [];
+    this.fallen = [];           // Gauntlet: corpses a necromancer can raise
     this.floaters = [];
     this.effects = [];
     this.killed = 0;
@@ -1173,8 +1183,9 @@ export class Engine {
     if (!item || !(slot.qty > 0) || !h.alive || h.quickCd > 0 || this.ended || !this._quickItemUseful(h, item)) return false;
     slot.qty -= 1;
     h.quickCd = QUICK_ITEM_COOLDOWN;
+    if (item.heal) this._tally(h, "heals", 1);
     if (item.heal) {
-      const amount = Math.min(h.d.maxHp - h.ref.hp, h.d.maxHp * item.heal * (1 + (h.d.traits?.healBonus || 0)));
+      const amount = Math.min(h.d.maxHp - h.ref.hp, h.d.maxHp * item.heal * (1 + (h.d.traits?.healBonus || 0)) * (1 - (h.d.env?.healCut || 0)));
       h.ref.hp += amount;
       this._float(h.x, h.y - 18, `+${Math.round(amount)}`, "#39FF14");
     }
@@ -1188,6 +1199,7 @@ export class Engine {
   }
 
   _quickItemUseful(h, item) {
+    if (item.arrow) return false; // arrows are drawn by the bow itself
     if (item.heal) return h.ref.hp < h.d.maxHp;
     if (item.shots) return !(h.ammoShots > 0);
     return false;
@@ -1207,6 +1219,26 @@ export class Engine {
       const wants = item.heal ? hpFraction < item.autoBelowHp : !!item.autoVsElite && eliteOnField;
       if (wants && this.useQuickItem(h.i, i)) return;
     }
+  }
+
+  // The quick slot a bow hero draws arrows from: the first one holding any.
+  _arrowSlot(h) {
+    const slots = Array.isArray(h.model?.quickSlots) ? h.model.quickSlots : [];
+    return slots.find((slot) => slot && CONSUMABLES[slot.key]?.arrow && slot.qty > 0) || null;
+  }
+
+  // Take one arrow for a shot (a quiver or Whisperwind may save it). Returns
+  // the arrow's on-hit effect, or false when the quiver is empty.
+  _drawArrow(h) {
+    const slot = this._arrowSlot(h);
+    if (!slot) return false;
+    const item = CONSUMABLES[slot.key];
+    if (!(Math.random() < Math.min(0.75, h.d.gear?.arrowSaver || 0))) {
+      slot.qty -= 1;
+      h.model.arrowsSpent ||= {};
+      h.model.arrowsSpent[slot.key] = (h.model.arrowsSpent[slot.key] || 0) + 1;
+    }
+    return item.effect || null;
   }
 
   _consumeAmmoShot(src, isHero) {
@@ -1297,7 +1329,10 @@ export class Engine {
         }
       }
     }
-    for (const e of this.active) this._updateEnemy(e, dt);
+    for (const e of this.active) {
+      this._tickDots(e, dt);
+      if (e.hp > 0) this._updateEnemy(e, dt);
+    }
     this.active = this.active.filter((e) => e.hp > 0);
 
     // heroes: in an encounter the party is engaged as soon as any enemy is on
@@ -1312,6 +1347,8 @@ export class Engine {
       if (h.protect > 0) { h.protect -= dt; continue; }
       for (const id of Object.keys(h.abilityCooldowns)) h.abilityCooldowns[id] = Math.max(0, h.abilityCooldowns[id] - dt);
       this._tickClasslessSustain(h, dt);
+      this._tickGearAndEnvironment(h, dt);
+      if (!h.alive) continue;
       this._tickQuickItems(h, dt);
       for (const id of Object.keys(h.spellCooldowns)) h.spellCooldowns[id] = Math.max(0, h.spellCooldowns[id] - dt);
       h.mana = Math.min(h.maxMana, h.mana + (2 + Math.max(0, h.d.intelligence || 0) * 0.04) * dt);
@@ -1400,6 +1437,16 @@ export class Engine {
           // of being pulled home by its support configuration.
           this._returnHome(h, dt);
         }
+        continue;
+      }
+
+      // Gauntlet: a bow with an empty quiver can't shoot; the hero falls back.
+      if (h.classless && h.d.usesArrows && !this._arrowSlot(h)) {
+        if (!h.outOfArrows) {
+          h.outOfArrows = true;
+          this._float(h.x, h.y - 24, "NO ARROWS", "#E2E8F0");
+        }
+        this._returnHome(h, dt);
         continue;
       }
 
@@ -1557,6 +1604,19 @@ export class Engine {
           } else {
             e.abilityCd = 0.5;
           }
+        } else if (e.type === "banditWarlord") {
+          // Calls his gang in, then charges the weakest hero himself.
+          e.abilityCd = 10;
+          for (let k = 0; k < 2; k++) this._summon("bandit");
+          this._float(e.x, e.y - 34, "TO ME, LADS!", e.color);
+          e.blitzUntil = this.time + 0.6;
+          e.blitzStrike = true;
+        } else if (target && e.type === "bogLich") {
+          // Mends its court, drags the dead back up, and spits bile.
+          e.abilityCd = 7;
+          this._healAllies(e, 250, 0.12);
+          this._raiseFallen(e, 250, 2);
+          this._throwNapalm(e, target);
         } else if (target) {
           if (e.type === "imperialNecromancer") {
             // Raise dead: a larger, slower pack of minions, plus a soul bomb.
@@ -1573,6 +1633,7 @@ export class Engine {
         }
       }
     }
+    if (this._updateSpecialEnemy(e, dt)) return;
     // Enemy archetypes get a small tactical identity on top of their
     // existing stats/objectives. These are intentionally readable rules:
     // fast raiders rush, brutes hunt structures, reapers hunt wounded heroes,
@@ -1685,6 +1746,267 @@ export class Engine {
     e.y += ((prey.y - e.y) / preyDistance) * moveSpeed * dt;
   }
 
+  // Gauntlet enemy roles. Returns true when the enemy's turn is handled.
+  _updateSpecialEnemy(e, dt) {
+    const speedScale = (e._commanderBoost || 1) * (e.slowUntil > this.time ? (e.slowMultiplier || 1) : 1);
+    const rooted = e.rootUntil > this.time;
+    const move = (target, speed, away = false) => {
+      if (rooted) return;
+      const dist = Math.hypot(target.x - e.x, target.y - e.y) || 1;
+      const step = Math.min(speed * speedScale * dt, away ? Infinity : dist);
+      e.x += ((target.x - e.x) / dist) * step * (away ? -1 : 1);
+      e.y += ((target.y - e.y) / dist) * step * (away ? -1 : 1);
+      e.x = Math.max(10, Math.min(W - 10, e.x));
+      e.y = Math.max(10, Math.min(FLOOR_Y - 10, e.y));
+    };
+    const living = this.heroes.filter((h) => h.alive && !this._isHeroUntargetable(h));
+    if (!living.length) return false;
+    const nearest = living.reduce((best, h) => (Math.hypot(h.x - e.x, h.y - e.y) < Math.hypot(best.x - e.x, best.y - e.y) ? h : best));
+    const distTo = (h) => Math.hypot(h.x - e.x, h.y - e.y);
+
+    if (e.bomber) {
+      // Gnome Sapper: sprints at the nearest hero, lights the fuse, and blows up.
+      if (e.fuseAt != null) {
+        if (this.time >= e.fuseAt) this._detonate(e, 1);
+        return true;
+      }
+      if (distTo(nearest) <= 30) {
+        e.fuseAt = this.time + 0.7;
+        this._float(e.x, e.y - 20, "FUSE LIT!", "#FB923C");
+        return true;
+      }
+      move(nearest, e.speed * 1.25);
+      return true;
+    }
+
+    if (e.families?.includes("hunter") && !e.boss && e.type !== "bandit" && e.type !== "darkElf") {
+      // Hunters (Harriers, Stalkers, legends): go for the most wounded hero.
+      // A Stalker's first strike lands extra hard.
+      const prey = living.reduce((best, h) => (h.ref.hp / h.d.maxHp < best.ref.hp / best.d.maxHp ? h : best));
+      if (distTo(prey) <= 30) {
+        if (e.atkCd <= 0) {
+          const base = e.damage;
+          if (e.type === "stalker" && !e.struck) e.damage *= 1.5;
+          this._enemyAttack(e, { kind: "hero", obj: prey });
+          e.damage = base;
+          e.struck = true;
+          e.atkCd = e.type === "harrier" ? 0.7 : 0.9;
+        }
+        return true;
+      }
+      move(prey, e.speed * 1.1);
+      return true;
+    }
+
+    if (e.type === "carrionPriest") {
+      // Protector: feeds on the weak. Sacrifices a dying ally (or eats a
+      // corpse) to heal and empower the rest of the squad.
+      e.feedCd = (e.feedCd ?? 3) - dt;
+      if (e.feedCd <= 0) {
+        const victim = this.active.find((ally) => ally !== e && ally.hp > 0 && !ally.boss && ally.type !== "carrionPriest" &&
+          ally.hp < ally.maxHp * 0.25 && Math.hypot(ally.x - e.x, ally.y - e.y) <= 220);
+        const corpse = victim ? null : this._fallenNear(e, 220);
+        if (victim || corpse) {
+          e.feedCd = 5;
+          if (victim) {
+            victim.hp = 0;
+            victim._dead = true;
+            this.killed += 1;
+            this.effects.push({ kind: "death", x: victim.x, y: victim.y, r: 14, life: 0.5, color: e.color });
+            this._float(victim.x, victim.y - 16, "SACRIFICED", e.color);
+          } else {
+            this.fallen.splice(this.fallen.indexOf(corpse), 1);
+            this._float(corpse.x, corpse.y - 16, "DEVOURED", e.color);
+          }
+          this._healAllies(e, 220, victim ? 0.2 : 0.1);
+          if (victim) for (const ally of this.active) if (ally.hp > 0 && Math.hypot(ally.x - e.x, ally.y - e.y) <= 220) ally.empoweredUntil = this.time + 6;
+          return true;
+        }
+        e.feedCd = 0.5;
+      }
+      const dist = distTo(nearest);
+      if (dist < 170) move(nearest, e.speed * 1.2, true);
+      else if (dist > 240) move(nearest, e.speed);
+      else if (e.atkCd <= 0) {
+        this._throwEnemyBolt(e, { kind: "hero", obj: nearest }, e.damage, e.color, true);
+        e.atkCd = 2.2;
+      }
+      return true;
+    }
+
+    if (e.type === "watcher") {
+      // Watchers make sneaking past them hard; in a fight they mark a hero,
+      // leaving them exposed (+15% damage taken) for a few seconds.
+      const dist = distTo(nearest);
+      if (dist < 160) move(nearest, e.speed * 1.1, true);
+      else if (dist > 260) move(nearest, e.speed);
+      else if (e.atkCd <= 0) {
+        const marked = living.find((h) => !(h.exposedUntil > this.time)) || nearest;
+        marked.exposedUntil = this.time + 4;
+        this._float(marked.x, marked.y - 26, "MARKED", e.color);
+        this._throwEnemyBolt(e, { kind: "hero", obj: marked }, e.damage, e.color, true);
+        e.atkCd = 2.4;
+      }
+      return true;
+    }
+
+    if (e.type === "bandit" || (e.type === "banditWarlord" && e.blitzUntil > this.time)) {
+      // Bandits blitz the weakest hero: a burst of speed and a heavy first strike.
+      const prey = living.reduce((best, h) => (h.ref.hp / h.d.maxHp < best.ref.hp / best.d.maxHp ? h : best));
+      const dist = distTo(prey);
+      e.blitzCd = (e.blitzCd ?? 1.5) - dt;
+      if (dist <= (e.boss ? 40 : 30)) {
+        if (e.atkCd <= 0) {
+          const base = e.damage;
+          if (e.blitzStrike) e.damage *= 1.6;
+          this._enemyAttack(e, { kind: "hero", obj: prey });
+          e.damage = base;
+          e.blitzStrike = false;
+          e.atkCd = e.boss ? 1 : 0.75;
+        }
+        return true;
+      }
+      if (e.blitzCd <= 0 && dist > 60 && dist < 220 && !(e.blitzUntil > this.time)) {
+        e.blitzUntil = this.time + 0.45;
+        e.blitzCd = 6;
+        e.blitzStrike = true;
+        this._float(e.x, e.y - 18, "BLITZ", e.color);
+      }
+      move(prey, e.speed * (e.blitzUntil > this.time ? 3.2 : 1.15));
+      return true;
+    }
+
+    if (e.type === "darkElf") {
+      // Dark Elf sniper: hangs back, takes aim at a ranged hero (or the most
+      // wounded), and fires one heavy shot. The aim line warns the target.
+      const ranged = living.filter((h) => h.d.rangeMode === "midline");
+      const pool = ranged.length ? ranged : living;
+      const target = e.aimTarget?.alive && pool.includes(e.aimTarget) ? e.aimTarget
+        : pool.reduce((best, h) => (h.ref.hp < best.ref.hp ? h : best));
+      const dist = distTo(target);
+      if (e.aimUntil != null) {
+        if (!e.aimTarget?.alive) { e.aimUntil = null; e.aimTarget = null; return true; }
+        if (this.time >= e.aimUntil) {
+          this._throwEnemyBolt(e, { kind: "hero", obj: e.aimTarget }, e.damage * 2, "#F43F5E");
+          e.aimUntil = null;
+          e.aimTarget = null;
+          e.atkCd = 2.6;
+        }
+        return true;
+      }
+      if (distTo(nearest) < 150) {
+        move(nearest, e.speed * 1.1, true);
+        return true;
+      }
+      if (dist > 330) {
+        move(target, e.speed);
+        return true;
+      }
+      if (e.atkCd <= 0) {
+        e.aimUntil = this.time + 0.9;
+        e.aimTarget = target;
+      }
+      return true;
+    }
+
+    if (e.type === "lesserNecromancer") {
+      // Keeps its distance, mends the wounded, and raises one fallen ally.
+      e.healCd = (e.healCd ?? 2) - dt;
+      e.raiseCd = (e.raiseCd ?? 5) - dt;
+      if (e.raisingUntil != null) {
+        if (this.time >= e.raisingUntil) {
+          e.raisingUntil = null;
+          if (this._raiseFallen(e, 240, 1)) e.raised_ = true;
+        }
+        return true;
+      }
+      if (e.healCd <= 0) {
+        e.healCd = 4.5;
+        this._healAllies(e, 200, 0.18, 1);
+      }
+      if (e.raiseCd <= 0 && !e.raised_ && this._fallenNear(e, 240)) {
+        e.raisingUntil = this.time + 1.5;
+        e.raiseCd = 99;
+        this._float(e.x, e.y - 20, "RAISE DEAD", e.color);
+        this.effects.push({ kind: "charge", x: e.x, y: e.y, r: 24, life: 1.5, color: e.color });
+        return true;
+      }
+      const dist = distTo(nearest);
+      if (dist < 170) move(nearest, e.speed * 1.2, true);
+      else if (dist > 230) move(nearest, e.speed);
+      else if (e.atkCd <= 0) {
+        this._throwEnemyBolt(e, { kind: "hero", obj: nearest }, e.damage, e.color, true);
+        e.atkCd = 2;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  // Gauntlet hero history: what each hero did in this fight, carried back on
+  // the hero model and folded into hero.history (game/qualities.js).
+  _tally(h, stat, amount) {
+    if (!h?.classless || !(amount > 0)) return;
+    const stats = (h.model.battleStats ||= {});
+    stats[stat] = (stats[stat] || 0) + amount;
+  }
+
+  // Heal living allies within `range` by `fraction` of max HP. `limit` heals
+  // only the most wounded. Returns how many were healed.
+  _healAllies(e, range, fraction, limit = Infinity) {
+    const wounded = this.active
+      .filter((ally) => ally.hp > 0 && !ally.boss && ally.hp < ally.maxHp * 0.9 && Math.hypot(ally.x - e.x, ally.y - e.y) <= range)
+      .sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)
+      .slice(0, limit);
+    for (const ally of wounded) {
+      const amount = Math.min(ally.maxHp - ally.hp, ally.maxHp * fraction);
+      ally.hp += amount;
+      this._float(ally.x, ally.y - 14, `+${Math.round(amount)}`, "#39FF14");
+      this.effects.push({ x: ally.x, y: ally.y, r: 14, life: 0.4, color: "#39FF14", ring: true });
+    }
+    return wounded.length;
+  }
+
+  _fallenNear(e, range) {
+    return this.fallen.find((corpse) => Math.hypot(corpse.x - e.x, corpse.y - e.y) <= range) || null;
+  }
+
+  // Bring up to `count` fallen enemies near `e` back at half HP.
+  _raiseFallen(e, range, count) {
+    let raised = 0;
+    while (raised < count) {
+      const corpse = this._fallenNear(e, range);
+      if (!corpse) break;
+      this.fallen.splice(this.fallen.indexOf(corpse), 1);
+      const dead = corpse.enemy;
+      const risen = {
+        ...dead, id: `raised-${this.time}-${raised}`, hp: Math.round(dead.maxHp * 0.5), raised: true,
+        _dead: false, dots: [], dmgBy: {}, fuseAt: null, detonated: false, hitUntil: 0, stunUntil: 0, rootUntil: 0,
+      };
+      this.injectEnemy(risen);
+      risen.x = corpse.x;
+      risen.y = corpse.y;
+      this._float(corpse.x, corpse.y - 16, "RISEN", e.color);
+      this.effects.push({ kind: "death", x: corpse.x, y: corpse.y, r: 16, life: 0.6, color: e.color });
+      raised += 1;
+    }
+    return raised;
+  }
+
+  // A sapper's bomb: area damage around it; the sapper is gone either way.
+  _detonate(e, strength) {
+    e.detonated = true;
+    this._explodeNapalm(e.x, e.y, { dmg: e.damage * 6 * strength, splash: 72, color: "#FB923C" });
+    this._float(e.x, e.y - 22, "BOOM", "#FB923C");
+    this.effects.push({ kind: "impact", x: e.x, y: e.y, r: 36, life: 0.5, color: "#FB923C" });
+    if (!e._dead) {
+      // Blowing itself up earns the party nothing.
+      e._dead = true;
+      e.hp = 0;
+      this.killed += 1;
+    }
+  }
+
   _nearestDefender(x, y, range) {
     let best = null;
     let bd = range;
@@ -1756,6 +2078,7 @@ export class Engine {
           continue;
         }
         dmg = h.classless ? this._classlessReducedDamage(h, dmg) : this._legacyInterposedDamage(h, dmg);
+        dmg *= 1 - Math.min(0.9, h.d.gear?.blastWard || 0);
         if (h.ref.shield > 0) {
           const ab = Math.min(h.ref.shield, dmg);
           h.ref.shield -= ab;
@@ -1763,7 +2086,7 @@ export class Engine {
         }
         if (h.classless) this._resolveClasslessHeroDamage(h, dmg);
         else h.ref.hp = Math.max(0, h.ref.hp - dmg);
-        this._float(h.x, h.y - 20, "-" + Math.round(dmg), "#FF6600");
+        this._float(h.x, h.y - 20, "-" + Math.round(dmg), p.color || "#FF6600");
         if (!h.classless && h.ref.hp <= 0 && h.alive) {
           h.alive = false;
           this.sim.morale = clamp(this.sim.morale + C.MORALE.heroDefeat);
@@ -1828,7 +2151,10 @@ export class Engine {
     const interpose = hero.interposeUntil > this.time ? hero.interposeReduction : 0;
     const formation = this._classlessFormationReduction(hero);
     const reduction = Math.min(0.30, Math.max(0, hero.d.damageReduction + lastStand + interpose + formation));
-    return C.damageAfterDefense(rawDamage, hero.d.defense) * (1 - reduction) * (1 - (hero.d.traits?.damageTaken || 0));
+    // Gauntlet: Survivor quality below 30% HP; a Watcher's mark leaves a hero exposed.
+    const guard = hero.ref.hp < hero.d.maxHp * 0.3 ? hero.d.traits?.lowHpGuard || 0 : 0;
+    const exposed = hero.exposedUntil > this.time ? 1.15 : 1;
+    return C.damageAfterDefense(rawDamage, hero.d.defense) * (1 - reduction) * (1 - (hero.d.traits?.damageTaken || 0)) * (1 - guard) * exposed;
   }
 
   _classlessFormationReduction(hero) {
@@ -1899,6 +2225,7 @@ export class Engine {
       this.effects.push({ kind: "shield", x: hero.x, y: hero.y, r: 18, life: 0.45, color: "#A78BFA" });
     }
     hero.ref.hp = Math.max(0, hero.ref.hp - remaining);
+    this._tally(hero, "taken", remaining);
     if (remaining > 0) {
       state.lastDamageAt = this.time;
       state.nextRegenAt = this.time + 5;
@@ -1913,6 +2240,13 @@ export class Engine {
       state.survivalReadyAt = this.time + 60;
       this._float(hero.x, hero.y - 22, "SURVIVE", "#DC2626");
       this.effects.push({ kind: "guard", x: hero.x, y: hero.y, r: 26, life: 0.65, color: "#DC2626" });
+    }
+    // Gravebinder Ring: rise once per fight.
+    if (hero.ref.hp <= 0 && hero.d.gear?.revive > 0 && !hero.revived) {
+      hero.revived = true;
+      hero.ref.hp = Math.round(hero.d.maxHp * hero.d.gear.revive);
+      this._float(hero.x, hero.y - 22, "RISE AGAIN", "#FF9F1C");
+      this.effects.push({ kind: "guard", x: hero.x, y: hero.y, r: 28, life: 0.7, color: "#FF9F1C" });
     }
     if (hero.ref.hp <= 0 && hero.alive) {
       hero.alive = false;
@@ -1949,6 +2283,77 @@ export class Engine {
     }
   }
 
+  // Gauntlet gear regen and environmental damage over time. Environment damage
+  // never knocks a hero out on its own.
+  _tickGearAndEnvironment(hero, dt) {
+    if (!hero.classless || !hero.alive) return;
+    const regen = hero.d.gear?.regen || 0;
+    if (regen > 0) this._classlessHeal(hero, regen * dt * (1 - (hero.d.env?.healCut || 0)));
+    const dot = hero.d.env?.dot || 0;
+    if (dot > 0 && hero.ref.hp > 1) {
+      const amount = Math.min(hero.ref.hp - 1, hero.d.maxHp * dot * dt);
+      hero.ref.hp -= amount;
+      hero.envDamage = (hero.envDamage || 0) + amount;
+      if (hero.envDamage >= 1 && Math.floor(this.time) !== hero.envFloatSecond) {
+        hero.envFloatSecond = Math.floor(this.time);
+        this._float(hero.x + 10, hero.y - 14, `-${Math.round(hero.envDamage)}`, hero.d.env.color || "#FB923C");
+        hero.envDamage = 0;
+      }
+    }
+  }
+
+  // Poison and burns on enemies: { dps, until, sourceId, color }.
+  _applyDot(target, total, seconds, color, sourceId) {
+    if (!(total > 0) || !(seconds > 0) || target.hp <= 0) return;
+    target.dots ||= [];
+    target.dots.push({ dps: total / seconds, until: this.time + seconds, sourceId, color });
+    if (target.dots.length > 6) target.dots.shift();
+  }
+
+  _tickDots(e, dt) {
+    if (!e.dots?.length || e.hp <= 0) return;
+    let dealt = 0;
+    let source = null;
+    let color = null;
+    for (const dot of e.dots) {
+      const amount = dot.dps * Math.min(dt, Math.max(0, dot.until - (this.time - dt)));
+      if (amount <= 0) continue;
+      e.hp = Math.max(0, e.hp - amount);
+      e.dmgBy[dot.sourceId] = (e.dmgBy[dot.sourceId] || 0) + amount;
+      dealt += amount;
+      source = dot.sourceId;
+      color = dot.color;
+    }
+    e.dots = e.dots.filter((dot) => dot.until > this.time);
+    e.dotDamage = (e.dotDamage || 0) + dealt;
+    if (e.dotDamage >= 1 && Math.floor(this.time) !== e.dotFloatSecond) {
+      e.dotFloatSecond = Math.floor(this.time);
+      this._float(e.x + 8, e.y - 10, `${Math.round(e.dotDamage)}`, color || "#39FF14");
+      e.dotDamage = 0;
+    }
+    if (e.hp <= 0 && source) this._killEnemy(e, source);
+  }
+
+  // Extra damage from splash, cleave and thorns: no crits or on-hit effects.
+  _bonusDamage(target, amount, sourceId, color) {
+    if (!target || target.hp <= 0 || !(amount > 0)) return;
+    target.hp = Math.max(0, target.hp - amount);
+    target.dmgBy[sourceId] = (target.dmgBy[sourceId] || 0) + amount;
+    target.hitUntil = this.time + 0.18;
+    this._float(target.x, target.y - 4, `${Math.round(amount)}`, color);
+    if (target.hp <= 0) this._killEnemy(target, sourceId);
+  }
+
+  _slowEnemy(target, slow, seconds) {
+    const amount = target.boss ? slow / 3 : slow;
+    if (!(target.slowUntil > this.time)) target.slowMultiplier = 1;
+    if (!(target.attackSlowUntil > this.time)) target.attackSlowMultiplier = 1;
+    target.slowUntil = Math.max(target.slowUntil || 0, this.time + seconds);
+    target.slowMultiplier = Math.min(target.slowMultiplier || 1, 1 - amount);
+    target.attackSlowUntil = Math.max(target.attackSlowUntil || 0, this.time + seconds);
+    target.attackSlowMultiplier = Math.min(target.attackSlowMultiplier || 1, 1 - amount);
+  }
+
   _throwEnemyBolt(e, target, damage, color, magic = false) {
     const obj = target?.obj;
     if (!obj) return;
@@ -1959,7 +2364,7 @@ export class Engine {
       y: e.y,
       launchX: e.x,
       launchY: e.y,
-      targetSearchRange: e.type === "darkElf" ? 245 : e.type === "warlock" ? 225
+      targetSearchRange: e.type === "darkElf" ? 340 : e.type === "warlock" ? 225
         : Math.hypot(obj.x - e.x, obj.y - e.y),
       tx: obj.x,
       ty: obj.y,
@@ -2045,11 +2450,17 @@ export class Engine {
         h.ref.shield = 0;
       }
       if (Math.random() < this._heroDodgeChance(h)) { this._float(h.x, h.y - 20, "DODGE", "#00F3FF"); return; }
-      let dmg = h.classless ? this._classlessReducedDamage(h, e.damage) : this._legacyInterposedDamage(h, e.damage);
+      // Gauntlet behavior families: predators maul the wounded; a Carrion
+      // Priest's sacrifice empowers its allies for a while.
+      const predator = e.families?.includes("predator") && h.ref.hp < h.d.maxHp * 0.5 ? 1.4 : 1;
+      const empowered = e.empoweredUntil > this.time ? 1.15 : 1;
+      const raw = e.damage * predator * empowered;
+      let dmg = h.classless ? this._classlessReducedDamage(h, raw) : this._legacyInterposedDamage(h, raw);
       if (h.ref.shield > 0) { const ab = Math.min(h.ref.shield, dmg); h.ref.shield -= ab; dmg -= ab; }
       if (h.classless) this._resolveClasslessHeroDamage(h, dmg);
       else h.ref.hp = Math.max(0, h.ref.hp - dmg);
       if (dmg > 0) this._triggerHeroReaction(h, "ally");
+      if (dmg > 0 && h.d.gear?.thorns > 0 && e.hp > 0) this._bonusDamage(e, dmg * h.d.gear.thorns, "H" + h.i, "#F8FAFC");
       if (e.boss) e.hp = Math.min(e.maxHp, e.hp + dmg * 0.5); // Demon Lord lifesteal
       this._float(h.x, h.y - 20, "-" + Math.round(dmg), "#FF3366");
       if (!h.classless && h.ref.hp <= 0 && h.alive) {
@@ -2059,7 +2470,13 @@ export class Engine {
     }
   }
 
-  _fire(sourceId, src, target, d, isHero) {
+  _fire(sourceId, src, target, d, isHero, { extra = false } = {}) {
+    // Gauntlet: bows spend an arrow per shot (volley shots are free).
+    let arrowEffect = null;
+    if (isHero && src.classless && src.d.usesArrows && !extra) {
+      arrowEffect = this._drawArrow(src);
+      if (arrowEffect === false) return false;
+    }
     if (isHero && src.classless) {
       src.visualActionKind = "attack";
       src.visualActionStartedAt = this.time;
@@ -2088,6 +2505,7 @@ export class Engine {
       color: isHero ? d.color : d.color, t: 0,
       visualType,
       vfxAssetId: projectileVfxAssetId({ visualType, sourceId }),
+      arrowEffect,
     };
     // Gauntlet: melee weapons (swords) strike in place, with no projectile.
     if (isHero && src.classless && src.d.rangeMode === "melee") {
@@ -2103,6 +2521,17 @@ export class Engine {
         color: src.d.color, vfxSize: 56, rotation: Math.atan2(target.y - src.y, target.x - src.x) });
     }
     this.effects.push({ x: src.x, y: src.y, r: 8, life: 0.18, color: d.color, ring: true });
+    // Whisperwind: every third shot looses extra arrows at other enemies in range.
+    if (isHero && src.classless && !extra && src.d.gear?.volley > 0) {
+      src.shotCount = (src.shotCount || 0) + 1;
+      if (src.shotCount % 3 === 0) {
+        const others = this.active
+          .filter((enemy) => enemy !== target && enemy.hp > 0 && Math.hypot(enemy.x - src.x, enemy.y - src.y) <= src.d.range)
+          .slice(0, src.d.gear.volley);
+        for (const other of others) this._fire(sourceId, src, other, d, isHero, { extra: true });
+      }
+    }
+    return true;
   }
 
   _applyHit(p) {
@@ -2190,6 +2619,11 @@ export class Engine {
       this._float(target.x, target.y - 4, "IMMUNE", "#39FF14");
       return false;
     }
+    // Gauntlet darkness: some weapon attacks miss outright.
+    if (p.damageCategory === "weapon" && hero.d.env?.miss > 0 && Math.random() < hero.d.env.miss) {
+      this._float(target.x, target.y - 4, "MISS", "#64748B");
+      return false;
+    }
     target.hitUntil = this.time + 0.18;
     const echoMarks = this._takeClasslessEchoMarks(target, p.sourceId);
     let damage = p.dmg * affinity;
@@ -2197,6 +2631,10 @@ export class Engine {
     // Gauntlet traits and Hall of Legends bonuses (Berserker below half HP).
     const traits = hero.d.traits;
     if (traits) damage *= 1 + traits.damage + (hero.ref.hp < hero.d.maxHp * 0.5 ? traits.berserk : 0);
+    damage *= 1 + (hero.d.gear?.damageBonus || 0);
+    // Evolved qualities: Bladesworn (melee) and Giantslayer (elites and bosses).
+    if (p.damageCategory === "weapon" && hero.d.rangeMode === "melee") damage *= 1 + (traits?.meleeDamage || 0);
+    if (target.boss || target.tier === "elite") damage *= 1 + (traits?.eliteDamage || 0);
     if (p.damageType === C.DAMAGE_TYPES.ARCANE) damage *= 1 + (effects.arcaneDamage || 0);
     let situationalBonus = p.situationalBonus || 0;
     if (p.ability) situationalBonus += hero.d.bloodPriceBonus || 0;
@@ -2231,7 +2669,18 @@ export class Engine {
     // therefore obeys its canonical +50% cap in the damage pipeline.
     const crit = p.guaranteedCrit || Math.random() < hero.d.critChance;
     if (crit) damage *= hero.d.critMult;
+    // Master Marksman: a ranged crit finishes off a badly wounded common foe.
+    if (crit && p.damageCategory === "weapon" && hero.d.rangeMode === "midline" && traits?.execute > 0 &&
+      !target.boss && !target.legendary && target.tier !== "elite" && target.hp - damage <= target.maxHp * traits.execute) {
+      damage = Math.max(damage, target.hp);
+      this._float(target.x, target.y - 16, "EXECUTE", "#FFE600");
+    }
     target.hp = Math.max(0, target.hp - damage);
+    if (p.damageCategory === "weapon") {
+      this._tally(hero, hero.d.rangeMode === "melee" ? "meleeHits" : "rangedHits", 1);
+      if (crit) this._tally(hero, "crits", 1);
+    }
+    this._tally(hero, "damage", damage);
     if (consumesVanish) state.vanishDamagePending = 0;
     target.dmgBy[p.sourceId] = (target.dmgBy[p.sourceId] || 0) + damage;
     let killSourceId = p.sourceId;
@@ -2293,8 +2742,33 @@ export class Engine {
       if (target.hp > 0) this._recordClasslessControl(target, hero, rootUntil);
       state.nextRootAt = this.time + effects.rootEverySeconds;
     }
+    if (p.damageCategory === "weapon" && !p.area) this._applyWeaponSpecials(hero, target, damage, p);
     if (target.hp <= 0) this._killEnemy(target, killSourceId);
     return true;
+  }
+
+  // Gauntlet on-hit effects: special arrows, then gear burn, chill and cleave.
+  _applyWeaponSpecials(hero, target, damage, p) {
+    const gear = hero.d.gear || {};
+    const arrow = p.arrowEffect;
+    if (arrow?.dot) this._applyDot(target, damage * arrow.dot, arrow.dotSeconds, arrow.dotColor, p.sourceId);
+    if (arrow?.slow && target.hp > 0) this._slowEnemy(target, arrow.slow, arrow.slowSeconds);
+    if (arrow?.splash) {
+      this.effects.push({ kind: "napalm", x: target.x, y: target.y, r: 12, life: 0.5, color: "#FF6600" });
+      for (const other of this.active) {
+        if (other !== target && other.hp > 0 && Math.hypot(other.x - target.x, other.y - target.y) <= arrow.splashRadius) {
+          this._bonusDamage(other, damage * arrow.splash, p.sourceId, "#FF6600");
+        }
+      }
+    }
+    if (gear.burn > 0) this._applyDot(target, damage * gear.burn, 3, "#FF6600", p.sourceId);
+    if (gear.chill > 0 && target.hp > 0) this._slowEnemy(target, gear.chill, 2);
+    if (gear.cleave > 0 && hero.d.rangeMode === "melee") {
+      const next = this.active
+        .filter((other) => other !== target && other.hp > 0 && Math.hypot(other.x - target.x, other.y - target.y) <= 60)
+        .sort((a, b) => Math.hypot(a.x - target.x, a.y - target.y) - Math.hypot(b.x - target.x, b.y - target.y))[0];
+      if (next) this._bonusDamage(next, damage * gear.cleave, p.sourceId, hero.d.color);
+    }
   }
 
   _multiTargetTargets(target, multiTarget, radius = 55) {
@@ -2307,6 +2781,17 @@ export class Engine {
   _killEnemy(e, sourceId, silent) {
     if (e._dead) return;
     e._dead = true; e.hp = 0;
+    // Gauntlet: a sapper's bomb goes off when it falls (at half strength), and
+    // necromancers can raise anyone else who falls.
+    if (e.bomber && !e.detonated) this._detonate(e, 0.5);
+    else if (!e.boss && !e.raised) this.fallen.push({ enemy: e, x: e.x, y: e.y });
+    if (e.raised) {
+      // Raised dead come back once and carry nothing worth taking.
+      this.killed += 1;
+      this.effects.push({ kind: "death", x: e.x, y: e.y, r: 13, life: 0.48, color: e.color || "#8B5CF6" });
+      if (this.cb.onKill) this.cb.onKill();
+      return;
+    }
     if (!silent) this.effects.push({ kind: "death", x: e.x, y: e.y, r: e.boss ? 22 : 13, life: 0.48, color: e.color || "#FF3366" });
     this.killed += 1;
     this.sim.kills.total += 1;
@@ -2315,6 +2800,10 @@ export class Engine {
     // reward gold continuously
     const tier = C.ENEMY_TIERS[e.tier] || C.ENEMY_TIERS.basic;
     const killer = typeof sourceId === "string" && sourceId.startsWith("H") ? this.heroes[Number(sourceId.slice(1))] : null;
+    if (killer) {
+      this._tally(killer, "kills", 1);
+      if (e.boss || e.tier === "elite") this._tally(killer, e.boss ? "bossKills" : "eliteKills", 1);
+    }
     this.sim.gold += Math.round(tier.gold * (1 + (killer?.d?.traits?.goldFind || 0)));
 
     // Equipment drops are deposited directly into the community Vault.
@@ -2734,7 +3223,25 @@ export class Engine {
         ctx.restore();
       } else if (e.type === "darkElf" && e.hp > 0) {
         ctx.save(); ctx.strokeStyle = "#F43F5E"; ctx.lineWidth = 1.4; ctx.shadowBlur = 10; ctx.shadowColor = "#F43F5E";
-        ctx.beginPath(); ctx.arc(e.x, e.y, r + 5 + 2 * Math.sin(this.time * 8), 0, 7); ctx.stroke(); ctx.restore();
+        ctx.beginPath(); ctx.arc(e.x, e.y, r + 5 + 2 * Math.sin(this.time * 8), 0, 7); ctx.stroke();
+        // Sniper aim: a thin line to the target that brightens before the shot.
+        if (e.aimUntil != null && e.aimTarget) {
+          ctx.globalAlpha = 0.35 + 0.65 * Math.max(0, 1 - (e.aimUntil - this.time) / 0.9);
+          ctx.setLineDash([6, 4]); ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.aimTarget.x, e.aimTarget.y); ctx.stroke();
+        }
+        ctx.restore();
+      } else if (e.bomber && e.fuseAt != null && e.hp > 0) {
+        // Lit fuse: a fast-blinking blast radius.
+        ctx.save(); ctx.strokeStyle = "#FB923C"; ctx.lineWidth = 2; ctx.shadowBlur = 14; ctx.shadowColor = "#FB923C";
+        ctx.globalAlpha = Math.sin(this.time * 40) > 0 ? 0.9 : 0.3;
+        ctx.beginPath(); ctx.arc(e.x, e.y, 72, 0, 7); ctx.stroke(); ctx.restore();
+      } else if (e.blitzUntil > this.time && e.hp > 0) {
+        ctx.save(); ctx.strokeStyle = e.color; ctx.lineWidth = 2; ctx.shadowBlur = 12; ctx.shadowColor = e.color; ctx.globalAlpha = 0.7;
+        ctx.beginPath(); ctx.arc(e.x, e.y, r + 6, 0, 7); ctx.stroke(); ctx.restore();
+      } else if (e.raisingUntil != null && e.hp > 0) {
+        ctx.save(); ctx.strokeStyle = e.color; ctx.lineWidth = 1.5; ctx.shadowBlur = 12; ctx.shadowColor = e.color; ctx.setLineDash([2, 3]);
+        ctx.beginPath(); ctx.arc(e.x, e.y, r + 8 + 3 * Math.sin(this.time * 10), 0, 7); ctx.stroke(); ctx.restore();
       } else if (e.type === "warlock" && e.hp > 0) {
         ctx.save(); ctx.strokeStyle = "#C026D3"; ctx.lineWidth = 1.4; ctx.shadowBlur = 10; ctx.shadowColor = "#C026D3"; ctx.setLineDash([3, 3]);
         ctx.beginPath(); ctx.arc(e.x, e.y, r + 6, 0, 7); ctx.stroke(); ctx.restore();
@@ -3166,6 +3673,48 @@ export class Engine {
       neon(1.2); ctx.beginPath(); ctx.moveTo(0, -18); ctx.lineTo(0, -6); ctx.stroke();
       eye(-3, 3, 1.8); eye(3, 3, 1.8);
       neon(2); ctx.beginPath(); ctx.moveTo(7, 7); ctx.lineTo(14, -3); ctx.stroke();
+    } else if (e.type === "bandit") {
+      // Hooded raider with a face mask and twin knives.
+      ctx.fillStyle = "#1A1508";
+      ctx.beginPath(); ctx.moveTo(-8, 10); ctx.lineTo(-8, -4); ctx.lineTo(0, -13); ctx.lineTo(8, -4); ctx.lineTo(8, 10); ctx.closePath(); ctx.fill(); outline();
+      ctx.fillStyle = "#0A0904"; ctx.fillRect(-6, -4, 12, 5);
+      eye(-3, -6, 1.6); eye(3, -6, 1.6);
+      neon(2.2); ctx.beginPath(); ctx.moveTo(-8, 6); ctx.lineTo(-15, -2); ctx.moveTo(8, 6); ctx.lineTo(15, -2); ctx.stroke();
+    } else if (e.type === "lesserNecromancer") {
+      // Robed caster with a skull-topped staff.
+      ctx.fillStyle = "#120B1F";
+      ctx.beginPath(); ctx.moveTo(-10, 12); ctx.lineTo(-8, -4); ctx.lineTo(0, -14); ctx.lineTo(8, -4); ctx.lineTo(10, 12); ctx.closePath(); ctx.fill(); outline();
+      ctx.fillStyle = "#05030A"; ctx.beginPath(); ctx.arc(0, -4, 5.5, 0, Math.PI * 2); ctx.fill();
+      eye(-2.5, -4, 1.6); eye(2.5, -4, 1.6);
+      neon(1.8); ctx.beginPath(); ctx.moveTo(-10, 12); ctx.lineTo(-13, -14); ctx.stroke();
+      ctx.beginPath(); ctx.arc(-13, -17, 3.5, 0, Math.PI * 2); ctx.stroke();
+    } else if (e.type === "harrier" || e.type === "stalker") {
+      // Low four-legged hunters: a lean body, pointed ears and a long tail.
+      const big = e.type === "stalker" ? 1.25 : 1;
+      ctx.scale(big, big);
+      ctx.fillStyle = "#14100A";
+      ctx.beginPath(); ctx.moveTo(-12, 4); ctx.lineTo(-6, -4); ctx.lineTo(6, -5); ctx.lineTo(12, -11); ctx.lineTo(14, -3);
+      ctx.lineTo(9, 3); ctx.lineTo(8, 10); ctx.lineTo(4, 4); ctx.lineTo(-6, 5); ctx.lineTo(-8, 11); ctx.closePath(); ctx.fill(); outline();
+      neon(1.4); ctx.beginPath(); ctx.moveTo(-12, 4); ctx.quadraticCurveTo(-18, -2, -16, -9); ctx.stroke();
+      eye(11, -6, 1.6);
+    } else if (e.type === "carrionPriest") {
+      // Hunched, beaked figure with a hooked staff.
+      ctx.fillStyle = "#170C10";
+      ctx.beginPath(); ctx.moveTo(-10, 12); ctx.lineTo(-9, -2); ctx.lineTo(-2, -12); ctx.lineTo(6, -9); ctx.lineTo(10, 12); ctx.closePath(); ctx.fill(); outline();
+      ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(1, -7); ctx.lineTo(11, -4); ctx.lineTo(2, -3); ctx.fill();
+      eye(-1, -7, 1.5);
+      neon(1.8); ctx.beginPath(); ctx.moveTo(-11, 12); ctx.lineTo(-13, -12); ctx.quadraticCurveTo(-8, -18, -6, -12); ctx.stroke();
+    } else if (e.type === "watcher") {
+      // A floating eye in a ring of spines.
+      ctx.fillStyle = "#0C1418";
+      ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI * 2); ctx.fill(); outline();
+      ctx.fillStyle = color; ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#05080A"; ctx.beginPath(); ctx.arc(0, 0, 1.8, 0, Math.PI * 2); ctx.fill();
+      neon(1.2);
+      for (let k = 0; k < 8; k += 1) {
+        const a = (k / 8) * Math.PI * 2;
+        ctx.beginPath(); ctx.moveTo(Math.cos(a) * 11, Math.sin(a) * 11); ctx.lineTo(Math.cos(a) * 16, Math.sin(a) * 16); ctx.stroke();
+      }
     } else if (e.type === "skeleton") {
       // Minimal skull/ribcage silhouette — intentionally readable at small size.
       ctx.fillStyle = "#111922";
@@ -3251,6 +3800,17 @@ export class Engine {
         ctx.beginPath(); ctx.arc(0, -7, 6, 0, Math.PI * 2);
         ctx.moveTo(-20, 3); ctx.lineTo(-13, -4); ctx.moveTo(20, 3); ctx.lineTo(13, -4); ctx.stroke();
         ctx.fillStyle = color; ctx.beginPath(); ctx.arc(0, -7, 3, 0, Math.PI * 2); ctx.fill();
+      } else if (e.type === "banditWarlord") {
+        neon(2.2);
+        ctx.beginPath(); ctx.moveTo(-14, -12); ctx.lineTo(-8, -22); ctx.lineTo(0, -14); ctx.lineTo(8, -22); ctx.lineTo(14, -12); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(-24, 8); ctx.lineTo(-34, -6); ctx.moveTo(24, 8); ctx.lineTo(34, -6); ctx.stroke();
+      } else if (e.type === "bogLich") {
+        ctx.fillStyle = "#0B1A08";
+        ctx.beginPath(); ctx.arc(0, -6, 8, 0, Math.PI * 2); ctx.fill();
+        neon(1.8);
+        ctx.beginPath(); ctx.arc(0, -6, 8, 0, Math.PI * 2);
+        ctx.moveTo(-18, 14); ctx.quadraticCurveTo(-26, 22, -20, 28); ctx.moveTo(18, 14); ctx.quadraticCurveTo(26, 22, 20, 28); ctx.stroke();
+        ctx.fillStyle = color; ctx.beginPath(); ctx.arc(-3, -6, 1.8, 0, Math.PI * 2); ctx.arc(3, -6, 1.8, 0, Math.PI * 2); ctx.fill();
       } else if (e.type === "nuclearBehemoth") {
         ctx.fillStyle = "#0A1710";
         ctx.beginPath(); ctx.arc(-11, 5, 6, 0, Math.PI * 2); ctx.arc(11, 5, 6, 0, Math.PI * 2); ctx.fill();

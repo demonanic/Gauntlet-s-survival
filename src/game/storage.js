@@ -5,7 +5,8 @@ import { emptyLegacy, syncGuildBonuses } from "./legacy";
 import { paletteForShift } from "../combat/heroPalette";
 import { rollTrait, TRAITS } from "../combat/traits";
 import { bankLoot, migrateVaultItem, normalizeHeroGear } from "./items";
-import { CONSUMABLE_KEYS } from "../combat/gear";
+import { normalizeQualityFields } from "./qualities";
+import { STASH_KEYS } from "../combat/gear";
 
 const STORAGE_KEY = "gauntlet.save.v1";
 
@@ -15,7 +16,7 @@ function normalizeHeroExtras(hero) {
   const traits = (Array.isArray(hero.traits) ? hero.traits : []).filter((key) => TRAITS[key]);
   const shift = Number(hero.appearance?.hueShift);
   return {
-    ...hero,
+    ...normalizeQualityFields(hero),
     traits: traits.length ? traits : [rollTrait()],
     appearance: Number.isFinite(shift) ? { ...hero.appearance, ...paletteForShift(shift) } : hero.appearance,
   };
@@ -43,7 +44,9 @@ function retireOldExpedition(state) {
 // Turn saved JSON (local or cloud) into a valid guild, or null if unusable.
 export function parseGuild(parsed) {
   if (parsed?.version !== STATE_VERSION || !Array.isArray(parsed.heroes)) return null;
-  const stash = Object.fromEntries(CONSUMABLE_KEYS.map((key) => [key, Math.max(0, Math.floor(Number(parsed.stash?.[key]) || 0))]));
+  const stash = Object.fromEntries(STASH_KEYS.map((key) => [key, Math.max(0, Math.floor(Number(parsed.stash?.[key]) || 0))]));
+  // Saves from before bows needed arrows get a starting bundle.
+  if (parsed.stash && parsed.stash.arrows == null) stash.arrows = 100;
   const base = createGuild();
   const state = {
     ...base,
@@ -51,6 +54,7 @@ export function parseGuild(parsed) {
     heroes: parsed.heroes.map((hero) => normalizeHeroExtras(normalizeHeroGear(normalizeClasslessHero(hero)))),
     vault: (Array.isArray(parsed.vault) ? parsed.vault : []).map(migrateVaultItem).filter(Boolean),
     stash: parsed.stash ? stash : base.stash,
+    essence: Math.max(0, Math.floor(Number(parsed.essence) || 0)),
     legacy: { ...emptyLegacy(), ...(parsed.legacy && typeof parsed.legacy === "object" ? parsed.legacy : {}) },
   };
   state.candidate = parsed.candidate?.trait && TRAITS[parsed.candidate.trait] ? parsed.candidate : rollCandidate(state);

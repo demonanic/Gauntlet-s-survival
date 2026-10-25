@@ -9,6 +9,7 @@ import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import * as C from "../combat/config";
 import { createGearItem, normalizeHeroGear } from "./items";
 import { emptyLegacy, legacyBonuses, syncGuildBonuses } from "./legacy";
+import { normalizeQualityFields } from "./qualities";
 
 // Expeditions live in expedition.js; re-exported so the guild stays the one entry point.
 export {
@@ -23,7 +24,7 @@ const RECRUIT_NAMES = ["Vex", "Morrow", "Ilsa", "Tamsin", "Garrick", "Pell", "Wr
 const BASE_RECRUIT_COST = 80;
 const RECRUIT_COST_GROWTH = 1.6;
 const STARTER_WEAPONS = ["sword", "bow", "staff"];
-const STARTING_STASH = { bandage: 6 };
+const STARTING_STASH = { bandage: 6, arrows: 100 };
 export const MAX_NAME_LENGTH = 16;
 // Gold to turn away the current recruit candidate and see another.
 export const CANDIDATE_REROLL_COST = 25;
@@ -32,7 +33,7 @@ export const CANDIDATE_REROLL_COST = 25;
 // sheet and a common weapon. Mentorship can start them above level 1.
 function newHero(name, weaponVariant, { trait = rollTrait(), hueShift = null, level = 1 } = {}) {
   const palette = hueShift == null ? rollHeroPalette() : paletteForShift(hueShift);
-  const hero = normalizeHeroGear(createHeroModel({ name, identityColor: palette.identityColor }));
+  const hero = normalizeQualityFields(normalizeHeroGear(createHeroModel({ name, identityColor: palette.identityColor })));
   hero.appearance = { ...hero.appearance, ...palette };
   hero.traits = [trait];
   hero.equipment.weapon = createGearItem({ slot: "weapon", variant: weaponVariant, rarity: "common", tier: 1 });
@@ -69,6 +70,8 @@ export function createGuild() {
     bench: [],
     injuries: {},
     vault: [],
+    // Salvaged gear becomes essence, spent at the Reforge.
+    essence: 0,
     stash: { ...STARTING_STASH },
     expedition: null,
     clears: {},

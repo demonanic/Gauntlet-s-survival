@@ -4,10 +4,11 @@
 import { awardClasslessXp } from "../combat/classlessProgression";
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import * as C from "../combat/config";
-import { CONSUMABLE_KEYS, GEAR_SLOTS } from "../combat/gear";
+import { GEAR_SLOTS, STASH_KEYS } from "../combat/gear";
 import { serializeGameState } from "../combat/heroModel";
-import { createGearItem } from "./items";
+import { LEGENDARY_KEYS, createGearItem } from "./items";
 import { emptyLegacy } from "./legacy";
+import { developQualities, sharedQualities } from "./qualities";
 import { REGIONS } from "./regions";
 
 export const MAX_HERO_LEVEL = C.HERO_XP.length;
@@ -73,15 +74,42 @@ export function debugClearRegions(state) {
   return { ok: true, state: next };
 }
 
-// One piece per gear slot, straight into the vault.
-export function debugGiveGearSet(state, rarity, tier) {
+// One piece per gear slot, straight into the vault. "legendary" hands out
+// every legendary item instead; `set` makes the pieces part of that gear set.
+export function debugGiveGearSet(state, rarity, tier, set = null) {
   const next = serializeGameState(state);
-  for (const slot of GEAR_SLOTS) next.vault.push(createGearItem({ slot, rarity, tier }));
+  if (rarity === "legendary") {
+    for (const legendary of LEGENDARY_KEYS) next.vault.push(createGearItem({ legendary, tier }));
+  } else {
+    for (const slot of GEAR_SLOTS) next.vault.push(createGearItem({ slot, rarity, tier, set }));
+  }
   return { ok: true, state: next };
 }
 
 export function debugGiveSupplies(state, amount = 10) {
   const next = serializeGameState(state);
-  for (const key of CONSUMABLE_KEYS) next.stash[key] = (next.stash[key] || 0) + amount;
+  for (const key of STASH_KEYS) next.stash[key] = (next.stash[key] || 0) + (key === "arrows" ? amount * 4 : amount);
+  next.essence = (next.essence || 0) + amount * 10;
+  return { ok: true, state: next };
+}
+
+// Give every hero home a plausible career shaped by their weapon (archers
+// fight from range, swordsmen up close; everyone has scars), then let any
+// milestone they have reached develop. Heroes below level 10 just keep the history.
+export function debugCareer(state, now) {
+  const next = serializeGameState(state);
+  for (const hero of next.heroes) {
+    if (next.expedition?.heroIds.includes(hero.identity.id)) continue;
+    const ranged = hero.equipment?.weapon?.weaponType !== "sword";
+    const history = hero.history;
+    Object.assign(history, {
+      trips: history.trips + 12, fights: history.fights + 60, wins: history.wins + 55, kills: history.kills + 120,
+      meleeHits: history.meleeHits + (ranged ? 40 : 700), rangedHits: history.rangedHits + (ranged ? 700 : 20),
+      crits: history.crits + 120, damage: history.damage + 40_000, taken: history.taken + 12_000,
+      nearDeaths: history.nearDeaths + Math.floor(Math.random() * 8), sneaks: history.sneaks + Math.floor(Math.random() * 10),
+      ambushes: history.ambushes + Math.floor(Math.random() * 10), heals: history.heals + Math.floor(Math.random() * 15),
+    });
+    developQualities(hero, now, Math.random, sharedQualities(next.heroes, hero));
+  }
   return { ok: true, state: next };
 }

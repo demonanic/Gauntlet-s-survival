@@ -14,7 +14,8 @@ import {
 } from "./game/guild";
 import { buyLegacyUpgrade, renownForRetiring, retireHero } from "./game/legacy";
 import {
-  buyConsumable, equipGear, loadQuickSlot, sellGear, unequipGear, unloadQuickSlot, upgradeGear,
+  buyConsumable, equipGear, fletchArrows, loadQuickSlot, reforgeGear, salvageGear, sellGear, unequipGear, unloadQuickSlot,
+  upgradeGear,
 } from "./game/items";
 import { buyShopItem, rerollShop } from "./game/shop";
 import { isDebugMode } from "./game/debug";
@@ -111,7 +112,9 @@ export default function App() {
           onOpenPerks={setPerkHeroId}
           onOpenGear={setGearHeroId}
           onSell={(itemId) => apply((current) => sellGear(current, itemId))}
+          onSalvage={(itemId) => apply((current) => salvageGear(current, itemId))}
           onUpgrade={(itemId) => apply((current) => upgradeGear(current, itemId))}
+          onReforge={(itemId) => apply((current) => reforgeGear(current, itemId))}
           onTreat={(heroId) => apply((current) => treatInjury(current, heroId, Date.now()))}
           onRetire={(heroId) => {
             const hero = findHero(guild, heroId);
@@ -128,6 +131,7 @@ export default function App() {
           onBuyItem={(itemId) => apply((current) => buyShopItem(current, itemId, Date.now()))}
           onReroll={() => apply((current) => rerollShop(current, Date.now()))}
           onBuySupply={(key, qty) => apply((current) => buyConsumable(current, key, qty))}
+          onFletch={(key) => apply((current) => fletchArrows(current, key))}
         />
       )}
       {tab === "board" && (
@@ -173,8 +177,10 @@ export default function App() {
           onLoadQuick={(index, key) => apply((current) => loadQuickSlot(current, gearHeroId, index, key))}
           onUnloadQuick={(index) => apply((current) => unloadQuickSlot(current, gearHeroId, index))}
           onUpgrade={(itemId) => apply((current) => upgradeGear(current, itemId))}
+          onReforge={(itemId) => apply((current) => reforgeGear(current, itemId))}
           onRename={(name) => apply((current) => renameHero(current, gearHeroId, name))}
           gold={guild.gold}
+          essence={guild.essence || 0}
           onClose={() => setGearHeroId(null)}
         />
       )}

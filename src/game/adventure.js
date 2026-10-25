@@ -3,7 +3,7 @@
 // works, and how morale moves. The expedition lifecycle that uses this lives
 // in expedition.js.
 import { heroGearStats } from "../combat/gear";
-import { heroTraitEffects } from "../combat/traits";
+import { heroRoadEffects, heroTraitEffects, partyRoadEffects } from "../combat/traits";
 
 export const ADVENTURE = Object.freeze({
   // Seconds between feed events (random within the range).
@@ -111,7 +111,7 @@ export function heroAgility(hero) {
 
 export function rollHazard(target, rng = Math.random) {
   const hazard = pick(HAZARDS, rng);
-  const dodgeChance = Math.min(0.85, 0.35 + (heroAgility(target) - 10) * 0.015);
+  const dodgeChance = Math.min(0.9, 0.35 + (heroAgility(target) - 10) * 0.015 + (heroRoadEffects(target).hazardDodge || 0));
   const dodged = rng() < dodgeChance;
   return {
     text: (dodged ? hazard.pass : hazard.fail).replaceAll("{hero}", target.identity.name),
@@ -143,7 +143,8 @@ export const STORIES = Object.freeze({
       { id: "pray", label: "Pray", result: "The party kneels. Warmth washes over them.", effects: { healAll: 0.25, morale: 6 } },
       { id: "loot", label: "Loot the offerings", result: null, effects: { gamble: { chance: 0.6, win: { gold: [30, 80] }, lose: { hurtAll: 0.1, morale: -12, text: "A curse lashes out! The shrine was not amused." } } } },
     ],
-    auto: () => "pray",
+    // A Greedy hero can't keep their hands off the offerings.
+    auto: ({ greedy }) => (greedy ? "loot" : "pray"),
   },
   traveler: {
     prompt: "A wounded traveler slumps against the wall, begging for help.",
@@ -159,7 +160,7 @@ export const STORIES = Object.freeze({
       { id: "open", label: "Open it", result: null, effects: { gamble: { chance: 0.7, win: { gear: true }, lose: { hurtAll: 0.12, morale: -6, text: "It's a mimic! It bites before scuttling away." } } } },
       { id: "leave", label: "Leave it", result: "Not today, chest.", effects: {} },
     ],
-    auto: ({ partyHp }) => (partyHp > 0.5 ? "open" : "leave"),
+    auto: ({ partyHp, greedy }) => (greedy || partyHp > 0.5 ? "open" : "leave"),
   },
   campfire: {
     prompt: "The embers of an old campfire still glow. A good spot to rest.",
@@ -194,15 +195,27 @@ export const STORIES = Object.freeze({
     ],
     auto: () => "safe",
   },
+  // Something has been following the party, and someone noticed (expedition.js).
+  stalker: {
+    prompt: "{hero} stops abruptly. Something has been following the party.",
+    options: [
+      { id: "confront", label: "Turn and fight", result: "The party wheels around and charges into the dark.", effects: { stalker: "confront" } },
+      { id: "shake", label: "Try to lose it", result: null, effects: { stalker: "shake" } },
+      { id: "brace", label: "Keep going, stay ready", result: "The party presses on, weapons loose in their hands, ears open.", effects: { stalker: "brace" } },
+    ],
+    auto: ({ partyHp }) => (partyHp > 0.6 ? "confront" : "brace"),
+  },
 });
 // Stories that come up at random on the road (camp and map are triggered by the trip itself).
 export const STORY_KEYS = Object.freeze(["shrine", "traveler", "chest", "campfire", "fork"]);
 
 // ---------------- sneaking ----------------
-// Shadowcraft and Illusion perks make a party quieter.
+// Shadowcraft and Illusion perks make a party quieter; qualities (Nimble,
+// Ghost-Step, Reckless, Loud, ...) add their road `sneak` effect.
 const STEALTH_NODES = new Set(["S1", "S2", "S2a", "S3", "S3a", "I1", "I2", "I3"]);
-const STEALTH_TRAITS = new Set(["nimble", "swift"]);
-const WATCHFUL = new Set(["ghost", "reaper", "darkElf", "warlock", "lieutenant"]);
+const WATCHFUL = new Set(["ghost", "reaper", "darkElf", "warlock", "lieutenant", "bandit"]);
+// Watchers (the family) make slipping past a squad much harder.
+const WATCHER_PENALTY = 0.12;
 
 // Chance (0.05 to 0.95) that `party` slips past `wave` unseen.
 // `bonus` adds the trip's conditions (fog, night, scouting) on top.
@@ -213,11 +226,12 @@ export function sneakChance(party, wave, morale, region, bonus = 0) {
   chance += (avg(party.map(heroAgility)) - 10) * 0.01;
   chance += Math.min(0.15, party.reduce((sum, hero) =>
     sum + (hero.progression?.ownedNodeIds || []).filter((id) => STEALTH_NODES.has(id)).length * 0.03, 0));
-  chance += party.reduce((sum, hero) => sum + (hero.traits || []).filter((key) => STEALTH_TRAITS.has(key)).length * 0.05, 0);
+  chance += partyRoadEffects(party).sneak || 0;
   chance += Math.max(-0.1, Math.min(0.1, (avg(party.map((hero) => hero.progression?.level || 1)) - (region.minLevel + 2)) * 0.02));
   chance -= Math.max(0, party.length - 1) * 0.04;
   chance -= Math.max(0, wave.enemies.length - 2) * 0.06;
   chance -= wave.enemies.filter((enemy) => WATCHFUL.has(enemy.type)).length * 0.04;
+  chance -= wave.enemies.filter((enemy) => enemy.families?.includes("watcher")).length * WATCHER_PENALTY;
   chance += (clampMorale(morale) - 50) / 500;
   chance += bonus;
   return Math.max(0.05, Math.min(0.95, chance));
@@ -238,6 +252,32 @@ const BANTER = {
   glassCannon: ["{hero} flinches at a drip of water, weapon already raised.", "\"Let me hit it first,\" {hero} says, about everything."],
   stalwart: ["{hero} takes the front without a word.", "{hero} plants their feet whenever the floor creaks."],
   swift: ["{hero} scouts ahead and back again before anyone blinks.", "{hero} keeps having to wait for the others to catch up."],
+  tracker: ["{hero} kneels to study a print in the dirt. \"Fresh. Two hours, maybe less.\"", "{hero} keeps glancing back down the trail they came by."],
+  keenEared: ["{hero} holds up a hand. Everyone freezes. ...Just the wind.", "{hero} can hear water running three tunnels away."],
+  nightEyes: ["{hero} walks on ahead without a torch, perfectly at ease.", "\"Mind the step,\" says {hero}. Nobody else can see the step."],
+  trailwise: ["{hero} steers the party around a patch of ground that looks completely normal.", "{hero} reads the path like a book."],
+  lightSleeper: ["{hero} hasn't slept properly in years and says it's fine.", "{hero} jumps at every creak, but never misses one."],
+  sureFooted: ["{hero} crosses a rotten beam without looking down.", "{hero} hasn't tripped once. It's unsettling."],
+  scavenger: ["{hero} pockets something shiny from the rubble.", "{hero}'s pack is getting suspiciously heavy."],
+  bloodhound: ["{hero} sniffs the air. \"Something big came through here.\"", "{hero} wants to follow a strange trail off the path. Again."],
+  charismatic: ["{hero} tells a story so good the party forgets where they are.", "Everyone is laughing at something {hero} said."],
+  inspiring: ["{hero} talks about the guild's old heroes until everyone stands a little taller.", "{hero} checks on each member of the party in turn."],
+  steadfast: ["{hero} doesn't flinch when something howls in the distance.", "{hero} sets a steady pace and everyone falls in behind."],
+  optimist: ["\"Could be worse,\" says {hero}, cheerfully, about everything.", "{hero} insists the smell means treasure is near."],
+  reckless: ["{hero} kicks open a door before anyone can stop them.", "{hero} wants to take the dangerous-looking path. For fun."],
+  loud: ["{hero} sneezes. It echoes for a full ten seconds.", "{hero} is humming again. Loudly."],
+  frail: ["{hero} needs a breather. Again.", "{hero} wraps up warmer than everyone else and takes notes on everything."],
+  greedy: ["{hero} is already counting the loot they haven't found yet.", "{hero} tries to pry a gem out of a statue's eye."],
+  paranoid: ["{hero} is sure they're being followed. They might be right.", "{hero} insists on checking every corner twice."],
+  marksman: ["{hero} picks a target off a distant wall just to stay sharp."],
+  bladesworn: ["{hero} runs a whetstone along their blade, unhurried."],
+  survivor: ["{hero} shows off a new scar like it's a medal."],
+  giantslayer: ["{hero} looks bored by anything smaller than a lieutenant."],
+  ghostStep: ["Nobody heard {hero} come back from scouting."],
+  bulwark: ["{hero} takes the front without being asked, as always."],
+  fieldSurgeon: ["{hero} re-dresses everyone's wounds during a short stop."],
+  unshakable: ["{hero} naps through a rockfall."],
+  rallyingHeart: ["{hero} starts a marching song, and everyone joins in."],
   high: ["{hero} is grinning ear to ear. This is the good stuff.", "{hero} starts a marching song and everyone joins in."],
   low: ["{hero} mutters that this was a terrible idea.", "{hero} keeps glancing back toward the exit."],
 };
@@ -260,7 +300,7 @@ export const WEATHER = Object.freeze({
   storm: { key: "storm", name: "Storm", intro: "A storm howls overhead. Everything shakes.", weight: 12, sneak: 0.05, ambush: 0.05, hazard: 1.6, loot: 1.15, moralePerEvent: -1.5 },
 });
 const WEATHER_KEYS = Object.keys(WEATHER);
-const NIGHT = Object.freeze({ sneak: 0.05, ambush: 0.15, loot: 1.3 });
+export const NIGHT = Object.freeze({ sneak: 0.05, ambush: 0.15, loot: 1.3 });
 
 export function rollWeather(rng = Math.random, except = null) {
   const keys = WEATHER_KEYS.filter((key) => key !== except);

@@ -12,17 +12,19 @@
 import { mergeClasslessBattleResults } from "../combat/classlessBattleResults";
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import * as C from "../combat/config";
-import { GEAR_SLOTS } from "../combat/gear";
+import { ARROW_RECOVERY, CONSUMABLES, GEAR_SLOTS, PROVISIONS, heroArrowCount, heroUsesArrows } from "../combat/gear";
 import { serializeGameState } from "../combat/heroModel";
-import { heroTraitEffects } from "../combat/traits";
+import { heroTraitEffects, partyRoadEffects, roadEffect } from "../combat/traits";
 import {
-  ADVENTURE, LEGENDARY, RARE_EVENTS, STORIES, STORY_KEYS, WEATHER, clampMorale, conditionEffects, findLine, isNight,
+  ADVENTURE, LEGENDARY, NIGHT, RARE_EVENTS, STORIES, STORY_KEYS, WEATHER, clampMorale, conditionEffects, findLine, isNight,
   moraleDamageBonus, rollBanter, rollFlavor, rollHazard, rollWeather, sneakChance,
 } from "./adventure";
 import {
-  buildBossEncounter, buildEndlessWave, buildLegendaryEncounter, buildWildEncounter, describeSquad,
+  buildBossEncounter, buildEndlessWave, buildLegendaryEncounter, buildStalkerEncounter, buildWildEncounter, describeSquad,
 } from "./encounters";
-import { bankLoot, createGearItem, normalizeHeroGear, tierMult } from "./items";
+import { developQualities, recordFight, recordHistory, sharedQualities } from "./qualities";
+import { combatEnvironment, getEnvironment, heroResistance, rollEnvironmentEvent } from "./environment";
+import { bankLoot, createGearItem, normalizeHeroGear, restockQuickSlots, tierMult } from "./items";
 import { legacyBonuses } from "./legacy";
 import { BOSS_RANK_SCALING, bossForRank, getRegion } from "./regions";
 import { simulateEncounter } from "./simulate";
@@ -49,6 +51,23 @@ const RECENT_FLAVOR = 6;
 // Events can't shorten an expedition to less than this from now.
 const MIN_REMAINING_MS = 30_000;
 const FIGHT_KINDS = new Set(["sighting", "ambush", "boss", "rift"]);
+// Weight of environment events in regions with an environment (see ADVENTURE.eventWeights).
+const ENVIRONMENT_EVENT_WEIGHT = 12;
+// Stalkers: in regions of this tier or higher, this share of encounters is
+// instead something that starts following the party unseen. It strikes when
+// a hero is badly hurt or the party is worn down, or after STALKER_PATIENCE
+// events. Each event, the party may notice it (STALKER_BASE_DETECT plus
+// qualities like Tracker and Paranoid).
+const STALKER_FROM_TIER = 2;
+const STALKER_CHANCE = 0.15;
+const STALKER_PATIENCE = 12;
+const STALKER_BASE_DETECT = 0.03;
+const STALKER_STRIKE_HERO_HP = 0.35;
+const STALKER_STRIKE_PARTY_HP = 0.55;
+// Extra opening blow an unnoticed stalker lands on the weakest hero.
+const STALKER_POUNCE = 0.12;
+// Chance the camp is raided while the party rests.
+const CAMP_RAID_CHANCE = 0.2;
 // The wandering merchant charges this multiple of an item's sell value.
 const MERCHANT_PRICE_MULT = 4;
 
@@ -87,9 +106,19 @@ function partyHpFraction(state) {
   return max ? party.reduce((sum, hero) => sum + Math.max(0, hero.combat.hp), 0) / max : 0;
 }
 
-function changeMorale(run, delta) {
-  run.morale = clampMorale(run.morale + delta);
+// The party's road qualities (see combat/traits.js), from whoever is still standing.
+function road(state) {
+  return partyRoadEffects(livingParty(state));
 }
+
+// Steadfast (and similar) qualities soften every morale loss.
+function changeMorale(state, delta) {
+  const run = state.expedition;
+  const cut = delta < 0 ? roadEffect(road(state), "moraleLossCut") : 0;
+  run.morale = clampMorale(run.morale + delta * (1 - cut));
+}
+
+const firstName = (heroes, rng) => (heroes?.length ? pick(heroes, rng).identity.name : null);
 
 // Damage that never kills: hazards and ambush volleys leave at least 1 HP.
 function hurt(hero, fraction) {
@@ -140,10 +169,15 @@ export function startExpedition(state, regionId, heroIds, now, rng = Math.random
     feed: [],
     loot: { gold: 0, items: [] },
     stats: { events: 0, encounters: 0, fights: 0, sneaks: 0, ambushes: 0, autoFightSeconds: 0 },
+    // Heroes carrying a provision against the region's environment.
+    packed: [],
     outcome: null,
   };
   next.expedition = run;
   addFeed(run, now, `The party sets out for ${region.name}.`, "good");
+  const unarmed = restockQuickSlots(next, ids);
+  for (const name of unarmed) addFeed(run, now, `${name} has no arrows and can't use their bow! Buy some in the Market.`, "danger");
+  packProvisions(next, region, now);
   if (!region.endless) {
     addFeed(run, now, `${run.night ? "Night has fallen. Ambushes are likelier, but so is treasure. " : ""}${WEATHER[run.weather].intro}`, "flavor");
   }
@@ -152,6 +186,25 @@ export function startExpedition(state, regionId, heroIds, now, rng = Math.random
     openPending(run, now, { kind: "rift", wave: buildEndlessWave(1, rng) });
   }
   return { ok: true, state: next };
+}
+
+// One provision per hero against the region's environment, from the stash,
+// skipping heroes whose gear already makes them immune.
+function packProvisions(state, region, at) {
+  const environment = getEnvironment(region);
+  const run = state.expedition;
+  if (!environment) return;
+  const provision = PROVISIONS[environment.provision];
+  for (const id of run.heroIds) {
+    const hero = findHero(state, id);
+    if (heroResistance(hero, environment) >= 1 || !(state.stash[provision.key] > 0)) continue;
+    state.stash[provision.key] -= 1;
+    run.packed.push(id);
+  }
+  const bare = run.heroIds.length - run.packed.length;
+  addFeed(run, at, run.packed.length
+    ? `${environment.name} ahead. Packed ${run.packed.length} ${provision.name}${run.packed.length > 1 ? "s" : ""}${bare ? `; ${bare} hero${bare > 1 ? "es go" : " goes"} without` : ""}.`
+    : `${environment.name} ahead, and no ${provision.name}s in the stash. ${environment.desc}`, run.packed.length ? "flavor" : "danger");
 }
 
 function openPending(run, at, details) {
@@ -267,38 +320,169 @@ function runEvent(state, region, at, rng) {
   run.stats.events += 1;
   updateConditions(run, at, rng);
   const conditions = conditionEffects(run.weather, run.night, run.scouted);
-  changeMorale(run, (ADVENTURE.startMorale - run.morale) * ADVENTURE.moraleDrift + conditions.moralePerEvent);
+  const qualities = road(state);
+  // Charismatic heroes raise the mood the party settles back to; Optimists
+  // pull it up when it sinks.
+  const settle = ADVENTURE.startMorale + roadEffect(qualities, "moraleBase");
+  changeMorale(state, (settle - run.morale) * ADVENTURE.moraleDrift + conditions.moralePerEvent);
+  if (run.morale < 30 && roadEffect(qualities, "moraleWhenLow")) changeMorale(state, roadEffect(qualities, "moraleWhenLow"));
+  if (stalkerTurn(state, region, at, rng)) return;
   const hero = pick(party, rng);
-  const weights = { ...ADVENTURE.eventWeights, hazard: ADVENTURE.eventWeights.hazard * conditions.hazard };
+  const environment = getEnvironment(region);
+  const weights = {
+    ...ADVENTURE.eventWeights,
+    find: ADVENTURE.eventWeights.find * (1 + roadEffect(qualities, "findChance")),
+    rare: ADVENTURE.eventWeights.rare * (1 + roadEffect(qualities, "rareChance")),
+    hazard: ADVENTURE.eventWeights.hazard * conditions.hazard,
+    environment: environment ? ENVIRONMENT_EVENT_WEIGHT : 0,
+  };
   const roll = rng() * Object.values(weights).reduce((sum, weight) => sum + weight, 0);
   let cursor = 0;
   const kind = Object.entries(weights).find(([, weight]) => (cursor += weight) > roll)[0];
 
   const banter = kind === "flavor" && rng() < ADVENTURE.banterShare ? rollBanter(hero, run.morale, rng) : null;
   if (banter) {
-    changeMorale(run, banter.morale);
+    changeMorale(state, banter.morale);
     addFeed(run, at, banter.text, banter.tone);
   } else if (kind === "flavor") {
     run.recentFlavor ||= [];
     const line = rollFlavor(region, hero.identity.name, rng, run.recentFlavor);
     run.recentFlavor = [...run.recentFlavor, line.template].slice(-RECENT_FLAVOR);
-    changeMorale(run, line.morale);
+    changeMorale(state, line.morale);
+    // Paranoid heroes take every bad sign to heart.
+    if (line.tone === "danger") changeMorale(state, roadEffect(qualities, "moralePerDanger"));
     addFeed(run, at, line.text, line.tone);
   } else if (kind === "find") {
     findSomething(state, region, hero, at, rng);
   } else if (kind === "hazard") {
     const hazard = rollHazard(hero, rng);
     if (hazard.damage) for (const target of hazard.all ? party : [hero]) hurt(target, hazard.damage);
-    changeMorale(run, hazard.morale);
+    changeMorale(state, hazard.morale);
     addFeed(run, at, hazard.text, hazard.tone);
+  } else if (kind === "environment") {
+    const event = rollEnvironmentEvent(environment, party, run.packed || [], rng);
+    changeMorale(state, event.morale);
+    addFeed(run, at, event.hurt.length ? `${event.text} (${event.hurt.join(", ")} hurt)` : `${event.text} The party's gear holds up.`, event.hurt.length ? "danger" : "good");
   } else if (kind === "encounter") {
     const progress = 1 - (run.endsAt - at) / run.durationMs;
-    startEncounter(state, region, at, buildWildEncounter(region, progress, rng), rng() < ADVENTURE.ambushShare + conditions.ambush);
+    if (region.tier >= STALKER_FROM_TIER && !run.stalker && rng() < STALKER_CHANCE) {
+      startStalking(state, region, at, progress, rng);
+      return;
+    }
+    startEncounter(state, region, at, buildWildEncounter(region, progress, rng), rng() < ambushChance(state, conditions, environment));
   } else if (kind === "rare") {
     rareEvent(state, region, hero, at, rng);
   } else {
     openStory(state, at, pick(STORY_KEYS, rng), rng);
   }
+}
+
+// Chance an encounter is an ambush: the base share, weather and night,
+// darkness, and the party's qualities (Keen-Eared, Paranoid, Reckless; Night
+// Eyes cancels the night's share).
+function ambushChance(state, conditions, environment) {
+  const run = state.expedition;
+  const qualities = road(state);
+  const nightCancel = run.night ? NIGHT.ambush * Math.min(1, roadEffect(qualities, "nightAmbush")) : 0;
+  return Math.max(0, ADVENTURE.ambushShare + conditions.ambush - nightCancel + darknessAmbush(state, environment) + roadEffect(qualities, "ambush"));
+}
+
+// ---------------- stalkers ----------------
+// Something starts following the party. Nothing is said outright; at most a
+// vague sound in the feed.
+function startStalking(state, region, at, progress, rng) {
+  const run = state.expedition;
+  run.stalker = { wave: buildStalkerEncounter(region, progress, rng), since: at, events: 0, detected: false, braced: false };
+  addFeed(run, at, pick([
+    "A twig snaps somewhere behind the party. Probably nothing.",
+    "For a moment it sounds like a fifth set of footsteps. Then it doesn't.",
+    "The birds go quiet behind the party.",
+  ], rng), "flavor");
+}
+
+// Each event, a stalker may be noticed, or decide it's time to strike.
+// Returns true when it used up the event.
+function stalkerTurn(state, region, at, rng) {
+  const run = state.expedition;
+  const stalker = run.stalker;
+  if (!stalker) return false;
+  stalker.events += 1;
+  const party = livingParty(state);
+  const weakest = party.reduce((best, hero) => (hero.combat.hp / classlessMaxHp(hero) < best.combat.hp / classlessMaxHp(best) ? hero : best));
+  const wounded = weakest.combat.hp / classlessMaxHp(weakest) < STALKER_STRIKE_HERO_HP || partyHpFraction(state) < STALKER_STRIKE_PARTY_HP;
+  if (wounded || stalker.events >= STALKER_PATIENCE) {
+    stalkerStrikes(state, at, weakest);
+    return true;
+  }
+  if (stalker.detected) return false;
+  const qualities = road(state);
+  const nightBonus = run.night ? 0.05 * Math.min(1, roadEffect(qualities, "nightAmbush")) : 0;
+  if (rng() < STALKER_BASE_DETECT + roadEffect(qualities, "stalkerDetect") + nightBonus) {
+    stalker.detected = true;
+    const spotter = firstName(qualities.who.stalkerDetect, rng) || pick(party, rng).identity.name;
+    const text = STORIES.stalker.prompt.replaceAll("{hero}", spotter);
+    addFeed(run, at, text, "danger", true);
+    openPending(run, at, { kind: "story", story: "stalker", text });
+    return true;
+  }
+  return false;
+}
+
+function stalkerStrikes(state, at, weakest) {
+  const run = state.expedition;
+  const { wave, braced } = run.stalker;
+  run.stalker = null;
+  run.stats.encounters += 1;
+  const label = describeSquad(wave);
+  if (braced) {
+    addFeed(run, at, `The thing that was following the party finally attacks, but they were ready for it: ${label}!`, "danger", true);
+  } else {
+    hurt(weakest, STALKER_POUNCE);
+    ambushParty(state, at, `${label} lunge out of nowhere, straight for ${weakest.identity.name}! The party never knew it was being followed.`);
+  }
+  openPending(run, at, { kind: "ambush", wave, label });
+}
+
+// The player (or the party) answers a detected stalker.
+function answerStalker(state, region, choice, at, rng) {
+  const run = state.expedition;
+  const stalker = run.stalker;
+  if (!stalker) return false;
+  const label = describeSquad(stalker.wave);
+  if (choice === "brace") {
+    stalker.braced = true;
+    return false;
+  }
+  if (choice === "shake") {
+    const conditions = conditionEffects(run.weather, run.night, run.scouted);
+    const chance = sneakChance(livingParty(state), stalker.wave, run.morale, region, conditions.sneak);
+    if (rng() < chance) {
+      run.stalker = null;
+      recordSneak(state);
+      addFeed(run, at, "The party doubles back through the shadows and loses whatever was following it.", "good");
+      return false;
+    }
+    addFeed(run, at, `It isn't fooled. ${label} come out of hiding!`, "danger");
+  } else {
+    addFeed(run, at, `Out of the dark: ${label}!`, "danger");
+  }
+  run.stalker = null;
+  run.stats.encounters += 1;
+  run.pending = { ...run.pending, kind: "ambush", wave: stalker.wave, label, promptAt: at };
+  return true;
+}
+
+function recordSneak(state) {
+  for (const hero of livingParty(state)) recordHistory(hero, "sneaks");
+}
+
+// Darkness makes ambushes likelier, less so for a well-lit party.
+function darknessAmbush(state, environment) {
+  if (!environment?.road.ambush) return 0;
+  const party = livingParty(state);
+  const run = state.expedition;
+  const exposed = party.reduce((sum, hero) => sum + 1 - heroResistance(hero, environment, run.packed?.includes(heroId(hero))), 0);
+  return party.length ? environment.road.ambush * (exposed / party.length) : 0;
 }
 
 function openStory(state, at, key, rng) {
@@ -347,7 +531,7 @@ function findTreasure(state, region, at, rng) {
   const item = createGearItem({ slot: pick(GEAR_SLOTS, rng), rarity: pick(["rare", "rare", "epic"], rng), tier: region.tier + 1 }, rng);
   run.loot.gold += gold;
   run.loot.items.push(item);
-  changeMorale(run, 10);
+  changeMorale(state, 10);
   addFeed(run, at, `X marks the spot! The party digs up ${gold} gold and a ${item.name}!`, "loot", true);
 }
 
@@ -355,20 +539,22 @@ function findSomething(state, region, hero, at, rng) {
   const run = state.expedition;
   const roll = rng();
   if (roll < 0.5) {
-    const gold = Math.round(randomBetween([5, 20], rng) * tierMult(region.tier) * conditionEffects(run.weather, run.night).loot);
+    const gold = Math.round(randomBetween([5, 20], rng) * tierMult(region.tier) * conditionEffects(run.weather, run.night).loot
+      * (1 + roadEffect(road(state), "goldFind")));
     run.loot.gold += gold;
     addFeed(run, at, findLine("gold", hero.identity.name, gold, rng), "loot");
   } else if (roll < 0.8) {
-    const key = pick(["bandage", "bandage", "bandage", "potion", "ammo"], rng);
-    run.loot.items.push({ kind: "consumable", key, qty: 1 });
-    addFeed(run, at, findLine("supply", hero.identity.name, key === "potion" ? "Health Potion" : key === "ammo" ? "pouch of Barbed Ammo" : "Bandage", rng), "loot");
+    const key = pick(["bandage", "bandage", "bandage", "potion", "ammo", "arrows", "arrows"], rng);
+    const qty = key === "arrows" ? 5 + Math.floor(rng() * 6) : 1;
+    run.loot.items.push({ kind: "consumable", key, qty });
+    addFeed(run, at, findLine("supply", hero.identity.name, key === "arrows" ? `bundle of ${qty} arrows` : CONSUMABLES[key].name, rng), "loot");
   } else {
     const rarity = pick(["common", "common", "uncommon", "uncommon", "rare"], rng);
     const item = createGearItem({ slot: pick(GEAR_SLOTS, rng), rarity, tier: region.tier }, rng);
     run.loot.items.push(item);
     addFeed(run, at, findLine("gear", hero.identity.name, item.name, rng), "loot", rarity === "rare");
   }
-  changeMorale(run, 3);
+  changeMorale(state, 3);
 }
 
 // A sighting asks the player to attack or sneak; an ambush skips the choice
@@ -381,6 +567,12 @@ function startEncounter(state, region, at, wave, ambush) {
     ? `${legend.name} with ${describeSquad({ enemies: wave.enemies.filter((enemy) => enemy !== legend) })}`
     : describeSquad(wave);
   const extra = legend ? { legendary: true } : {};
+  // A Trailwise hero may spot the ambush before it springs.
+  const qualities = road(state);
+  if (ambush && Math.random() < roadEffect(qualities, "spotAmbush")) {
+    ambush = false;
+    addFeed(run, at, `${firstName(qualities.who.spotAmbush, Math.random)} spots the ambush before it springs.`, "good");
+  }
   if (ambush) {
     ambushParty(state, at, `Ambush! ${squad} burst from the shadows!`);
     openPending(run, at, { kind: "ambush", wave, label: squad, ...extra });
@@ -396,15 +588,24 @@ function startEncounter(state, region, at, wave, ambush) {
 function ambushParty(state, at, text) {
   const run = state.expedition;
   run.stats.ambushes += 1;
-  for (const hero of livingParty(state)) hurt(hero, ADVENTURE.ambushVolley);
-  changeMorale(run, -8);
+  // Keen-Eared and Unshakable heroes blunt the opening volley.
+  const volley = ADVENTURE.ambushVolley * (1 - roadEffect(road(state), "ambushVolley"));
+  for (const hero of livingParty(state)) hurt(hero, volley);
+  changeMorale(state, -8);
   addFeed(run, at, `${text} The party takes an opening volley.`, "danger");
 }
 
 // Heroes for the next fight, carrying the party's morale as a damage bonus.
+// The region's environment rides along as hero.environment (after resistance).
 export function currentEncounterParty(state) {
-  const bonus = moraleDamageBonus(state.expedition?.morale ?? ADVENTURE.startMorale);
-  return livingParty(state).map((hero) => ({ ...hero, moraleBonus: { damage: bonus } }));
+  const run = state.expedition;
+  const bonus = moraleDamageBonus(run?.morale ?? ADVENTURE.startMorale);
+  const environment = getEnvironment(getRegion(run?.regionId));
+  return livingParty(state).map((hero) => ({
+    ...hero,
+    moraleBonus: { damage: bonus },
+    environment: combatEnvironment(hero, environment, !!run?.packed?.includes(heroId(hero))),
+  }));
 }
 
 // The wave waiting in the current fight prompt.
@@ -448,7 +649,8 @@ function attemptSneak(state, at, rng) {
   const { label, sneakChance: chance } = run.pending;
   if (rng() < chance) {
     run.stats.sneaks += 1;
-    changeMorale(run, 4);
+    recordSneak(state);
+    changeMorale(state, 4);
     addFeed(run, at, `Slipped past ${label} unseen.`, "good");
     closePending(run, at);
     return;
@@ -487,8 +689,27 @@ function resolveStory(state, region, choice, at, rng) {
   const option = story.options.find((entry) => entry.id === choice);
   const hero = pick(livingParty(state), rng);
   if (option.result) addFeed(run, at, option.result.replaceAll("{hero}", hero.identity.name), "story");
-  const ambushed = applyEffects(state, region, option.effects, at, rng);
+  let ambushed = applyEffects(state, region, option.effects, at, rng);
+  if (!ambushed && run.pending.story === "camp" && choice === "rest" && rng() < CAMP_RAID_CHANCE) ambushed = raidCamp(state, region, at, rng);
   if (!ambushed) closePending(run, at);
+}
+
+// Raiders hit the camp while the party sleeps. A Light Sleeper wakes everyone
+// in time; otherwise the raid opens with a volley.
+function raidCamp(state, region, at, rng) {
+  const run = state.expedition;
+  const progress = 1 - (run.endsAt - at) / run.durationMs;
+  const wave = buildWildEncounter(region, progress, rng);
+  const label = describeSquad(wave);
+  run.stats.encounters += 1;
+  const guard = road(state).who.campGuard;
+  if (guard?.length) {
+    addFeed(run, at, `${pick(guard, rng).identity.name} wakes at a faint sound and rouses the camp just as ${label} creep in.`, "good");
+  } else {
+    ambushParty(state, at, `${label} raid the camp in the night!`);
+  }
+  run.pending = { ...run.pending, kind: "ambush", wave, label, promptAt: at };
+  return true;
 }
 
 // Apply a story option's effects. Returns true if it led into an ambush.
@@ -496,7 +717,7 @@ function applyEffects(state, region, effects, at, rng) {
   const run = state.expedition;
   if (effects.healAll) for (const hero of livingParty(state)) heal(hero, effects.healAll);
   if (effects.hurtAll) for (const hero of livingParty(state)) hurt(hero, effects.hurtAll);
-  if (effects.morale) changeMorale(run, effects.morale);
+  if (effects.morale) changeMorale(state, effects.morale);
   if (effects.gold) {
     const gold = Math.round(randomBetween(effects.gold, rng) * tierMult(region.tier));
     run.loot.gold += gold;
@@ -514,6 +735,7 @@ function applyEffects(state, region, effects, at, rng) {
     const supplies = ["bandage", "bandage", rng() < 0.4 ? "potion" : "ammo"];
     run.loot.gold += gold;
     for (const key of supplies) run.loot.items.push({ kind: "consumable", key, qty: 1 });
+    run.loot.items.push({ kind: "consumable", key: "arrows", qty: 8 });
     addFeed(run, at, `Foraging turns up ${gold} gold and a few supplies.`, "loot");
   }
   if (effects.extend && run.endsAt != null) run.endsAt += ADVENTURE.treasureDetourMs;
@@ -522,8 +744,10 @@ function applyEffects(state, region, effects, at, rng) {
     run.endsAt = Math.min(run.endsAt, Math.max(at + MIN_REMAINING_MS, run.endsAt - effects.shorten));
   }
   if (effects.text) addFeed(run, at, effects.text, effects.ambush || effects.hurtAll ? "danger" : "story");
+  if (effects.stalker) return answerStalker(state, region, effects.stalker, at, rng);
   if (effects.gamble) {
-    const outcome = rng() < effects.gamble.chance ? effects.gamble.win : effects.gamble.lose;
+    // Greedy hands are unlucky ones.
+    const outcome = rng() < effects.gamble.chance + roadEffect(road(state), "gambleLuck") ? effects.gamble.win : effects.gamble.lose;
     return applyEffects(state, region, outcome, at, rng);
   }
   if (effects.ambush) {
@@ -544,7 +768,7 @@ function decideAlone(state, region, { rng, onStep }) {
   const pending = run.pending;
   const at = pending.engagedAt ?? pending.promptAt;
   if (pending.kind === "story") {
-    resolveStory(state, region, STORIES[pending.story].auto({ partyHp: partyHpFraction(state) }), at, rng);
+    resolveStory(state, region, STORIES[pending.story].auto({ partyHp: partyHpFraction(state), greedy: roadEffect(road(state), "greedy") > 0 }), at, rng);
   } else if (pending.kind === "merchant") {
     // Spending the guild's gold is the player's call, never the party's.
     tradeWithMerchant(state, false, at);
@@ -598,10 +822,19 @@ function applyFightResult(state, region, { victory, party, xpGains, gold, items,
   const merged = mergeClasslessBattleResults(state, { heroIds: party.map(heroId), runtimeHeroes: party, xpGains: boostedXp });
   Object.assign(state, merged);
   const run = state.expedition;
-  // Quick-slot stacks spent in the fight come back on the runtime party.
+  // Quick-slot stacks spent in the fight come back on the runtime party. After
+  // a win, the party picks up some of the plain arrows it fired.
+  let recovered = 0;
   for (const runtime of party) {
     const saved = findHero(state, heroId(runtime));
-    if (saved) saved.quickSlots = normalizeHeroGear(runtime).quickSlots;
+    if (!saved) continue;
+    saved.quickSlots = normalizeHeroGear(runtime).quickSlots;
+    const spent = Math.floor((runtime.arrowsSpent?.arrows || 0) * ARROW_RECOVERY);
+    if (victory && spent > 0) recovered += returnArrows(state, saved, spent);
+    recordFight(saved, runtime.battleStats, { victory, morale: run.morale, ambush: run.pending?.kind === "ambush" });
+    for (const development of developQualities(saved, at, Math.random, sharedQualities(state.heroes, saved))) {
+      addFeed(run, at, development.text, "good", true);
+    }
   }
   run.loot.gold += Math.round(gold || 0);
   run.loot.items.push(...(items || []));
@@ -636,7 +869,15 @@ function applyFightResult(state, region, { victory, party, xpGains, gold, items,
     completeExpedition(state, "retreat", at);
     return;
   }
-  changeMorale(run, 8);
+  const qualities = road(state);
+  changeMorale(state, 8 + roadEffect(qualities, "moraleOnWin"));
+  afterVictory(state, qualities, at);
+  if (recovered > 0) addFeed(run, at, `Picked up ${recovered} arrow${recovered > 1 ? "s" : ""} from the field.`, "flavor");
+  for (const hero of party) {
+    if (heroUsesArrows(hero) && hero.combat.hp > 0 && heroArrowCount(findHero(state, heroId(hero))) === 0) {
+      addFeed(run, at, `${hero.identity.name} is out of arrows!`, "danger");
+    }
+  }
   addFeed(run, at, `Victory over ${pending.label}! +${Math.round(gold || 0)} gold${items?.length ? `, ${items.length} item${items.length > 1 ? "s" : ""}` : ""}.`, "good");
   if (pending.legendary) {
     const rng = Math.random;
@@ -644,7 +885,7 @@ function applyFightResult(state, region, { victory, party, xpGains, gold, items,
     const trophy = createGearItem({ slot: pick(GEAR_SLOTS, rng), rarity: pick(["rare", "epic"], rng), tier: region.tier + 1 }, rng);
     run.loot.gold += bonus;
     run.loot.items.push(trophy);
-    changeMorale(run, 15);
+    changeMorale(state, 15);
     addFeed(run, at, `The legend falls! Its hoard: ${bonus} gold and a ${trophy.name}.`, "loot", true);
   }
   if (pending.kind === "boss") {
@@ -665,6 +906,37 @@ function applyFightResult(state, region, { victory, party, xpGains, gold, items,
   }
   closePending(run, at);
   if (!livingParty(state).length) completeExpedition(state, "retreat", at);
+}
+
+// Qualities that kick in after a won fight: a Scavenger picks over the
+// fallen, a Field Surgeon patches everyone up.
+function afterVictory(state, qualities, at) {
+  const run = state.expedition;
+  if (Math.random() < roadEffect(qualities, "scavengeOnWin")) {
+    const key = pick(["bandage", "bandage", "potion", "arrows"], Math.random);
+    const qty = key === "arrows" ? 6 : 1;
+    run.loot.items.push({ kind: "consumable", key, qty });
+    addFeed(run, at, `${firstName(qualities.who.scavengeOnWin, Math.random)} scavenges ${key === "arrows" ? `${qty} arrows` : `a ${CONSUMABLES[key].name}`} from the fallen.`, "loot");
+  }
+  const patch = roadEffect(qualities, "postFightHeal");
+  if (patch > 0) {
+    for (const hero of livingParty(state)) heal(hero, patch);
+    addFeed(run, at, `${firstName(qualities.who.postFightHeal, Math.random)} patches up the party's wounds.`, "good");
+  }
+}
+
+// Put recovered plain arrows back in a hero's quiver; any that don't fit go
+// into the trip's loot. Returns how many were picked up.
+function returnArrows(state, hero, count) {
+  let left = count;
+  for (const slot of hero.quickSlots) {
+    if (slot?.key !== "arrows") continue;
+    const room = Math.min(left, CONSUMABLES.arrows.stackCap - slot.qty);
+    slot.qty += room;
+    left -= room;
+  }
+  if (left > 0) state.expedition.loot.items.push({ kind: "consumable", key: "arrows", qty: left });
+  return count;
 }
 
 function halveLoot(run) {
@@ -689,6 +961,7 @@ function completeExpedition(state, outcome, at) {
   for (const id of heroIds) {
     const hero = findHero(state, id);
     if (hero && hero.combat.hp <= 0) hero.combat.hp = 1;
+    if (hero) recordHistory(hero, "trips");
   }
   // Fortune adds its share when the gold reaches the guild.
   const fortune = Math.round(loot.gold * legacyBonuses(state).gold);

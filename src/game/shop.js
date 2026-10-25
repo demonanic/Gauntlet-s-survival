@@ -4,7 +4,7 @@
 // this rotation are saved.
 import { serializeGameState } from "../combat/heroModel";
 import { GEAR_SLOTS } from "../combat/gear";
-import { createGearItem, tierMult } from "./items";
+import { composeStats, createGearItem, tierMult } from "./items";
 import { REGIONS } from "./regions";
 
 export const SHOP_ROTATION_MS = 4 * 60 * 60 * 1000;
@@ -71,15 +71,16 @@ export function shopStock(state, now) {
   }
   const slot = GEAR_SLOTS[Math.floor(rng() * GEAR_SLOTS.length)];
   const masterwork = createGearItem({ slot, rarity: "epic", tier: tier + 1 }, rng);
-  for (const key of Object.keys(masterwork.stats)) {
-    masterwork.stats[key] = key === "critChance"
-      ? Math.round(masterwork.stats[key] * FEATURED_STAT_BONUS * 100) / 100
-      : Math.round(masterwork.stats[key] * FEATURED_STAT_BONUS);
+  for (const key of Object.keys(masterwork.baseStats)) {
+    masterwork.baseStats[key] = key === "critChance"
+      ? Math.round(masterwork.baseStats[key] * FEATURED_STAT_BONUS * 100) / 100
+      : Math.round(masterwork.baseStats[key] * FEATURED_STAT_BONUS);
   }
+  masterwork.stats = composeStats(masterwork);
   items.push({
     ...masterwork,
     id: `shop-${rotation}-${rerolls}-featured`,
-    name: masterwork.name.replace(/^\S+/, "Masterwork"),
+    name: `Masterwork ${masterwork.name.replace(/^Demon /, "")}`,
     masterwork: true,
     price: masterwork.value * FEATURED_PRICE_MULT,
     featured: true,

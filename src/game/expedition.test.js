@@ -29,8 +29,18 @@ function seeded(seed = 7) {
   };
 }
 
-function gutterRun(rng = sightingRng, heroCount = 3) {
+// Heroes with no qualities, so the base rules are what's under test.
+function plainGuild() {
   const state = createGuild();
+  for (const hero of state.heroes) {
+    hero.traits = [];
+    hero.combat.hp = classlessMaxHp(hero);
+  }
+  return state;
+}
+
+function gutterRun(rng = sightingRng, heroCount = 3) {
+  const state = plainGuild();
   return startExpedition(state, "gutter", ids(state).slice(0, heroCount), T0, rng).state;
 }
 
@@ -139,7 +149,7 @@ describe("timed expeditions", () => {
   });
 
   test("the end boss waits at the end of the timer; beating it conquers the region", () => {
-    const state = createGuild();
+    const state = plainGuild();
     state.heroes[0].progression.level = 3;
     let run = startExpedition(state, "boneyard", [ids(state)[0]], T0, sightingRng).state;
     run.expedition.endsAt = T0 + 1000;
@@ -189,7 +199,7 @@ describe("timed expeditions", () => {
   test("flavor lines don't repeat back to back", () => {
     let state = gutterRun(seeded(11));
     state = tick(state, T0 + 20 * MINUTE, { rng: seeded(12), interactive: false });
-    const flavor = state.lastReport.log.filter((line) => !/Victory|spots|Ambush|explored|sets out|gold|Slipped/.test(line));
+    const flavor = state.lastReport.log.filter((line) => !/Victory|spots|Ambush|explored|sets out|gold|Slipped|Picked up|out of arrows/.test(line));
     for (let index = 1; index < flavor.length; index += 1) expect(flavor[index]).not.toBe(flavor[index - 1]);
   });
 
@@ -215,7 +225,7 @@ describe("sneaking and morale", () => {
   const gutter = getRegion("gutter");
   const squad = (size, type = "goblin") => ({ enemies: Array.from({ length: size }, () => ({ type })) });
   const hero = (overrides = {}) => {
-    const base = structuredClone(createGuild().heroes[0]);
+    const base = structuredClone(plainGuild().heroes[0]);
     base.traits = [];
     return { ...base, ...overrides };
   };
@@ -251,7 +261,7 @@ describe("sneaking and morale", () => {
 
 describe("saves from before timed expeditions", () => {
   test("an old fixed-encounter expedition ends on load and keeps its loot", () => {
-    const state = createGuild();
+    const state = plainGuild();
     state.expedition = {
       regionId: "gutter", heroIds: [state.heroes[0].identity.id], encounterIndex: 1, phase: "traveling",
       phaseEndsAt: T0, startedAt: T0, loot: { gold: 42, items: [{ kind: "consumable", key: "potion", qty: 1 }] },
@@ -286,7 +296,7 @@ describe("world events", () => {
   });
 
   test("heroes banter about their trait and the party's mood", () => {
-    const hero = structuredClone(createGuild().heroes[0]);
+    const hero = structuredClone(plainGuild().heroes[0]);
     hero.traits = ["berserker"];
     expect(rollBanter(hero, 50, () => 0).text).toContain(hero.identity.name);
     hero.traits = [];
@@ -296,7 +306,7 @@ describe("world events", () => {
   });
 
   test("long trips make camp halfway; scouting improves sneak odds and foraging finds supplies", () => {
-    const state = createGuild();
+    const state = plainGuild();
     state.heroes[0].progression.level = 3;
     let run = startExpedition(state, "boneyard", [ids(state)[0]], T0, () => 0.999).state;
     expect(run.expedition.campAt).toBe(T0 + 10 * MINUTE);
@@ -307,7 +317,7 @@ describe("world events", () => {
     const scouted = choosePending(run, "scout", T0 + 10 * MINUTE).state;
     expect(scouted.expedition.scouted).toBe(true);
     const foraged = choosePending(run, "forage", T0 + 10 * MINUTE).state;
-    expect(foraged.expedition.loot.items.filter((item) => item.kind === "consumable")).toHaveLength(3);
+    expect(foraged.expedition.loot.items.filter((item) => item.kind === "consumable")).toHaveLength(4);
     expect(foraged.expedition.loot.gold).toBeGreaterThan(0);
   });
 
@@ -359,7 +369,7 @@ describe("world events", () => {
   });
 
   test("big moments are flagged for notifications", () => {
-    const state = createGuild();
+    const state = plainGuild();
     state.heroes[0].progression.level = 3;
     let run = startExpedition(state, "boneyard", [ids(state)[0]], T0, () => 0.999).state;
     run.expedition.endsAt = T0 + 1000;

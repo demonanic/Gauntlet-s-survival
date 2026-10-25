@@ -3,7 +3,39 @@ import HeroRow from "../components/HeroRow";
 import { NeonButton, Panel } from "../components/ui";
 import { heroStatus, MAX_PARTY_SIZE } from "../game/guild";
 import * as C from "../combat/config";
+import { GEAR_SETS, PROVISIONS, heroArrowCount, heroUsesArrows } from "../combat/gear";
+import { getEnvironment, heroResistance } from "../game/environment";
 import { REGIONS, bossForRank } from "../game/regions";
+
+// Before sending a party: who will lack arrows, and how protected each hero is
+// against the region's environment (provisions are packed automatically).
+function PartyReadiness({ guild, region, heroIds }) {
+  const heroes = heroIds.map((id) => guild.heroes.find((hero) => hero.identity.id === id)).filter(Boolean);
+  const environment = getEnvironment(region);
+  const provision = environment && PROVISIONS[environment.provision];
+  let provisions = guild.stash[provision?.key] || 0;
+  const archers = heroes.filter((hero) => heroUsesArrows(hero));
+  const arrowsLeft = archers.length ? (guild.stash.arrows || 0) + archers.reduce((sum, hero) => sum + heroArrowCount(hero), 0) : 0;
+  if (!heroes.length) return null;
+  return (
+    <div className="mb-2 space-y-0.5 font-mono-g text-[10px]" data-testid="party-readiness">
+      {archers.length > 0 && arrowsLeft === 0 && (
+        <p className="text-red-300">No arrows for {archers.map((hero) => hero.identity.name).join(", ")}. Bows can&apos;t shoot without them: buy some in the Market.</p>
+      )}
+      {environment && heroes.map((hero) => {
+        const immune = heroResistance(hero, environment) >= 1;
+        const packs = !immune && provisions > 0;
+        if (packs) provisions -= 1;
+        const resist = Math.round(heroResistance(hero, environment, packs) * 100);
+        return (
+          <p key={hero.identity.id} className={resist >= 50 ? "text-emerald-300" : resist > 0 ? "text-yellow-300" : "text-red-300"}>
+            {hero.identity.name}: {resist}% {environment.name.toLowerCase()} resistance{packs ? ` (with a ${provision.name})` : ""}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function ExpeditionBoard({ guild, now, onLaunch }) {
   const [regionId, setRegionId] = useState(REGIONS[0].id);
@@ -41,6 +73,15 @@ export default function ExpeditionBoard({ guild, now, onLaunch }) {
                 </span>
               </div>
               <p className="font-mono-g text-[11px] text-slate-400">{entry.blurb}</p>
+              {getEnvironment(entry) && (
+                <p className="font-mono-g text-[10px]" style={{ color: getEnvironment(entry).color }} data-testid={`environment-${entry.id}`}>
+                  {getEnvironment(entry).name}: {getEnvironment(entry).desc} Counter it with {PROVISIONS[getEnvironment(entry).provision].name}s
+                  ({guild.stash[getEnvironment(entry).provision] || 0} in stash) or resistance gear.
+                </p>
+              )}
+              {GEAR_SETS[entry.set] && (
+                <p className="font-mono-g text-[10px]" style={{ color: GEAR_SETS[entry.set].color }}>Drops pieces of the {GEAR_SETS[entry.set].name} set.</p>
+              )}
               {entry.boss && !entry.bossRotation && (
                 <p className="font-mono-g text-[10px] text-red-300">Final boss: {C.ENEMIES[entry.boss[0]].name}</p>
               )}
@@ -72,6 +113,7 @@ export default function ExpeditionBoard({ guild, now, onLaunch }) {
         {!busy && selected.length > 0 && partyLevel < region.minLevel && (
           <p className="mb-2 font-mono-g text-[11px] text-red-300">{region.name} needs a hero of level {region.minLevel}+.</p>
         )}
+        {!busy && <PartyReadiness guild={guild} region={region} heroIds={selected} />}
         <div className="space-y-2">
           {ready.length === 0 && <p className="font-mono-g text-[11px] text-slate-400">No heroes ready to travel.</p>}
           {ready.map((hero) => (

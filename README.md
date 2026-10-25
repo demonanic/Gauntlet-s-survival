@@ -43,11 +43,22 @@ abilities, move orders and speed controls.
 
 ### Heroes
 
-Every hero has an individual neon look (their sprite is tinted with their own hue) and
-one random trait, such as Brawny (+12% HP), Berserker (+20% damage below half HP) or
-Field Medic (supplies heal 40% more). Recruits are shown before you hire them: name them
-yourself, pick a new look for free, or pay 25g to see a different candidate. Heroes can
-be renamed from their Gear screen.
+Every hero has an individual neon look (their sprite is tinted with their own hue) and is
+born with a **quality**: who they are, not a choice you make. Some are combat qualities
+(Brawny, Berserker, Field Medic), some change the expedition itself (a **Tracker** notices
+things stalking the party, **Keen-Eared** heroes blunt ambushes, **Night Eyes**,
+**Trailwise**, **Light Sleeper**, **Sure-Footed**, **Scavenger**, **Bloodhound**,
+**Charismatic**, **Inspiring**, **Steadfast**, **Optimist**), and some are mixed blessings
+(**Reckless**, **Loud**, **Frail**, **Greedy**, **Paranoid**).
+
+Veterans develop more qualities from how they actually fought and travelled: at level 10
+and 16 the game looks back over the hero's career and they may become a **Marksman**,
+**Bladesworn**, **Survivor**, **Giantslayer**, **Ghost-Step**, **Bulwark**, **Field
+Surgeon**, **Unshakable** or **Rallying Heart**, at a strength that matches how strongly
+they showed it. You see the result and the story, never the counters.
+
+Recruits are shown before you hire them: name them yourself, pick a new look for free, or
+pay 25g to see a different candidate. Heroes can be renamed from their Gear screen.
 
 **Prestige:** retire a level 20 hero to earn Renown, and spend it in the Hall of Legends
 on permanent upgrades (damage, HP, gold, XP, travel time, and recruits that start at a
@@ -56,9 +67,44 @@ higher level). Retired heroes are remembered there.
 ### Gear and supplies
 
 Each hero has seven gear slots (head, chest, legs, arms, weapon, secondary, amulet/ring)
-and two quick slots for stacks of bandages, health potions or barbed ammo. Enemies drop
-gear in four rarities; better regions drop stronger gear. Heroes use their supplies on
-their own in battle, or you can tap them.
+and two quick slots for stacks of bandages, health potions, whetstones or arrows. Heroes
+use their supplies on their own in battle, or you can tap them. Loaded quick slots refill
+from the stash every time a party sets out.
+
+- **Rarity and affixes:** Uncommon, Rare and Epic gear roll 1, 2 or 3 random affixes
+  (Vampiric, Swift, Brutal, Spiked, *of Warmth*, *of Purity*, ...): lifesteal, attack
+  speed, crit damage, thorns, regeneration, burn and chill on hit, and resistances.
+- **Sets:** each harsh region drops pieces of its own set, with bonuses at 2 and 4 pieces.
+- **Legendaries:** bosses (and legendary monsters) sometimes drop one of six legendary items
+  with a unique power, e.g. Whisperwind (free volleys), Gravebinder Ring (rise again once
+  per fight) or Heart of the Mountain (immune to every environment).
+- **Forge, Salvage, Reforge:** upgrade gear with gold; break spare gear down into essence;
+  spend essence to reroll an item's affixes.
+- **Arrows:** bows can't shoot without arrows in a quick slot (stacks of 50, one per shot,
+  60% picked back up after a win). The Fletcher in the Market turns plain arrows into
+  venom (poison), flame (burst and burn) or frost (slow) arrows.
+
+### Environments
+
+Every region past the Gutter has harsh conditions that wear heroes down on the road and
+handicap them in battle: Darkness (missed attacks, more ambushes), Bitter Cold (frostbite,
+slower attacks), Scorching Heat (burns) and Toxic Miasma (poison, halved healing). Counter
+them with resistance gear, or buy provisions in the Market (Torches, Warming Draughts,
+Cooling Salves, Antitoxins): each hero packs one when the party sets out.
+
+### Enemies
+
+Enemies come in behavior families (hunters, predators, protectors, disruptors, attrition,
+ambushers, skirmishers, watchers), shown on every encounter prompt. **Gnome Sappers** run
+at the party and blow up (they go off even when killed), **Bandits** blitz the weakest hero,
+**Dark Elf** snipers aim at ranged heroes, **Lesser Necromancers** heal and raise the
+fallen, **Harriers** hunt and maul wounded heroes, **Carrion Priests** sacrifice dying
+allies to heal and empower the rest, and **Watchers** make sneaking past a squad much harder
+and mark heroes in battle. Legendary monsters hunt the wounded.
+
+**Stalkers** don't attack right away: something starts following the party, unseen, and
+strikes when a hero is badly hurt. A Tracker (or a lucky glance) may notice it first, and
+then the party can turn and fight, try to lose it, or keep going ready for it.
 
 ### Endgame
 
@@ -73,8 +119,10 @@ their own in battle, or you can tap them.
 | Region | Min level | Length | End boss | Bounty |
 | --- | --- | --- | --- | --- |
 | The Gutter | 1 | 10 min | none | 80g |
-| Boneyard Crypt | 3 | 20 min | Lieutenant | 300g |
-| Ashen Keep | 6 | 30 min | rotating (Demon → Necromancer → Abomination) | 800g, +15% per boss rank |
+| Boneyard Crypt (darkness) | 3 | 20 min | Lieutenant | 300g |
+| Frostfang Pass (cold) | 4 | 25 min | Bandit Warlord | 500g |
+| Ashen Keep (heat) | 6 | 30 min | rotating (Demon → Necromancer → Abomination) | 800g, +15% per boss rank |
+| The Blightmire (toxic) | 10 | 40 min | The Bog Lich | 1600g |
 | The Endless Rift | 3 | until you return | a boss every 10th wave | 10g per wave |
 
 ## Play it

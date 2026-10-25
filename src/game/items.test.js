@@ -47,7 +47,7 @@ describe("gear items", () => {
     expect(hero.equipment.head.id).toBe(helm.id);
     expect(equipped.state.vault).toHaveLength(0);
     expect(heroGearStats(hero).defense).toBe(helm.stats.defense);
-    expect(classlessMaxHp(hero)).toBe(300 + helm.stats.maxHp);
+    expect(classlessMaxHp(hero)).toBe(Math.round((300 + helm.stats.maxHp) * (1 + (helm.stats.healthBonus || 0))));
     expect(heroCombatSummary(hero).defense).toBe(10 + helm.stats.defense);
 
     const sword = createGearItem({ slot: "weapon", variant: "sword", rarity: "epic" });

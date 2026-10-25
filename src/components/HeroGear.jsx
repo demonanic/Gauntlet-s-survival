@@ -1,11 +1,14 @@
 import { useState } from "react";
-import { CONSUMABLE_KEYS, CONSUMABLES, GEAR_SLOT_LABELS, GEAR_SLOTS, GEAR_STAT_LABELS, QUICK_SLOT_COUNT } from "../combat/gear";
 import {
-  MAX_UPGRADE, RARITIES, formatGearStats, gearStatDelta, heroCombatSummary, itemLabel, upgradeCost,
+  CONSUMABLE_KEYS, CONSUMABLES, GEAR_SETS, GEAR_SLOT_LABELS, GEAR_SLOTS, GEAR_STAT_LABELS, QUICK_SLOT_COUNT, SPECIAL_STAT_KEYS,
+  activeSetBonuses, heroGearStats, heroUsesArrows,
+} from "../combat/gear";
+import {
+  MAX_UPGRADE, formatGearStats, formatStatValue, gearStatDelta, heroCombatSummary, reforgeCost, upgradeCost,
 } from "../game/items";
-import { TRAITS } from "../combat/traits";
-import { WEAPON_PROFILES } from "../combat/gear";
+import { heroQualities } from "../combat/traits";
 import { MAX_NAME_LENGTH, cleanHeroName } from "../game/guild";
+import ItemDetails from "./ItemDetails";
 import { NeonButton } from "./ui";
 
 function DeltaText({ delta }) {
@@ -13,34 +16,65 @@ function DeltaText({ delta }) {
   if (keys.length === 0) return <span className="text-slate-500">no change</span>;
   return keys.map((key) => {
     const value = delta[key];
-    const shown = key === "critChance" ? `${Math.round(value * 100)}%` : value;
     return (
       <span key={key} className={`mr-1.5 ${value > 0 ? "text-emerald-300" : "text-red-300"}`}>
-        {GEAR_STAT_LABELS[key]} {value > 0 ? "+" : ""}{shown}
+        {GEAR_STAT_LABELS[key]} {value > 0 ? "+" : "-"}{formatStatValue(key, Math.abs(value))}
       </span>
     );
   });
 }
 
-function ItemName({ item }) {
-  const rarity = RARITIES[item.rarity] || RARITIES.common;
+// Who the hero is: the quality they were born with and the ones their
+// career has given them, with the story behind each. Never the counters.
+function Qualities({ hero }) {
+  const stories = Object.fromEntries((hero.qualityLog || []).map((entry) => [entry.key, entry]));
   return (
-    <span className="font-bold" style={{ color: rarity.color }}>
-      {itemLabel(item)} <span className="font-normal text-slate-500">T{item.tier}</span>
-      {WEAPON_PROFILES[item.weaponType] && (
-        <span className="font-normal text-cyan-300"> · {WEAPON_PROFILES[item.weaponType].style}</span>
+    <div className="font-mono-g text-[11px]" data-testid="qualities">
+      {heroQualities(hero).map((quality, index) => (
+        <div key={quality.key}>
+          <p className={quality.kind === "evolved" ? "text-amber-300" : "text-yellow-300"}>
+            {quality.name}: <span className="text-slate-300">{quality.desc}</span>
+          </p>
+          <p className="text-[10px] italic text-slate-500">
+            {stories[quality.key]
+              ? `${storyLine(stories[quality.key], hero)} (level ${stories[quality.key].level})`
+              : index === 0 ? "Born with it." : ""}
+          </p>
+        </div>
+      ))}
+      {hero.progression.level < 16 && (
+        <p className="text-[10px] text-slate-500">Veterans develop new qualities from how they fight and travel.</p>
       )}
-    </span>
+    </div>
+  );
+}
+
+const storyLine = (entry, hero) => entry.text.replace(/^NEW QUALITY: [^.]+\. /, "").replace(`${hero.identity.name} has grown into a `, "Grew into a ");
+
+// The hero's gear specials (resistances, lifesteal, ...) and active set bonuses.
+function GearSpecials({ hero }) {
+  const gear = heroGearStats(hero);
+  const specials = Object.fromEntries(SPECIAL_STAT_KEYS.filter((key) => gear[key]).map((key) => [key, Math.round(gear[key] * 100) / 100]));
+  const sets = activeSetBonuses(hero);
+  if (!Object.keys(specials).length && !sets.length) return null;
+  return (
+    <div className="font-mono-g text-[10px]" data-testid="gear-specials">
+      {Object.keys(specials).length > 0 && <p className="text-cyan-200">{formatGearStats(specials)}</p>}
+      {sets.map((bonus) => (
+        <p key={`${bonus.set}-${bonus.pieces}`} style={{ color: GEAR_SETS[bonus.set].color }}>
+          {GEAR_SETS[bonus.set].name} ({bonus.pieces}): {formatGearStats(bonus.stats)}
+        </p>
+      ))}
+    </div>
   );
 }
 
 // Per-hero gear sheet: seven gear slots plus two consumable quick slots.
 export default function HeroGear({
-  hero, vault, stash, gold, locked, onEquip, onUnequip, onLoadQuick, onUnloadQuick, onUpgrade, onRename, onClose,
+  hero, vault, stash, gold, essence = 0, locked, onEquip, onUnequip, onLoadQuick, onUnloadQuick, onUpgrade, onReforge, onRename, onClose,
 }) {
   const [picking, setPicking] = useState(null); // { type: "gear", slot } | { type: "quick", index }
   const [renaming, setRenaming] = useState(null); // draft name while editing
-  const trait = TRAITS[hero.traits?.[0]];
   const summary = heroCombatSummary(hero);
   const equipment = hero.equipment || {};
   const quickSlots = hero.quickSlots || [];
@@ -74,10 +108,11 @@ export default function HeroGear({
                 <NeonButton type="submit" color="#39FF14" disabled={!cleanHeroName(renaming)}>Save</NeonButton>
               </form>
             )}
-            {trait && <p className="font-mono-g text-[11px] text-yellow-300">{trait.name}: <span className="text-slate-300">{trait.desc}</span></p>}
+            <Qualities hero={hero} />
             <p className="font-mono-g text-[11px] text-slate-300">
               ATK {summary.attack} · DEF {summary.defense} · HP {summary.maxHp} · DODGE {Math.round(summary.dodge * 100)}% · CRIT {Math.round(summary.critChance * 100)}%
             </p>
+            <GearSpecials hero={hero} />
           </div>
           <NeonButton onClick={onClose} data-testid="gear-close">Close</NeonButton>
         </header>
@@ -101,18 +136,18 @@ export default function HeroGear({
                 data-testid={`gear-slot-${slot}`}
               >
                 <div className="text-[10px] uppercase text-slate-500">{GEAR_SLOT_LABELS[slot]}</div>
-                {item ? (
-                  <>
-                    <ItemName item={item} />
-                    <div className="text-slate-400">{formatGearStats(item.stats)}</div>
-                  </>
-                ) : <div className="text-slate-600">Empty</div>}
+                {item ? <ItemDetails item={item} /> : <div className="text-slate-600">Empty</div>}
               </button>
             );
           })}
         </div>
 
         <h3 className="mt-3 font-display text-sm font-bold text-cyan-200">QUICK SLOTS</h3>
+        {heroUsesArrows(hero) && (
+          <p className="font-mono-g text-[10px] text-slate-400">
+            Bows fire arrows from the quick slots. With no arrows loaded, plain arrows are packed into a free slot at departure.
+          </p>
+        )}
         <div className="mt-1 grid grid-cols-2 gap-1.5">
           {Array.from({ length: QUICK_SLOT_COUNT }, (_, index) => {
             const entry = quickSlots[index];
@@ -129,7 +164,10 @@ export default function HeroGear({
               >
                 <div className="text-[10px] uppercase text-slate-500">Quick {index + 1}</div>
                 {item ? (
-                  <span className="font-bold" style={{ color: item.color }}>{item.name} ×{entry.qty}</span>
+                  <>
+                    <span className="font-bold" style={{ color: item.color }}>{item.name} ×{entry.qty}</span>
+                    {entry.qty === 0 && <div className="text-[10px] text-slate-500">Refills from the stash at departure</div>}
+                  </>
                 ) : <div className="text-slate-600">Empty</div>}
               </button>
             );
@@ -141,7 +179,7 @@ export default function HeroGear({
             <div className="mb-1 flex items-center justify-between">
               <span className="font-bold text-cyan-200">{GEAR_SLOT_LABELS[picking.slot]} · vault</span>
               {equipment[picking.slot] && (
-                <div className="flex gap-1">
+                <div className="flex flex-wrap justify-end gap-1">
                   {(equipment[picking.slot].upgrade || 0) < MAX_UPGRADE && (
                     <NeonButton
                       color="#FF6600"
@@ -150,6 +188,16 @@ export default function HeroGear({
                       data-testid="gear-forge"
                     >
                       Forge {upgradeCost(equipment[picking.slot])}g
+                    </NeonButton>
+                  )}
+                  {reforgeCost(equipment[picking.slot]) && (
+                    <NeonButton
+                      color="#E879F9"
+                      disabled={essence < reforgeCost(equipment[picking.slot]).essence || gold < reforgeCost(equipment[picking.slot]).gold}
+                      onClick={() => onReforge(equipment[picking.slot].id)}
+                      data-testid="gear-reforge"
+                    >
+                      Reforge {reforgeCost(equipment[picking.slot]).essence}✦ {reforgeCost(equipment[picking.slot]).gold}g
                     </NeonButton>
                   )}
                   <NeonButton color="#94A3B8" onClick={() => { onUnequip(picking.slot); setPicking(null); }}>Unequip</NeonButton>
@@ -161,8 +209,7 @@ export default function HeroGear({
               {candidates.map((item) => (
                 <li key={item.id} className="flex items-center justify-between gap-2 border-b border-white/5 pb-1">
                   <div className="min-w-0">
-                    <ItemName item={item} />
-                    <div className="text-slate-400">{formatGearStats(item.stats)}</div>
+                    <ItemDetails item={item} />
                     <div className="text-[10px]"><DeltaText delta={gearStatDelta(item, equipment[picking.slot])} /></div>
                   </div>
                   <NeonButton color="#39FF14" onClick={() => { onEquip(item.id); setPicking(null); }} data-testid={`equip-${item.id}`}>Equip</NeonButton>

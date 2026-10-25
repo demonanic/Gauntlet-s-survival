@@ -68,8 +68,8 @@ export function classlessCombatEffects(ownedNodeIds = []) {
 export function classlessMaxHp(hero) {
   const maxHp = Number(hero?.combat?.maxHp);
   if (!Number.isFinite(maxHp) || maxHp <= 0) return 300;
-  // Gauntlet: flat gear HP is added before the perk, trait and guild percentages.
-  const gearHp = heroGearStats(hero).maxHp;
-  const percent = classlessCombatEffects(hero.progression?.ownedNodeIds).maxHp + heroTraitEffects(hero).maxHp;
-  return Math.round((maxHp + gearHp) * (1 + percent));
+  // Gauntlet: flat gear HP is added before the perk, trait, gear and guild percentages.
+  const gear = heroGearStats(hero);
+  const percent = classlessCombatEffects(hero.progression?.ownedNodeIds).maxHp + heroTraitEffects(hero).maxHp + gear.healthBonus;
+  return Math.round((maxHp + gear.maxHp) * (1 + percent));
 }

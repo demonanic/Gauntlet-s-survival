@@ -37,7 +37,8 @@ function weightedPick(weights, rng) {
 
 // Build the `wave` object the combat engine expects for one encounter.
 // Shape matches Demonanic's buildWave output: { enemies, total, groups, hasBoss },
-// plus Gauntlet's lootTier and the scale used for any minions summoned mid-fight.
+// plus Gauntlet's lootTier, the scale used for any minions summoned mid-fight,
+// and the region's gear set (`set`), which its drops can belong to.
 
 // A random squad from the region's wildlife. `progress` is how far through
 // the expedition timer the party is (0 to 1).
@@ -49,7 +50,7 @@ export function buildWildEncounter(region, progress = 0, rng = Math.random) {
   const squad = Array.from({ length: Math.min(size, max + 1) }, () => weightedPick(wildlife.pool, rng));
   if (rng() < (wildlife.eliteChance || 0)) squad[0] = "lieutenant";
   const depth = 1 + DEPTH_SCALE_AT_END * Math.max(0, Math.min(1, progress));
-  return assembleWave(squad, { hp: region.hpScale * depth, dmg: region.dmgScale * depth }, region.tier);
+  return { ...assembleWave(squad, { hp: region.hpScale * depth, dmg: region.dmgScale * depth }, region.tier), set: region.set || null };
 }
 
 // A legendary monster: the toughest creature in the region's wildlife, grown
@@ -62,6 +63,8 @@ export function buildLegendaryEncounter(region, progress = 0, rng = Math.random)
   legend.name = legendName(C.ENEMIES[toughest].name, rng);
   legend.tier = "elite";
   legend.legendary = true;
+  // Legends combine archetypes: whatever they were, they now hunt the wounded.
+  legend.families = [...new Set([...legend.families, "hunter", "predator"])];
   wave.enemies.unshift(legend);
   return { ...wave, total: wave.enemies.length, lootTier: region.tier + 1, legendary: true };
 }
@@ -77,7 +80,7 @@ export function buildBossEncounter(region, bossRank = 0) {
     hp: region.hpScale * depth * BOSS_RANK_SCALING.hpGrowth ** rank,
     dmg: region.dmgScale * depth * BOSS_RANK_SCALING.dmgGrowth ** rank,
   };
-  return assembleWave(squad, scale, region.tier + Math.floor(rank / 2));
+  return { ...assembleWave(squad, scale, region.tier + Math.floor(rank / 2)), set: region.set || null };
 }
 
 // A short description of a squad for the adventure feed: "3 Skeletons and a Ghost".
@@ -86,6 +89,15 @@ export function describeSquad(wave) {
   for (const enemy of wave.enemies) counts.set(enemy.name, (counts.get(enemy.name) || 0) + 1);
   const parts = [...counts].map(([name, count]) => (count > 1 ? `${count} ${name}s` : `${/^[AEIOU]/i.test(name) ? "an" : "a"} ${name}`));
   return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0] || "nothing";
+}
+
+// Something that has been following the party: a Stalker and one of the
+// region's creatures, at the expedition's current depth.
+export function buildStalkerEncounter(region, progress = 0, rng = Math.random) {
+  const wave = buildWildEncounter({ ...region, wildlife: { ...region.wildlife, squad: [1, 1], eliteChance: 0 } }, progress, rng);
+  const depth = 1 + DEPTH_SCALE_AT_END * Math.max(0, Math.min(1, progress));
+  wave.enemies.unshift(makeEnemy(C.ENEMIES.stalker, region.hpScale * depth, region.dmgScale * depth));
+  return { ...wave, total: wave.enemies.length };
 }
 
 // One Endless Rift wave. Squads grow, then tougher enemy types join; every 5th
@@ -123,6 +135,8 @@ function makeEnemy(base, hpScale, dmgScale) {
     affinities: { ...(base.affinities || {}) },
     ...(base.attackRange ? { attackRange: base.attackRange } : {}),
     ...(base.splashRadius ? { splashRadius: base.splashRadius } : {}),
+    ...(base.bomber ? { bomber: true } : {}),
+    families: [...(C.ENEMY_FAMILIES[base.key] || [])],
   };
 }
 
@@ -145,8 +159,9 @@ export function createEncounterSim(party, regionTier, wave = null) {
     kills: { total: 0, byType: {} },
     lootTier: wave?.lootTier ?? regionTier,
     minionScale: wave?.scale ?? { hp: 1, dmg: 1 },
+    set: wave?.set ?? null,
   };
-  sim.rollDrop = (enemy) => rollLoot(enemy, sim.lootTier);
+  sim.rollDrop = (enemy) => rollLoot(enemy, sim.lootTier, Math.random, { set: sim.set });
   sim.makeMinion = (type) => makeEnemy(C.ENEMIES[type] || C.ENEMIES.skeleton,
     sim.minionScale.hp * MINION_SCALE.hp, sim.minionScale.dmg * MINION_SCALE.dmg);
   return sim;

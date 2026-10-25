@@ -1,7 +1,8 @@
 import { useState } from "react";
+import { GEAR_SETS } from "../combat/gear";
 import { MAX_GEAR_TIER, RARITY_ORDER, RARITIES } from "../game/items";
 import {
-  MAX_HERO_LEVEL, debugAddGold, debugAddRenown, debugClearRegions, debugEndExpedition, debugGiveGearSet, debugGiveSupplies,
+  MAX_HERO_LEVEL, debugAddGold, debugAddRenown, debugCareer, debugClearRegions, debugEndExpedition, debugGiveGearSet, debugGiveSupplies,
   debugSetBossRank, debugSetLevels, debugSkipTimers,
 } from "../game/debug";
 import { NeonButton } from "./ui";
@@ -16,6 +17,7 @@ export default function DebugPanel({ guild, apply }) {
   const [rank, setRank] = useState(guild.bossRank || 0);
   const [rarity, setRarity] = useState("rare");
   const [tier, setTier] = useState(3);
+  const [set, setSet] = useState("");
 
   if (!open) {
     return (
@@ -58,6 +60,7 @@ export default function DebugPanel({ guild, apply }) {
             {[3, 6, 10, 15, MAX_HERO_LEVEL].map((value) => <option key={value} value={value}>{value}</option>)}
           </select>
           <NeonButton color="#A855F7" onClick={() => apply((state) => debugSetLevels(state, level))} data-testid="debug-level">Set</NeonButton>
+          <NeonButton color="#FBBF24" onClick={() => apply((state) => debugCareer(state, Date.now()))} data-testid="debug-career">Career</NeonButton>
         </div>
         <div className={row}>
           <span>Boss rank</span>
@@ -78,7 +81,11 @@ export default function DebugPanel({ guild, apply }) {
           <select className={selectClass} value={tier} onChange={(event) => setTier(Number(event.target.value))}>
             {Array.from({ length: MAX_GEAR_TIER }, (_, index) => index + 1).map((value) => <option key={value} value={value}>{value}</option>)}
           </select>
-          <NeonButton color="#FF6600" onClick={() => apply((state) => debugGiveGearSet(state, rarity, tier))} data-testid="debug-gear">To vault</NeonButton>
+          <select className={selectClass} value={set} onChange={(event) => setSet(event.target.value)} disabled={rarity === "legendary"} data-testid="debug-set">
+            <option value="">no set</option>
+            {Object.values(GEAR_SETS).map((entry) => <option key={entry.key} value={entry.key}>{entry.name}</option>)}
+          </select>
+          <NeonButton color="#FF6600" onClick={() => apply((state) => debugGiveGearSet(state, rarity, tier, set || null))} data-testid="debug-gear">To vault</NeonButton>
         </div>
         <p className="text-[10px] text-slate-500">
           Battles get 4× and 8× speed in test mode. Gold, levels and gear made here are real save data; use Reset save to start clean.

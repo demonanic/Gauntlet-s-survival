@@ -1,4 +1,4 @@
-import { TRAITS } from "../combat/traits";
+import { heroQualities } from "../combat/traits";
 import {
   LEGACY_KEYS, LEGACY_UPGRADES, RETIRE_LEVEL, legacyRank, legacyUpgradeCost, renownForRetiring,
 } from "../game/legacy";
@@ -48,7 +48,8 @@ export default function HallOfLegends({ guild, onBuy }) {
                 <ClasslessHeroAvatar className="h-7 w-7 rounded border" identityColor={legend.appearance?.identityColor} appearance={legend.appearance} label={legend.name} />
                 <span className="font-bold" style={{ color: legend.appearance?.identityColor }}>{legend.name}</span>
                 <span className="text-slate-500">
-                  LV {legend.level} · {TRAITS[legend.traits?.[0]]?.name || "No trait"} · retired at boss rank {legend.bossRank + 1}
+                  LV {legend.level} · {heroQualities(legend).map((quality) => quality.name).join(", ") || "No qualities"}
+                  {legend.career ? ` · ${legend.career.trips} trips, ${legend.career.kills} kills` : ""} · retired at boss rank {legend.bossRank + 1}
                 </span>
               </li>
             ))}

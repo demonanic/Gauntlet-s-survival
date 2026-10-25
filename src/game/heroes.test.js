@@ -3,7 +3,7 @@ import { Engine } from "../combat/engine";
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import * as C from "../combat/config";
 import { distinctHueShift, heroSpriteFilter, isHexColor, paletteForShift, rollHeroPalette } from "../combat/heroPalette";
-import { TRAITS, TRAIT_KEYS, heroTraitEffects } from "../combat/traits";
+import { TRAITS, TRAIT_KEYS, heroQuality, heroTraitEffects } from "../combat/traits";
 import { needsSaveChoice, summarizeSave } from "../cloud/cloudSave";
 import { buildWildEncounter, createEncounterSim } from "./encounters";
 import {
@@ -127,8 +127,11 @@ describe("traits", () => {
 
   test("every trait has a name, description and known effects", () => {
     for (const key of TRAIT_KEYS) {
-      expect(TRAITS[key].name && TRAITS[key].desc).toBeTruthy();
-      expect(Object.keys(heroTraitEffects(heroWith(key)))).toContain(Object.keys(TRAITS[key].effects)[0]);
+      const quality = heroQuality(heroWith(key), key);
+      expect(quality.name && quality.desc).toBeTruthy();
+      // Every quality does something: in combat, on the road, or both.
+      expect(Object.keys(quality.effects || {}).length + Object.keys(quality.road || {}).length).toBeGreaterThan(0);
+      for (const stat of Object.keys(quality.effects || {})) expect(Object.keys(heroTraitEffects(heroWith(key)))).toContain(stat);
     }
   });
 
