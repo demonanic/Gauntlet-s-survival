@@ -4,8 +4,8 @@
 import { classlessCombatEffects, classlessMaxHp } from "../combat/classlessCombatEffects";
 import * as C from "../combat/config";
 import {
-  CONSUMABLES, CORE_STAT_KEYS, FLETCHING, GEAR_SETS, PROVISIONS, GEAR_SLOTS, GEAR_STAT_KEYS, GEAR_STAT_LABELS, PERCENT_STATS,
-  QUICK_SLOT_COUNT, heroGearStats, heroUsesArrows, heroWeaponProfile,
+  CONSUMABLES, CORE_STAT_KEYS, CRYSTAL_KEYS, CRYSTALS, FLETCHING, GEAR_SETS, PROVISIONS, crystalFits, crystalInfo, itemSockets, GEAR_SLOTS, GEAR_STAT_KEYS, GEAR_STAT_LABELS, PERCENT_STATS,
+  QUICK_SLOT_COUNT, SUPPLY_STYLES, heroGearStats, heroUsesArrows, heroWeaponProfile,
 } from "../combat/gear";
 import { HERO_BASELINE, serializeGameState } from "../combat/heroModel";
 import { heroTraitEffects } from "../combat/traits";
@@ -123,6 +123,8 @@ export const LEGENDARY_KEYS = Object.freeze(Object.keys(LEGENDARIES));
 export const LOOT_TABLE = Object.freeze({
   gearChance: { basic: 0.04, specialized: 0.08, elite: 0.3, boss: 1 },
   supplyChance: { basic: 0.06, specialized: 0.1, elite: 0.4, boss: 0 },
+  // Chance a kill drops a crystal instead of nothing (checked after gear and supplies).
+  crystalChance: { basic: 0.01, specialized: 0.03, elite: 0.12, boss: 0 },
   rarityWeights: {
     basic: { common: 75, uncommon: 22, rare: 3, epic: 0 },
     specialized: { common: 55, uncommon: 33, rare: 10, epic: 2 },
@@ -220,13 +222,86 @@ const roundStat = (key, value) => {
   return key === "regen" ? Math.round(value * 10) / 10 : Math.round(value);
 };
 
-// An item's total stats: its (forged) base stats plus its affixes.
+// An item's total stats: its (forged) base stats plus its affixes and the
+// crystals infused into its sockets.
 export function composeStats(item) {
   const upgrade = item.upgrade || 0;
   const base = item.baseStats || item.stats || {};
   const stats = upgrade ? scaleStats(base, 1 + UPGRADE_STEP * upgrade) : { ...base };
   for (const affix of item.affixes || []) stats[affix.stat] = roundStat(affix.stat, (stats[affix.stat] || 0) + affix.value);
+  for (const id of item.runes || []) {
+    const crystal = crystalInfo(id);
+    if (crystal) stats[crystal.stat] = roundStat(crystal.stat, (stats[crystal.stat] || 0) + crystal.value);
+  }
   return stats;
+}
+
+// ---------------- crystals ----------------
+// Crystals live in guild.crystals ({ "ember-1": 2 }) until infused.
+export const CRYSTAL_PRICE = 45;
+// Gold to pull a crystal back out of a socket, per crystal tier.
+export const EXTRACT_COST = 30;
+export const FUSE_COUNT = 3;
+
+export function buyCrystal(state, key) {
+  if (!CRYSTALS[key]) return { ok: false, reason: "unknown_item" };
+  if (state.gold < CRYSTAL_PRICE) return { ok: false, reason: "insufficient_gold" };
+  const next = serializeGameState(state);
+  next.gold -= CRYSTAL_PRICE;
+  next.crystals ||= {};
+  next.crystals[`${key}-1`] = (next.crystals[`${key}-1`] || 0) + 1;
+  return { ok: true, state: next };
+}
+
+// Three of a kind make one of the next tier.
+export function fuseCrystals(state, id) {
+  const crystal = crystalInfo(id);
+  if (!crystal) return { ok: false, reason: "unknown_item" };
+  if (crystal.tier >= 3) return { ok: false, reason: "max_tier" };
+  if ((state.crystals?.[id] || 0) < FUSE_COUNT) return { ok: false, reason: "not_enough" };
+  const next = serializeGameState(state);
+  next.crystals[id] -= FUSE_COUNT;
+  const fused = `${crystal.key}-${crystal.tier + 1}`;
+  next.crystals[fused] = (next.crystals[fused] || 0) + 1;
+  return { ok: true, state: next };
+}
+
+// Set a crystal into the next free socket of a vault item or a home hero's gear.
+export function infuseCrystal(state, itemId, id) {
+  const next = serializeGameState(state);
+  const { item, ownerId } = locateGear(next, itemId);
+  if (!item) return { ok: false, reason: "unknown_item" };
+  if (ownerId && next.expedition?.heroIds.includes(ownerId)) return { ok: false, reason: "hero_away" };
+  const crystal = crystalInfo(id);
+  if (!crystal || !(next.crystals?.[id] > 0)) return { ok: false, reason: "no_crystal" };
+  if (!crystalFits(item, crystal)) return { ok: false, reason: "wrong_kind" };
+  if ((item.runes || []).length >= itemSockets(item)) return { ok: false, reason: "no_free_socket" };
+  next.crystals[id] -= 1;
+  item.baseStats ||= { ...item.stats };
+  item.runes = [...(item.runes || []), id];
+  item.stats = composeStats(item);
+  if (ownerId) clampHp(next.heroes.find((hero) => heroId(hero) === ownerId));
+  return { ok: true, state: next };
+}
+
+// Pull a crystal back out (it returns to the stash) for a little gold.
+export function extractCrystal(state, itemId, index) {
+  const next = serializeGameState(state);
+  const { item, ownerId } = locateGear(next, itemId);
+  if (!item) return { ok: false, reason: "unknown_item" };
+  if (ownerId && next.expedition?.heroIds.includes(ownerId)) return { ok: false, reason: "hero_away" };
+  const id = item.runes?.[index];
+  const crystal = crystalInfo(id);
+  if (!crystal) return { ok: false, reason: "socket_empty" };
+  const cost = EXTRACT_COST * crystal.tier;
+  if (next.gold < cost) return { ok: false, reason: "insufficient_gold" };
+  next.gold -= cost;
+  item.runes = item.runes.filter((_, position) => position !== index);
+  item.stats = composeStats(item);
+  next.crystals ||= {};
+  next.crystals[id] = (next.crystals[id] || 0) + 1;
+  if (ownerId) clampHp(next.heroes.find((hero) => heroId(hero) === ownerId));
+  return { ok: true, state: next };
 }
 
 export function itemLabel(item) {
@@ -347,14 +422,22 @@ export function rollLoot(enemy, tier = 1, rng = Math.random, { set = null } = {}
   if (rng() < LOOT_TABLE.supplyChance[enemyTier]) {
     return { kind: "consumable", key: weightedPick(LOOT_TABLE.supplyWeights[enemyTier], rng), qty: 1 };
   }
+  if (rng() < LOOT_TABLE.crystalChance[enemyTier]) return randomCrystal(1, rng);
   return null;
+}
+
+export function randomCrystal(tier = 1, rng = Math.random) {
+  return { kind: "crystal", key: `${CRYSTAL_KEYS[Math.floor(rng() * CRYSTAL_KEYS.length)]}-${tier}`, qty: 1 };
 }
 
 // Gear goes to the vault; consumables stack in the stash.
 export function bankLoot(state, items = []) {
   for (const item of items) {
     if (isConsumableDrop(item)) state.stash[item.key] = (state.stash[item.key] || 0) + Math.max(1, item.qty || 1);
-    else if (item?.kind === "gear") state.vault.push(item);
+    else if (item?.kind === "crystal" && crystalInfo(item.key)) {
+      state.crystals ||= {};
+      state.crystals[item.key] = (state.crystals[item.key] || 0) + Math.max(1, item.qty || 1);
+    } else if (item?.kind === "gear") state.vault.push(item);
   }
   return state;
 }
@@ -488,6 +571,19 @@ export function unloadQuickSlot(state, id, slotIndex) {
   if (!current) return { ok: false, reason: "slot_empty" };
   next.stash[current.key] = (next.stash[current.key] || 0) + current.qty;
   hero.quickSlots[slotIndex] = null;
+  return { ok: true, state: next };
+}
+
+// How a hero uses healing supplies in battle (any time, even mid-expedition).
+export function setSupplyStyle(state, id, { style, savePotions } = {}) {
+  const next = serializeGameState(state);
+  const hero = next.heroes.find((entry) => heroId(entry) === id);
+  if (!hero) return { ok: false, reason: "unknown_hero" };
+  if (style !== undefined) {
+    if (!SUPPLY_STYLES[style]) return { ok: false, reason: "unknown_style" };
+    hero.supplyStyle = style;
+  }
+  if (savePotions !== undefined) hero.savePotions = !!savePotions;
   return { ok: true, state: next };
 }
 

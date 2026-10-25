@@ -12,8 +12,9 @@
 import { mergeClasslessBattleResults } from "../combat/classlessBattleResults";
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import * as C from "../combat/config";
-import { ARROW_RECOVERY, CONSUMABLES, GEAR_SLOTS, PROVISIONS, heroArrowCount, heroUsesArrows } from "../combat/gear";
+import { ARROW_RECOVERY, CONSUMABLES, GEAR_SLOTS, PROVISIONS, crystalInfo, heroArrowCount, heroUsesArrows } from "../combat/gear";
 import { serializeGameState } from "../combat/heroModel";
+import { PET_MOD_LEVELS, PET_SPECIES, PET_XP_SHARE } from "../combat/pets";
 import { heroTraitEffects, partyRoadEffects, roadEffect } from "../combat/traits";
 import {
   ADVENTURE, LEGENDARY, NIGHT, RARE_EVENTS, STORIES, STORY_KEYS, WEATHER, clampMorale, conditionEffects, findLine, isNight,
@@ -22,9 +23,10 @@ import {
 import {
   buildBossEncounter, buildEndlessWave, buildLegendaryEncounter, buildStalkerEncounter, buildWildEncounter, describeSquad,
 } from "./encounters";
+import { awardPetXp, createPet, randomSpecies, takeInStray } from "./pets";
 import { developQualities, recordFight, recordHistory, sharedQualities } from "./qualities";
 import { combatEnvironment, getEnvironment, heroResistance, rollEnvironmentEvent } from "./environment";
-import { bankLoot, createGearItem, normalizeHeroGear, restockQuickSlots, tierMult } from "./items";
+import { bankLoot, createGearItem, normalizeHeroGear, randomCrystal, restockQuickSlots, tierMult } from "./items";
 import { legacyBonuses } from "./legacy";
 import { BOSS_RANK_SCALING, bossForRank, getRegion } from "./regions";
 import { simulateEncounter } from "./simulate";
@@ -565,6 +567,12 @@ function rareEvent(state, region, hero, at, rng) {
   } else if (kind === "legend") {
     const progress = 1 - (run.endsAt - at) / run.durationMs;
     startEncounter(state, region, at, buildLegendaryEncounter(region, progress, rng), false);
+  } else if (kind === "stray") {
+    // A creature that has been trailing the party, hoping for scraps.
+    const pet = createPet(randomSpecies(rng), rng);
+    const text = `A small ${PET_SPECIES[pet.species].name.toLowerCase()} has been following the party for a while, hoping for scraps.`;
+    addFeed(run, at, text, "story", true);
+    openPending(run, at, { kind: "story", story: "stray", text, pet });
   } else {
     const rarity = pick(["uncommon", "rare", "rare", "epic"], rng);
     const item = createGearItem({ slot: pick(GEAR_SLOTS, rng), rarity, tier: region.tier + 1 }, rng);
@@ -580,10 +588,11 @@ function findTreasure(state, region, at, rng) {
   const conditions = conditionEffects(run.weather, run.night, run.scouted);
   const gold = Math.round(randomBetween([40, 90], rng) * tierMult(region.tier) * conditions.loot);
   const item = createGearItem({ slot: pick(GEAR_SLOTS, rng), rarity: pick(["rare", "rare", "epic"], rng), tier: region.tier + 1 }, rng);
+  const crystal = randomCrystal(1, rng);
   run.loot.gold += gold;
-  run.loot.items.push(item);
+  run.loot.items.push(item, crystal);
   changeMorale(state, 10);
-  addFeed(run, at, `X marks the spot! The party digs up ${gold} gold and a ${item.name}!`, "loot", true);
+  addFeed(run, at, `X marks the spot! The party digs up ${gold} gold, a ${item.name} and a ${crystalInfo(crystal.key).fullName}!`, "loot", true);
 }
 
 function findSomething(state, region, hero, at, rng) {
@@ -764,7 +773,9 @@ function tendCamp(state, at) {
   }
   for (const hero of party) {
     if (hero.combat.hp / classlessMaxHp(hero) >= CAMP_BANDAGE_BELOW) continue;
-    const slot = (hero.quickSlots || []).find((entry) => CONSUMABLES[entry?.key]?.heal && entry.qty > 0);
+    // A hero saving potions for bosses only dresses wounds with bandages here.
+    const slot = (hero.quickSlots || []).find((entry) => CONSUMABLES[entry?.key]?.heal && entry.qty > 0 &&
+      !(entry.key === "potion" && hero.savePotions));
     if (!slot) continue;
     const item = CONSUMABLES[slot.key];
     slot.qty -= 1;
@@ -824,6 +835,12 @@ function applyEffects(state, region, effects, at, rng) {
   }
   if (effects.text) addFeed(run, at, effects.text, effects.ambush || effects.hurtAll ? "danger" : "story");
   if (effects.stalker) return answerStalker(state, region, effects.stalker, at, rng);
+  if (effects.adoptStray) {
+    const { pet } = run.pending;
+    addFeed(run, at, takeInStray(state, pet)
+      ? `${pet.name} the ${PET_SPECIES[pet.species].name.toLowerCase()} joins the guild. They'll wait in the kennel for a partner.`
+      : "There's no room in the kennel. The creature trots off, disappointed.", "good");
+  }
   if (effects.gamble) {
     // Greedy hands are unlucky ones.
     const outcome = rng() < effects.gamble.chance + roadEffect(road(state), "gambleLuck") ? effects.gamble.win : effects.gamble.lose;
@@ -904,9 +921,16 @@ function applyFightResult(state, region, { victory, party, xpGains, gold, items,
   // Quick-slot stacks spent in the fight come back on the runtime party. After
   // a win, the party picks up some of the plain arrows it fired.
   let recovered = 0;
-  for (const runtime of party) {
+  for (const [index, runtime] of party.entries()) {
     const saved = findHero(state, heroId(runtime));
     if (!saved) continue;
+    // Familiars learn alongside their partner.
+    if (saved.pet) {
+      for (const level of awardPetXp(saved.pet, (boostedXp[index] || 0) * PET_XP_SHARE)) {
+        const mod = PET_MOD_LEVELS.includes(level) ? " A new trick to choose on the Gear screen!" : "";
+        addFeed(run, at, `${saved.identity.name}'s ${PET_SPECIES[saved.pet.species].name.toLowerCase()} ${saved.pet.name} reaches level ${level}.${mod}`, "good", !!mod);
+      }
+    }
     saved.quickSlots = normalizeHeroGear(runtime).quickSlots;
     const spent = Math.floor((runtime.arrowsSpent?.arrows || 0) * ARROW_RECOVERY);
     if (victory && spent > 0) recovered += returnArrows(state, saved, spent);
@@ -983,7 +1007,10 @@ function applyFightResult(state, region, { victory, party, xpGains, gold, items,
     }
     run.loot.gold += bounty;
     state.clears[region.id] = (state.clears[region.id] || 0) + 1;
-    addFeed(run, at, `${region.name} conquered! +${bounty} gold bounty.`, "good");
+    // Every end boss leaves a Flawless crystal behind.
+    const crystal = randomCrystal(2);
+    run.loot.items.push(crystal);
+    addFeed(run, at, `${region.name} conquered! +${bounty} gold bounty and a ${crystalInfo(crystal.key).fullName}.`, "good");
     run.pending = null;
     completeExpedition(state, "victory", at);
     return;

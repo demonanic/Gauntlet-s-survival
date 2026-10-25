@@ -5,6 +5,7 @@ import { CONSUMABLES, heroArrowCount, heroUsesArrows } from "../combat/gear";
 import { heroStatus } from "./guild";
 import { gearScore } from "./items";
 import { canRetire } from "./legacy";
+import { pendingPetMods } from "./pets";
 import { REGIONS } from "./regions";
 
 // Archers carrying fewer arrows than this (stash included) get a warning.
@@ -17,6 +18,15 @@ const names = (heroes) => heroes.map((hero) => hero.identity.name).join(", ");
 export function guildHints(guild, now) {
   const hints = [];
   const home = guild.heroes.filter((hero) => heroStatus(guild, hero, now) !== "away");
+
+  const learner = home.find((hero) => hero.pet && pendingPetMods(hero.pet).length);
+  if (learner) {
+    hints.push({
+      id: `pet-${learner.identity.id}`,
+      text: `${learner.identity.name}'s familiar ${learner.pet.name} is ready to learn a new trick.`,
+      action: { kind: "gear", heroId: learner.identity.id, label: "Gear" },
+    });
+  }
 
   const unspent = home.filter((hero) => hero.progression.ap > 0 || hero.progression.sp > 0);
   if (unspent.length) {

@@ -73,6 +73,10 @@ export function createGuild() {
     vault: [],
     // Salvaged gear becomes essence, spent at the Reforge.
     essence: 0,
+    // Crystals waiting to be infused into gear sockets ({ "ember-1": 2 }).
+    crystals: {},
+    // Familiars without a partner (a paired pet lives on its hero: hero.pet).
+    kennel: [],
     stash: { ...STARTING_STASH },
     expedition: null,
     clears: {},

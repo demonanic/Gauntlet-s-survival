@@ -1,13 +1,15 @@
 import { useState } from "react";
 import {
   CONSUMABLE_KEYS, CONSUMABLES, GEAR_SETS, GEAR_SLOT_LABELS, GEAR_SLOTS, GEAR_STAT_LABELS, QUICK_SLOT_COUNT, SPECIAL_STAT_KEYS,
-  activeSetBonuses, heroGearStats, heroUsesArrows,
+  SUPPLY_STYLES,
+  activeSetBonuses, crystalFits, crystalInfo, heroGearStats, heroUsesArrows, itemSockets,
 } from "../combat/gear";
 import {
-  MAX_UPGRADE, formatGearStats, formatStatValue, gearStatDelta, heroCombatSummary, reforgeCost, upgradeCost,
+  EXTRACT_COST, MAX_UPGRADE, formatGearStats, formatStatValue, gearStatDelta, heroCombatSummary, reforgeCost, upgradeCost,
 } from "../game/items";
 import { heroQualities } from "../combat/traits";
 import { MAX_NAME_LENGTH, cleanHeroName } from "../game/guild";
+import FamiliarPanel from "./FamiliarPanel";
 import ItemDetails from "./ItemDetails";
 import { NeonButton } from "./ui";
 
@@ -51,6 +53,50 @@ function Qualities({ hero }) {
 
 const storyLine = (entry, hero) => entry.text.replace(/^NEW QUALITY: [^.]+\. /, "").replace(`${hero.identity.name} has grown into a `, "Grew into a ");
 
+// The sockets of an equipped item: infuse a crystal you own into an empty
+// one, or pull one back out for a little gold.
+function Sockets({ item, crystals, gold, onInfuse, onExtract }) {
+  const sockets = itemSockets(item);
+  if (!sockets) return <p className="mt-1 text-[10px] text-slate-500">No sockets. Uncommon and better gear has them.</p>;
+  const owned = Object.entries(crystals).filter(([id, count]) => count > 0 && crystalFits(item, crystalInfo(id)))
+    .map(([id, count]) => ({ ...crystalInfo(id), count }));
+  return (
+    <div className="mt-1 space-y-1 border-t border-white/10 pt-1" data-testid="sockets">
+      {Array.from({ length: sockets }, (_, index) => {
+        const crystal = crystalInfo(item.runes?.[index]);
+        if (crystal) {
+          return (
+            <div key={index} className="flex items-center justify-between gap-2">
+              <span style={{ color: crystal.color }}>◆ {crystal.fullName}: {crystal.desc}</span>
+              <NeonButton color="#94A3B8" disabled={gold < EXTRACT_COST * crystal.tier} onClick={() => onExtract(item.id, index)} data-testid={`extract-${index}`}>
+                Extract {EXTRACT_COST * crystal.tier}g
+              </NeonButton>
+            </div>
+          );
+        }
+        return (
+          <div key={index} className="flex flex-wrap items-center gap-1">
+            <span className="text-slate-500">◇ Empty socket</span>
+            {owned.length === 0 && <span className="text-slate-600">· no {item.slot === "weapon" ? "weapon" : "armor"} crystals (Market)</span>}
+            {owned.map((entry) => (
+              <button
+                key={entry.id}
+                type="button"
+                className="rounded border px-1.5 py-0.5"
+                style={{ borderColor: entry.color, color: entry.color }}
+                onClick={() => onInfuse(item.id, entry.id)}
+                data-testid={`infuse-${entry.id}`}
+              >
+                {entry.fullName.replace(" Crystal", "")} ×{entry.count}
+              </button>
+            ))}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // The hero's gear specials (resistances, lifesteal, ...) and active set bonuses.
 function GearSpecials({ hero }) {
   const gear = heroGearStats(hero);
@@ -71,7 +117,8 @@ function GearSpecials({ hero }) {
 
 // Per-hero gear sheet: seven gear slots plus two consumable quick slots.
 export default function HeroGear({
-  hero, vault, stash, gold, essence = 0, locked, onEquip, onUnequip, onLoadQuick, onUnloadQuick, onUpgrade, onReforge, onRename, onClose,
+  hero, vault, stash, gold, essence = 0, locked, onEquip, onUnequip, onLoadQuick, onUnloadQuick, onUpgrade, onReforge, onRename,
+  onSupplyStyle, crystals = {}, onInfuse, onExtract, kennel = [], onAssignPet, onUnassignPet, onChoosePetMod, onClose,
 }) {
   const [picking, setPicking] = useState(null); // { type: "gear", slot } | { type: "quick", index }
   const [renaming, setRenaming] = useState(null); // draft name while editing
@@ -142,12 +189,43 @@ export default function HeroGear({
           })}
         </div>
 
+        <h3 className="mt-3 font-display text-sm font-bold text-cyan-200">FAMILIAR</h3>
+        <FamiliarPanel
+          hero={hero}
+          kennel={kennel}
+          locked={locked}
+          onAssign={onAssignPet}
+          onUnassign={onUnassignPet}
+          onChooseMod={onChoosePetMod}
+        />
+
         <h3 className="mt-3 font-display text-sm font-bold text-cyan-200">QUICK SLOTS</h3>
         {heroUsesArrows(hero) && (
           <p className="font-mono-g text-[10px] text-slate-400">
             Bows fire arrows from the quick slots. With no arrows loaded, plain arrows are packed into a free slot at departure.
           </p>
         )}
+        <div className="mt-1 font-mono-g text-[10px]" data-testid="supply-style">
+          <div className="flex flex-wrap items-center gap-1">
+            <span className="text-slate-400">Heals:</span>
+            {Object.values(SUPPLY_STYLES).map((style) => (
+              <button
+                key={style.key}
+                type="button"
+                onClick={() => onSupplyStyle({ style: style.key })}
+                className={`rounded border px-1.5 py-0.5 ${(hero.supplyStyle || "balanced") === style.key ? "border-cyan-300 text-cyan-200" : "border-white/15 text-slate-400"}`}
+                data-testid={`supply-${style.key}`}
+              >
+                {style.name}
+              </button>
+            ))}
+            <label className="ml-1 flex items-center gap-1 text-slate-300">
+              <input type="checkbox" checked={!!hero.savePotions} onChange={(event) => onSupplyStyle({ savePotions: event.target.checked })} data-testid="save-potions" />
+              Save potions for bosses
+            </label>
+          </div>
+          <p className="text-slate-500">{(SUPPLY_STYLES[hero.supplyStyle] || SUPPLY_STYLES.balanced).desc}</p>
+        </div>
         <div className="mt-1 grid grid-cols-2 gap-1.5">
           {Array.from({ length: QUICK_SLOT_COUNT }, (_, index) => {
             const entry = quickSlots[index];
@@ -204,6 +282,9 @@ export default function HeroGear({
                 </div>
               )}
             </div>
+            {equipment[picking.slot] && (
+              <Sockets item={equipment[picking.slot]} crystals={crystals} gold={gold} onInfuse={onInfuse} onExtract={onExtract} />
+            )}
             {candidates.length === 0 && <p className="text-slate-500">No {GEAR_SLOT_LABELS[picking.slot].toLowerCase()} gear in the vault.</p>}
             <ul className="space-y-1">
               {candidates.map((item) => (

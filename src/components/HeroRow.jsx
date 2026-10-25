@@ -1,6 +1,7 @@
 import ClasslessHeroAvatar from "./ClasslessHeroAvatar";
 import { Bar, formatSeconds } from "./ui";
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
+import { PET_SPECIES } from "../combat/pets";
 import { heroQualities } from "../combat/traits";
 
 const STATUS_STYLE = {
@@ -40,6 +41,11 @@ export default function HeroRow({ hero, status, injuredUntil, now, selected, onS
               {quality.name}
             </span>
           ))}
+          {hero.pet && PET_SPECIES[hero.pet.species] && (
+            <span className="font-mono-g text-[10px]" style={{ color: PET_SPECIES[hero.pet.species].color }} data-testid="hero-pet">
+              + {hero.pet.name}
+            </span>
+          )}
           {(ap > 0 || sp > 0) && (
             <span className="font-mono-g text-[10px] text-yellow-300">{ap} AP · {sp} SP</span>
           )}

@@ -93,6 +93,32 @@ from the stash every time a party sets out.
   75% picked back up after a win). The Fletcher in the Market turns plain arrows into
   venom (poison), flame (burst and burn) or frost (slow) arrows.
 
+### Familiars
+
+Adopt a familiar in the Market (or take in a stray on the road) and pair it with a hero
+from their Gear screen. Familiars fight on their own and can't be hurt: a **Wolf** bites
+whatever its partner is fighting, a **Hawk** strikes from the air and marks prey (and
+spots ambushes on the road), an **Imp** sets foes alight, a **Sprite** heals its partner,
+and a **Stonebark Tortoise** guards and shields them. Each is born with a quality
+(Fierce, Quick, Loyal, Keen Nose, Lucky, Brave) and grows with its partner's fights; at
+levels 3, 6 and 9 you choose one of two new tricks.
+
+### Crystals
+
+Gear has sockets (more on rarer gear, one extra on weapons). Infuse crystals from the Gear
+screen: weapon crystals add **Ember** (burn), **Frost** (slow), **Venom** (poison),
+**Storm** (lightning that arcs to another foe), **Swiftness** or **Blood** (lifesteal);
+armor crystals add resistances (**Hearth**, **Tide**, **Purity**, **Dawn**), **Vigor** or
+**Stone**. Three of a kind fuse into the next tier (Chipped → Flawless → Radiant). Buy them
+in the Market; bosses, treasure and tough enemies drop them. Extract one for a little gold.
+
+### Supplies
+
+Heroes use quick-slot supplies on their own: bandages below 50% HP, potions below 30%,
+whetstones against elites and bosses, arrows every shot. Each hero's Gear screen sets
+their **supply style** (Cautious, Balanced, Thrifty) and whether to **save potions for
+bosses**.
+
 ### Environments
 
 Every region past the Gutter has harsh conditions that wear heroes down on the road and

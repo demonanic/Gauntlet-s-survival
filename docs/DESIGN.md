@@ -173,6 +173,37 @@ stash has one and their gear isn't already immune.
   them (16 characters max), may pick another look for free, or pays 25g for a different
   candidate. Recruit cost scales with the roster size, so retiring keeps it affordable.
 
+## Familiars (`src/combat/pets.js`, `src/game/pets.js`)
+
+Five species with a role: Wolf (melee hunter), Hawk (ranged, marks prey: its partner
+deals +10% to it; road: spot ambushes, stalkers), Imp (ranged, burn), Sprite (heals its
+partner 3% max HP every 3s; road: morale), Stonebark Tortoise (partner takes 6% less
+damage, 5% max HP shield every 8s). Pets can't be targeted. One quality at birth (Fierce,
+Quick, Loyal, Keen Nose, Lucky, Brave); levels 1–10 from 50% of their partner's fight XP;
+a choice of two mods at levels 3, 6 and 9. Attack damage grows 12% per pet level and 8%
+per partner level; kills count for the partner. A pet's road effects join its partner's
+(`heroRoadEffects`). Adopt in the Market (150–200g, 8 pets per guild) or take in a stray
+(a rare road event). Measured (`npm run scenarios -- --group companions`, plus a direct
+Bog Lich fight): pets help without dominating; wolves cut that boss fight ~22%, sprites
+leave the party at 58% HP instead of 33%.
+
+## Crystals (`CRYSTALS` in gear.js, items.js)
+
+Sockets: common 0, uncommon/rare 1, epic/legendary 2, +1 for weapons (max 2). Weapon
+crystals: Ember (burn), Frost (chill), Venom (poison 4s), Storm (shock: chance to arc 60%
+of the hit to a foe within 110 px), Swiftness (attack speed), Blood (lifesteal). Armor
+crystals: Hearth/Tide/Purity/Dawn (cold/heat/toxic/dark resistance), Vigor (max HP %),
+Stone (defense). Tiers Chipped/Flawless/Radiant; three fuse into one of the next tier.
+Infused crystals are part of `composeStats`. Sources: Market (45g Chipped), 1–12% of
+kills by tier, a Chipped one with every treasure map, a Flawless one from every end boss.
+Extracting costs 30g per tier and returns the crystal.
+
+## Supply styles
+
+`hero.supplyStyle` scales each healing item's threshold (Cautious ×1.3, Balanced ×1,
+Thrifty ×0.65); `hero.savePotions` keeps potions until an elite or boss is on the field
+(and at camp).
+
 ## Tutorial and hints (`src/game/tutorial.js`, `src/game/hints.js`)
 
 - **Tutorial:** ten steps (`TUTORIAL_STEPS`), each pointing at an element by CSS selector

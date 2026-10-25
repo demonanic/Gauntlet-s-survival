@@ -17,7 +17,7 @@ export const QUICK_SLOT_COUNT = 2;
 export const CORE_STAT_KEYS = Object.freeze(["attack", "defense", "maxHp", "agility", "critChance"]);
 export const SPECIAL_STAT_KEYS = Object.freeze([
   "damageBonus", "healthBonus", "attackSpeed", "critDamage", "lifesteal", "thorns", "regen", "goldFind",
-  "arrowSaver", "chill", "burn", "cleave", "volley", "revive", "blastWard",
+  "arrowSaver", "chill", "burn", "venom", "shock", "cleave", "volley", "revive", "blastWard",
   "darkResist", "coldResist", "heatResist", "toxicResist",
 ]);
 export const GEAR_STAT_KEYS = Object.freeze([...CORE_STAT_KEYS, ...SPECIAL_STAT_KEYS]);
@@ -26,6 +26,7 @@ export const GEAR_STAT_LABELS = Object.freeze({
   attack: "ATK", defense: "DEF", maxHp: "HP", agility: "AGI", critChance: "CRIT",
   damageBonus: "DMG", healthBonus: "MAX HP", attackSpeed: "ATK SPD", critDamage: "CRIT DMG", lifesteal: "LIFESTEAL",
   thorns: "THORNS", regen: "REGEN", goldFind: "GOLD FIND", arrowSaver: "ARROW SAVE", chill: "CHILL", burn: "BURN",
+  venom: "VENOM", shock: "SHOCK",
   cleave: "CLEAVE", volley: "VOLLEY", revive: "REVIVE", blastWard: "BLAST WARD",
   darkResist: "DARK RES", coldResist: "COLD RES", heatResist: "HEAT RES", toxicResist: "TOXIC RES",
 });
@@ -34,6 +35,46 @@ export const GEAR_STAT_LABELS = Object.freeze({
 export const PERCENT_STATS = new Set(GEAR_STAT_KEYS.filter((key) => !["attack", "defense", "maxHp", "agility", "regen", "volley"].includes(key)));
 
 export const RESIST_KEYS = Object.freeze(["darkResist", "coldResist", "heatResist", "toxicResist"]);
+
+// Crystals are infused into gear sockets. Weapon crystals give attacks an
+// element or an edge; armor crystals (every other slot) protect. Three of a
+// kind fuse into the next tier. `values` are per tier: Chipped, Flawless, Radiant.
+export const CRYSTAL_TIERS = Object.freeze(["Chipped", "Flawless", "Radiant"]);
+export const CRYSTALS = Object.freeze({
+  ember: Object.freeze({ key: "ember", name: "Ember", kind: "weapon", stat: "burn", values: [0.12, 0.2, 0.3], color: "#FF6600", desc: "Hits set foes ablaze." }),
+  frost: Object.freeze({ key: "frost", name: "Frost", kind: "weapon", stat: "chill", values: [0.1, 0.16, 0.24], color: "#7DD3FC", desc: "Hits slow foes down." }),
+  venom: Object.freeze({ key: "venom", name: "Venom", kind: "weapon", stat: "venom", values: [0.15, 0.25, 0.38], color: "#39FF14", desc: "Hits poison foes over 4 seconds." }),
+  storm: Object.freeze({ key: "storm", name: "Storm", kind: "weapon", stat: "shock", values: [0.12, 0.2, 0.3], color: "#FDE047", desc: "Hits may arc lightning to another foe." }),
+  swift: Object.freeze({ key: "swift", name: "Swiftness", kind: "weapon", stat: "attackSpeed", values: [0.04, 0.07, 0.1], color: "#22D3EE", desc: "Faster attacks." }),
+  blood: Object.freeze({ key: "blood", name: "Blood", kind: "weapon", stat: "lifesteal", values: [0.03, 0.05, 0.08], color: "#FF2A5F", desc: "Hits heal the wielder." }),
+  hearth: Object.freeze({ key: "hearth", name: "Hearth", kind: "armor", stat: "coldResist", values: [0.15, 0.25, 0.4], color: "#FB923C", desc: "Keeps the cold out." }),
+  tide: Object.freeze({ key: "tide", name: "Tide", kind: "armor", stat: "heatResist", values: [0.15, 0.25, 0.4], color: "#38BDF8", desc: "Cools burning heat." }),
+  purity: Object.freeze({ key: "purity", name: "Purity", kind: "armor", stat: "toxicResist", values: [0.15, 0.25, 0.4], color: "#A3E635", desc: "Wards off toxins." }),
+  dawn: Object.freeze({ key: "dawn", name: "Dawn", kind: "armor", stat: "darkResist", values: [0.15, 0.25, 0.4], color: "#FDE68A", desc: "Lights the dark." }),
+  vigor: Object.freeze({ key: "vigor", name: "Vigor", kind: "armor", stat: "healthBonus", values: [0.04, 0.07, 0.1], color: "#F472B6", desc: "More max HP." }),
+  stone: Object.freeze({ key: "stone", name: "Stone", kind: "armor", stat: "defense", values: [4, 8, 13], color: "#A8A29E", desc: "More defense." }),
+});
+export const CRYSTAL_KEYS = Object.freeze(Object.keys(CRYSTALS));
+
+// A crystal in the stash or a socket is "type-tier", e.g. "ember-2".
+export function crystalInfo(id) {
+  const [key, tierText] = String(id).split("-");
+  const crystal = CRYSTALS[key];
+  const tier = Number(tierText);
+  if (!crystal || !(tier >= 1 && tier <= CRYSTAL_TIERS.length)) return null;
+  return { ...crystal, id, tier, value: crystal.values[tier - 1], fullName: `${CRYSTAL_TIERS[tier - 1]} ${crystal.name} Crystal` };
+}
+
+// Sockets an item has, by rarity; weapons get one more than armor.
+const SOCKETS = Object.freeze({ common: 0, uncommon: 1, rare: 1, epic: 2, legendary: 2 });
+export function itemSockets(item) {
+  if (!item || item.kind !== "gear") return 0;
+  return Math.min(2, (SOCKETS[item.rarity] || 0) + (item.slot === "weapon" ? 1 : 0));
+}
+
+export function crystalFits(item, crystal) {
+  return !!crystal && (crystal.kind === "weapon") === (item.slot === "weapon");
+}
 
 // Gear sets: pieces drop in their home region. Wearing 2 or 4 pieces of one
 // set adds its bonuses on top of the pieces' own stats.
@@ -128,6 +169,19 @@ export const PROVISION_KEYS = Object.freeze(Object.keys(PROVISIONS));
 
 // Everything the stash can hold.
 export const STASH_KEYS = Object.freeze([...CONSUMABLE_KEYS, ...PROVISION_KEYS]);
+
+// How readily a hero reaches for bandages and potions in battle: each item's
+// autoBelowHp threshold is multiplied by the style's `scale`.
+export const SUPPLY_STYLES = Object.freeze({
+  cautious: Object.freeze({ key: "cautious", name: "Cautious", desc: "Patches up early (bandage below 65% HP, potion below 39%).", scale: 1.3 }),
+  balanced: Object.freeze({ key: "balanced", name: "Balanced", desc: "Bandage below 50% HP, potion below 30%.", scale: 1 }),
+  thrifty: Object.freeze({ key: "thrifty", name: "Thrifty", desc: "Makes supplies last (bandage below 33% HP, potion below 20%).", scale: 0.65 }),
+});
+
+// The HP share below which a hero uses a healing item, by their supply style.
+export function healThreshold(hero, item) {
+  return item.autoBelowHp * (SUPPLY_STYLES[hero?.supplyStyle] || SUPPLY_STYLES.balanced).scale;
+}
 
 // Shared per-hero cooldown between quick-slot uses, in seconds.
 export const QUICK_ITEM_COOLDOWN = 4;
