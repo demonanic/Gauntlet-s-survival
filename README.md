@@ -90,8 +90,9 @@ from the stash every time a party sets out.
   per fight) or Heart of the Mountain (immune to every environment).
 - **Forge, Salvage, Reforge:** upgrade gear with gold; break spare gear down into essence;
   spend essence to reroll an item's affixes.
-- **Arrows:** bows can't shoot without arrows in a quick slot (stacks of 50, one per shot,
-  75% picked back up after a win). The Fletcher in the Market turns plain arrows into
+- **Arrows:** bows can't shoot without arrows in a quick slot (stacks of 100, one per shot,
+  75% picked back up after a win). A long boss fight can eat a whole stack, so archers
+  heading for the Blightmire want two. The Fletcher in the Market turns plain arrows into
   venom (poison), flame (burst and burn) or frost (slow) arrows.
 
 ### Familiars
@@ -130,6 +131,21 @@ handicap them in battle: Darkness (missed attacks, more ambushes), Bitter Cold (
 slower attacks), Scorching Heat (burns) and Toxic Miasma (poison, halved healing). Counter
 them with resistance gear, or buy provisions in the Market (Torches, Warming Draughts,
 Cooling Salves, Antitoxins): each hero packs one when the party sets out.
+
+### How heroes fight on their own
+
+Swords close in and hit hardest. Bows and staves shoot from range: when an enemy gets up
+close, a ranged hero backpedals while it reloads (a step, not a sprint, so fast enemies
+still catch it). Every hero on auto steps out from under a boss's lobbed bomb or bile
+when it's about to land (the landing spot is marked). Taking manual control of a hero
+turns all of that off: it stays exactly where you put it.
+
+### Difficulty
+
+The game is meant to be beatable, not won every time. A full party of four arriving at a
+region's minimum level in plain gear a tier below the region wins roughly 70% of trips if
+you leave it alone; good play (abilities, moving heroes, picking fights) and better gear
+push that up. Smaller parties have a much harder time.
 
 ### Enemies
 

@@ -150,6 +150,18 @@ const ENDLESS_WAVE_BREAK_SECONDS = 3;
 const BULWARK_COVER = 0.5;
 const BULWARK_GUARD = 0.1;
 const BULWARK_GUARD_RADIUS = 60;
+// Ranged heroes on auto back away from an enemy whose body is within
+// KITE_RANGE, for the first KITE_WINDOW of each reload, at KITE_SPEED of their
+// normal pace (a backpedal, not a sprint: fast enemies still catch them),
+// staying KITE_MARGIN from the field's edges.
+const KITE_RANGE = 45;
+const KITE_WINDOW = 0.4;
+const KITE_SPEED = 0.5;
+const KITE_MARGIN = 18;
+// Heroes on auto notice a lobbed bomb this many seconds before it lands and
+// try to get this far outside its blast.
+const DODGE_WARNING = 0.8;
+const DODGE_CLEARANCE = 8;
 // Sappers sheltering behind a Bulwark break cover inside this range.
 const SAPPER_SPRINT_RANGE = 110;
 const ENEMY_BODY_RADIUS = (e) => (e.boss ? 29 : e.tier === "elite" ? 20 : 14);
@@ -1472,6 +1484,9 @@ export class Engine {
         continue;
       }
 
+      // Heroes on auto step out from under a lobbed bomb or bile about to land.
+      if (h.classless && !h.manual && this._dodgeBlast(h, dt)) continue;
+
       const alertEnemy = this._nearestEnemy(h.x, h.y, 300);
       const nearbyAutoTarget = this._nearestEnemy(h.x, h.y, 220);
       const shouldReactToCastle = reactiveActive && h.reactiveReason === "castle";
@@ -1531,9 +1546,14 @@ export class Engine {
             h.cd = h.d.rate;
           }
         } else if (!h.manual) this._returnHome(h, dt);
-      } else if (h.cd <= 0 && target && Math.hypot(target.x - h.x, target.y - h.y) <= h.d.range) {
-        this._fire("H" + h.i, h, target, h.d, true);
-        h.cd = h.d.rate;
+      } else {
+        // Ranged heroes on auto keep their distance: while reloading, they
+        // step away from an enemy closing in, then turn and shoot.
+        if (h.classless && !h.manual && h.cd > h.d.rate * (1 - KITE_WINDOW) && this._kite(h, dt)) continue;
+        if (h.cd <= 0 && target && Math.hypot(target.x - h.x, target.y - h.y) <= h.d.range) {
+          this._fire("H" + h.i, h, target, h.d, true);
+          h.cd = h.d.rate;
+        }
       }
     }
     for (const h of this.heroes) {
@@ -2193,6 +2213,52 @@ export class Engine {
       e.hp = 0;
       this.killed += 1;
     }
+  }
+
+  // A lobbed bomb about to land on `h` (its landing point is fixed when it is
+  // thrown): step directly away from that point. Returns true if it moved.
+  _dodgeBlast(h, dt) {
+    const blast = this.projectiles.find((p) => p.kind === "napalm" && !p.dead &&
+      Math.hypot(p.tx - p.x, p.ty - p.y) / p.spd <= DODGE_WARNING &&
+      Math.hypot(h.x - p.tx, h.y - p.ty) < (p.splash || 68) + DODGE_CLEARANCE);
+    if (!blast) return false;
+    const dist = Math.hypot(h.x - blast.tx, h.y - blast.ty);
+    // Dead centre: pick a side.
+    const ux = dist > 1 ? (h.x - blast.tx) / dist : (h.x < W / 2 ? 1 : -1);
+    const uy = dist > 1 ? (h.y - blast.ty) / dist : 0;
+    const step = heroMovementSpeed(h, 155, this.time) * dt;
+    h.x = Math.max(KITE_MARGIN, Math.min(W - KITE_MARGIN, h.x + ux * step));
+    h.y = Math.max(KITE_MARGIN, Math.min(FLOOR_Y - KITE_MARGIN, h.y + uy * step));
+    return true;
+  }
+
+  // Step a ranged hero away from the nearest enemy inside KITE_RANGE (its
+  // body edge), sliding along the field's edges. Returns true if it moved.
+  _kite(h, dt) {
+    let threat = null;
+    let closest = Infinity;
+    for (const enemy of this.active) {
+      if (enemy.hp <= 0) continue;
+      const gap = Math.hypot(enemy.x - h.x, enemy.y - h.y) - ENEMY_BODY_RADIUS(enemy);
+      if (gap < closest) { closest = gap; threat = enemy; }
+    }
+    if (!threat || closest > KITE_RANGE) return false;
+    const dist = Math.hypot(h.x - threat.x, h.y - threat.y) || 1;
+    const step = heroMovementSpeed(h, 155, this.time) * KITE_SPEED * dt;
+    const clampX = (x) => Math.max(KITE_MARGIN, Math.min(W - KITE_MARGIN, x));
+    const clampY = (y) => Math.max(KITE_MARGIN, Math.min(FLOOR_Y - KITE_MARGIN, y));
+    let nx = clampX(h.x + ((h.x - threat.x) / dist) * step);
+    let ny = clampY(h.y + ((h.y - threat.y) / dist) * step);
+    // Backed against a wall: slide sideways toward the open middle instead.
+    if (Math.hypot(nx - h.x, ny - h.y) < step * 0.5) {
+      const side = h.x < W / 2 ? 1 : -1;
+      nx = clampX(h.x + side * step);
+      ny = h.y;
+    }
+    if (Math.hypot(nx - h.x, ny - h.y) < step * 0.25) return false;
+    h.x = nx;
+    h.y = ny;
+    return true;
   }
 
   // The nearest hero outside a boss's melee reach, within `range`.
@@ -3575,6 +3641,14 @@ export class Engine {
         }
       }
       if (p.kind === "napalm") {
+        // Where it will land.
+        ctx.save();
+        ctx.globalAlpha = 0.35;
+        ctx.strokeStyle = "#FF6600";
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash?.([4, 4]);
+        ctx.beginPath(); ctx.arc(p.tx, p.ty, p.splash || 68, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
         ctx.shadowBlur = 18; ctx.shadowColor = "#FF6600";
         ctx.fillStyle = "#FF6600";
         ctx.beginPath();
