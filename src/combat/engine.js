@@ -142,6 +142,10 @@ function heroMovementSpeed(hero, legacyBase, currentTime, applyLegacyModifiers =
 
 const LANES = 5;
 const ENDLESS_WAVE_BREAK_SECONDS = 3;
+// Enemy body radii for collisions (bosses and elites need more room).
+const ENEMY_BODY_RADIUS = (e) => (e.boss ? 29 : e.tier === "elite" ? 20 : 14);
+// Heroes this close to a boss are in melee with it: it won't lob bombs at them.
+const BOSS_MELEE_REACH = 90;
 function laneX(i) { return (W / LANES) * (i + 0.5); }
 
 export const LAYOUT = { W, H, HERO_Y, FLOOR_Y };
@@ -1500,7 +1504,7 @@ export class Engine {
       if (melee) {
         if (target) {
           const dist = Math.hypot(target.x - h.x, target.y - h.y) || 1;
-          if (dist > h.d.range - 6) {
+          if (dist > this._meleeReach(h, target)) {
             const spd = heroMovementSpeed(h, 155, this.time, true) * dt;
             h.x += ((target.x - h.x) / dist) * Math.min(spd, dist);
             h.y += ((target.y - h.y) / dist) * Math.min(spd, dist);
@@ -1595,6 +1599,9 @@ export class Engine {
       if (e.abilityCd <= 0) {
         const range = e.attackRange || 420;
         const target = this._nearestDefender(e.x, e.y, range);
+        // Gauntlet: bombs and bile are lobbed at heroes keeping their distance;
+        // heroes in melee face the boss's own attacks instead.
+        const lobTarget = this._lobTarget(e, range);
         if (e.type === "nuclearBehemoth") {
           // Toxic slam: no minions, heavy damage to every hero close by.
           if (this._nearestDefender(e.x, e.y, 110)) {
@@ -1616,7 +1623,7 @@ export class Engine {
           e.abilityCd = 7;
           this._healAllies(e, 250, 0.12);
           this._raiseFallen(e, 250, 2);
-          this._throwNapalm(e, target);
+          if (lobTarget) this._throwNapalm(e, lobTarget);
         } else if (target) {
           if (e.type === "imperialNecromancer") {
             // Raise dead: a larger, slower pack of minions, plus a soul bomb.
@@ -1627,7 +1634,7 @@ export class Engine {
             e.abilityCd = 6;
             for (let k = 0; k < 2; k++) this._summon("skeleton");
           }
-          this._throwNapalm(e, target);
+          if (lobTarget) this._throwNapalm(e, lobTarget);
         } else {
           e.abilityCd = 1;
         }
@@ -2005,6 +2012,21 @@ export class Engine {
       e.hp = 0;
       this.killed += 1;
     }
+  }
+
+  // The nearest hero outside a boss's melee reach, within `range`.
+  _lobTarget(e, range) {
+    let best = null;
+    let bestDistance = range;
+    for (const h of this.heroes) {
+      if (!h.alive || this._isHeroUntargetable(h)) continue;
+      const d = Math.hypot(h.x - e.x, h.y - e.y);
+      if (d >= BOSS_MELEE_REACH && d <= bestDistance) {
+        bestDistance = d;
+        best = { kind: "hero", obj: h };
+      }
+    }
+    return best;
   }
 
   _nearestDefender(x, y, range) {
@@ -3033,11 +3055,18 @@ export class Engine {
     return this._nearestHeroEntity(enemy.x, enemy.y, 30) === hero;
   }
 
+  // How close a melee hero must be to strike: weapon range, measured from the
+  // edge of the target's body (collisions keep heroes outside it), so big
+  // bosses and elites can be hit too.
+  _meleeReach(h, target) {
+    return h.d.range - 6 + Math.max(0, ENEMY_BODY_RADIUS(target) - ENEMY_BODY_RADIUS({}));
+  }
+
   _resolveUnitCollisions() {
     // These are gameplay body radii, not the full glow/weapon-art bounds.
     // Bosses and elites need more room than basic units.
     const heroRadius = 15;
-    const enemyRadius = (e) => e.boss ? 29 : e.tier === "elite" ? 20 : 14;
+    const enemyRadius = ENEMY_BODY_RADIUS;
     const livingHeroes = this.heroes.filter((h) => h.alive);
     const livingEnemies = this.active.filter((e) => e.hp > 0);
 
@@ -3093,9 +3122,11 @@ export class Engine {
         h.x = Math.max(heroRadius, Math.min(W - heroRadius, h.x));
         h.y = Math.max(18, Math.min(FLOOR_Y - 8, h.y));
       }
+      // Enemies stay on the field: heroes crowding a boss can't shove it out of reach.
       for (const e of livingEnemies) {
         const r = enemyRadius(e);
         e.x = Math.max(r, Math.min(W - r, e.x));
+        e.y = Math.max(r * 0.5, Math.min(FLOOR_Y - r, e.y));
       }
     }
   }

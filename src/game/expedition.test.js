@@ -176,15 +176,25 @@ describe("timed expeditions", () => {
     expect(home.clears.gutter).toBe(1);
   });
 
+  test("encounters come often: never more than a few quiet events in a row", () => {
+    let state = gutterRun(() => 0.05); // every roll lands on flavor
+    for (let index = 0; index < ADVENTURE.maxQuietEvents; index += 1) {
+      state = tick(state, state.expedition.nextEventAt, { interactive: true, rng: () => 0.05 });
+      expect(state.expedition.pending).toBeNull();
+    }
+    state = tick(state, state.expedition.nextEventAt, { interactive: true, rng: () => 0.05 });
+    expect(["sighting", "ambush"]).toContain(state.expedition.pending?.kind);
+  });
+
   test("the party patches up slowly between events, but not while a prompt holds it", () => {
     let state = gutterRun(() => 0.999); // first event at 40s
     state.heroes[0].traits = [];
     state.heroes[0].combat.hp = 100;
     state = tick(state, T0 + 30_000, { interactive: true });
-    expect(state.heroes[0].combat.hp).toBeCloseTo(110, 0); // 300 max HP / 900 per second x 30s
+    expect(state.heroes[0].combat.hp).toBeCloseTo(120, 0); // 300 max HP / 450 per second x 30s
     withPendingFight(state, T0 + 30_000);
     state = tick(state, T0 + 90_000, { interactive: true });
-    expect(state.heroes[0].combat.hp).toBeCloseTo(110, 0);
+    expect(state.heroes[0].combat.hp).toBeCloseTo(120, 0);
   });
 
   test("an unattended party heads home after a fight leaves it badly hurt", () => {
@@ -303,6 +313,41 @@ describe("world events", () => {
     expect(rollBanter(hero, 50, () => 0)).toBeNull();
     expect(rollBanter(hero, 90, () => 0).text).toMatch(/grinning|marching/);
     expect(rollBanter(hero, 10, () => 0).morale).toBe(-2);
+  });
+
+  test("at camp, fallen heroes come around weak, and the badly hurt use a bandage", () => {
+    const state = plainGuild();
+    state.heroes[0].progression.level = 3;
+    let run = startExpedition(state, "boneyard", ids(state), T0, () => 0.999).state;
+    run.expedition.nextEventAt = T0 + 20 * MINUTE; // nothing else happens first
+    run.expedition.campAt = T0 + 5_000; // camp right away, before natural healing adds up
+    const [fallen, hurt, healthy] = run.heroes;
+    fallen.combat.hp = 0;
+    hurt.combat.hp = Math.round(classlessMaxHp(hurt) * 0.2);
+    hurt.quickSlots = [{ key: "bandage", qty: 2 }, null];
+    healthy.quickSlots = [{ key: "bandage", qty: 2 }, null];
+    run = tick(run, T0 + 5_000, { interactive: true });
+    const [up, patched, fine] = run.heroes;
+    expect(up.combat.hp).toBe(Math.round(classlessMaxHp(up) * 0.1));
+    expect(patched.quickSlots[0].qty).toBe(1);
+    expect(patched.combat.hp).toBeGreaterThan(Math.round(classlessMaxHp(patched) * 0.35));
+    expect(fine.quickSlots[0].qty).toBe(2);
+    expect(run.expedition.feed.some((entry) => /comes? around/.test(entry.text))).toBe(true);
+  });
+
+  test("a second chance revives a beaten party instead of ending the trip", () => {
+    const fresh = plainGuild();
+    let state = startExpedition(fresh, "gutter", [fresh.heroes[0].identity.id], T0, sightingRng, { revives: 1 }).state;
+    state = withPendingFight(state, T0 + 1000, "ambush");
+    const beaten = currentEncounterParty(state).map((hero) => ({ ...hero, combat: { ...hero.combat, hp: 0 } }));
+    const saved = resolveEncounter(state, { victory: false, party: beaten, xpGains: {}, gold: 0, items: [] }, T0 + 2000).state;
+    expect(saved.expedition).not.toBeNull();
+    expect(saved.expedition.revives).toBe(0);
+    expect(saved.heroes[0].combat.hp).toBe(Math.round(classlessMaxHp(saved.heroes[0]) * 0.5));
+    const again = withPendingFight(saved, T0 + 3000, "ambush");
+    const lost = resolveEncounter(again, { victory: false, party: beaten, xpGains: {}, gold: 0, items: [] }, T0 + 4000).state;
+    expect(lost.expedition).toBeNull();
+    expect(lost.lastReport.outcome).toBe("retreat");
   });
 
   test("long trips make camp halfway; scouting improves sneak odds and foraging finds supplies", () => {
