@@ -6,6 +6,7 @@ import { paletteForShift } from "../combat/heroPalette";
 import { rollTrait, TRAITS } from "../combat/traits";
 import { bankLoot, migrateVaultItem, normalizeHeroGear } from "./items";
 import { normalizeQualityFields } from "./qualities";
+import { normalizeTutorial } from "./tutorial";
 import { STASH_KEYS } from "../combat/gear";
 
 const STORAGE_KEY = "gauntlet.save.v1";
@@ -55,6 +56,7 @@ export function parseGuild(parsed) {
     vault: (Array.isArray(parsed.vault) ? parsed.vault : []).map(migrateVaultItem).filter(Boolean),
     stash: parsed.stash ? stash : base.stash,
     essence: Math.max(0, Math.floor(Number(parsed.essence) || 0)),
+    tutorial: normalizeTutorial(parsed.tutorial),
     legacy: { ...emptyLegacy(), ...(parsed.legacy && typeof parsed.legacy === "object" ? parsed.legacy : {}) },
   };
   state.candidate = parsed.candidate?.trait && TRAITS[parsed.candidate.trait] ? parsed.candidate : rollCandidate(state);

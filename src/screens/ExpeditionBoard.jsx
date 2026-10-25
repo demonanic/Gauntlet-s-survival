@@ -97,7 +97,7 @@ export default function ExpeditionBoard({ guild, now, onLaunch }) {
           ))}
         </div>
       </Panel>
-      <Panel>
+      <Panel data-testid="party-panel">
         <div className="mb-2 flex items-center justify-between">
           <h2 className="font-display text-base font-bold text-cyan-200">PARTY · {selected.length}/{MAX_PARTY_SIZE}</h2>
           <NeonButton

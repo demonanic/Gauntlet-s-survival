@@ -5,6 +5,8 @@ import DebugPanel from "./components/DebugPanel";
 import CloudSync from "./components/CloudSync";
 import RecruitDialog from "./components/RecruitDialog";
 import ExpeditionPanel from "./components/ExpeditionPanel";
+import GuildHints from "./components/GuildHints";
+import TutorialOverlay from "./components/TutorialOverlay";
 import HeroGear from "./components/HeroGear";
 import { NeonButton, Panel } from "./components/ui";
 import { allocateClasslessStat, purchaseClasslessNode } from "./combat/classlessProgression";
@@ -19,7 +21,11 @@ import {
 } from "./game/items";
 import { buyShopItem, rerollShop } from "./game/shop";
 import { isDebugMode } from "./game/debug";
+import { guildHints } from "./game/hints";
 import { getRegion } from "./game/regions";
+import {
+  advanceTutorial, currentStep, nextTutorialStep, restartTutorial, skipTutorial, tutorialActive,
+} from "./game/tutorial";
 import { clearGuild, loadGuild, saveGuild } from "./game/storage";
 import Battle from "./screens/Battle";
 import ExpeditionBoard from "./screens/ExpeditionBoard";
@@ -43,7 +49,18 @@ export default function App() {
   const [perkHeroId, setPerkHeroId] = useState(null);
   const [gearHeroId, setGearHeroId] = useState(null);
   const [recruiting, setRecruiting] = useState(false);
+  const [hintsHidden, setHintsHidden] = useState(false);
   const notifications = useAdventureNotifications(guild);
+
+  // The tutorial moves on as soon as the player has done what a step asks.
+  const tutorialStep = currentStep(guild);
+  useEffect(() => {
+    setGuild((current) => advanceTutorial(current, { tab, gearOpen: !!gearHeroId, inBattle }));
+  }, [guild, tab, gearHeroId, inBattle]);
+  // A step that lives on another tab brings the player there.
+  useEffect(() => {
+    if (tutorialStep?.tab) setTab(tutorialStep.tab);
+  }, [tutorialStep?.id]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -104,6 +121,19 @@ export default function App() {
         ))}
       </nav>
 
+      {tab === "hall" && !tutorialActive(guild) && !hintsHidden && (
+        <div className="mb-3">
+          <GuildHints
+            hints={guildHints(guild, now)}
+            onDismiss={() => setHintsHidden(true)}
+            onAct={(action) => {
+              if (action.kind === "perks") setPerkHeroId(action.heroId);
+              else if (action.kind === "gear") setGearHeroId(action.heroId);
+              else setTab(action.tab);
+            }}
+          />
+        </div>
+      )}
       {tab === "hall" && (
         <GuildHall
           guild={guild}
@@ -138,12 +168,21 @@ export default function App() {
         <ExpeditionBoard
           guild={guild}
           now={now}
-          onLaunch={(regionId, heroIds) => apply((current) => startExpedition(current, regionId, heroIds, Date.now()))}
+          onLaunch={(regionId, heroIds) => apply((current) =>
+            startExpedition(current, regionId, heroIds, Date.now(), Math.random, { tutorial: tutorialActive(current) }))}
         />
       )}
 
       <footer className="mt-6 flex flex-col items-center gap-2 text-center">
         <NotificationToggle state={notifications} />
+        <button
+          type="button"
+          className="font-mono-g text-[10px] text-slate-500 underline"
+          onClick={() => { setGuild((current) => restartTutorial(current)); setTab("hall"); }}
+          data-testid="tutorial-replay"
+        >
+          Replay tutorial
+        </button>
         <button
           type="button"
           className="font-mono-g text-[10px] text-slate-600 underline"
@@ -226,6 +265,14 @@ export default function App() {
         />
       )}
       {DEBUG && <DebugPanel guild={guild} apply={apply} />}
+      {tutorialStep && (
+        <TutorialOverlay
+          step={tutorialStep}
+          index={guild.tutorial.step}
+          onNext={() => setGuild((current) => nextTutorialStep(current))}
+          onSkip={() => setGuild((current) => skipTutorial(current))}
+        />
+      )}
     </div>
   );
 }

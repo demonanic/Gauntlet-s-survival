@@ -68,6 +68,9 @@ const STALKER_STRIKE_PARTY_HP = 0.55;
 const STALKER_POUNCE = 0.12;
 // Share of max HP each hero recovers just before the end boss.
 const BOSS_BREATHER_HEAL = 0.3;
+// The tutorial trip's first event: this soon, and an easy sighting.
+const TUTORIAL_FIRST_EVENT_MS = 6_000;
+
 // Fallen heroes come around at camp with this share of max HP; heroes below
 // CAMP_BANDAGE_BELOW use a healing item from their quick slots there.
 const CAMP_REVIVE_HP = 0.1;
@@ -143,7 +146,9 @@ function heal(hero, fraction) {
 // `options.revives`: second chances for the trip (a lost fight revives the
 // party instead of ending it). Nothing in the game grants them yet; the
 // balance scenarios use them to model revive items or ad revives.
-export function startExpedition(state, regionId, heroIds, now, rng = Math.random, { revives = 0 } = {}) {
+// `options.tutorial`: the tutorial's first trip, whose first event comes
+// quickly and is an easy encounter that waits for the player.
+export function startExpedition(state, regionId, heroIds, now, rng = Math.random, { revives = 0, tutorial = false } = {}) {
   const region = getRegion(regionId);
   if (!region) return { ok: false, reason: "unknown_region" };
   if (state.expedition) return { ok: false, reason: "expedition_active" };
@@ -183,9 +188,11 @@ export function startExpedition(state, regionId, heroIds, now, rng = Math.random
     // Heroes carrying a provision against the region's environment.
     packed: [],
     revives: Math.max(0, Math.floor(revives)),
+    tutorial: !!tutorial && !region.endless,
     outcome: null,
   };
   next.expedition = run;
+  if (run.tutorial) run.nextEventAt = now + TUTORIAL_FIRST_EVENT_MS;
   addFeed(run, now, `The party sets out for ${region.name}.`, "good");
   const unarmed = restockQuickSlots(next, ids);
   for (const name of unarmed) addFeed(run, now, `${name} has no arrows and can't use their bow! Buy some in the Market.`, "danger");
@@ -259,6 +266,7 @@ function restAtGuild(state, now) {
 
 function shouldDecideAlone(pending, now, interactive) {
   if (pending.engagedAt != null) return now - pending.engagedAt >= ADVENTURE.engagedTimeoutMs;
+  if (pending.patient && interactive) return false;
   return !interactive || now - pending.promptAt >= ADVENTURE.autoDecideMs;
 }
 
@@ -352,6 +360,10 @@ function runEvent(state, region, at, rng) {
   changeMorale(state, (settle - run.morale) * ADVENTURE.moraleDrift + conditions.moralePerEvent);
   if (run.morale < 30 && roadEffect(qualities, "moraleWhenLow")) changeMorale(state, roadEffect(qualities, "moraleWhenLow"));
   if (stalkerTurn(state, region, at, rng)) return;
+  if (run.tutorial) {
+    tutorialEncounter(state, region, at, rng);
+    return;
+  }
   const hero = pick(party, rng);
   const environment = getEnvironment(region);
   const weights = {
@@ -403,6 +415,16 @@ function runEvent(state, region, at, rng) {
   } else {
     openStory(state, at, pick(STORY_KEYS, rng), rng);
   }
+}
+
+// The tutorial's first encounter: a small squad, spotted in time (never an
+// ambush), and the prompt waits for the player however long they take.
+function tutorialEncounter(state, region, at, rng) {
+  const run = state.expedition;
+  run.tutorial = false;
+  const wave = buildWildEncounter({ ...region, wildlife: { ...region.wildlife, squad: [2, 2], eliteChance: 0 } }, 0, rng);
+  startEncounter(state, region, at, wave, false);
+  run.pending.patient = true;
 }
 
 // Chance an encounter is an ambush: the base share, weather and night,

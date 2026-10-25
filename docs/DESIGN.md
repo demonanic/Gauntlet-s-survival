@@ -173,6 +173,23 @@ stash has one and their gear isn't already immune.
   them (16 characters max), may pick another look for free, or pays 25g for a different
   candidate. Recruit cost scales with the roster size, so retiring keeps it affordable.
 
+## Tutorial and hints (`src/game/tutorial.js`, `src/game/hints.js`)
+
+- **Tutorial:** ten steps (`TUTORIAL_STEPS`), each pointing at an element by CSS selector
+  (`TutorialOverlay` frames it and places its card out of the way). Steps advance when the
+  player does what they ask (`advance(guild, ui)`, with `ui` = tab, gear sheet open, in
+  battle) or on a button; `skipUnless` passes over steps that no longer apply (the hall
+  steps once a party is out, the battle step after sneaking past). Progress is saved in
+  `guild.tutorial`; saves from before the tutorial count as done. The tutorial's first
+  trip (`startExpedition(..., { tutorial: true })`) has its first event after 6 seconds:
+  an easy two-enemy sighting, never an ambush, whose prompt waits (`pending.patient`)
+  while the game is open.
+- **Hints:** `guildHints` lists up to three things to deal with (unspent AP/SP, better
+  vault gear of the same weapon kind by `gearScore`, low arrows, empty quick slots with
+  supplies in the stash, a newly opened region, a hero ready to retire), each with a
+  button to the right screen. Shown in the Guild Hall once the tutorial is over; "hide"
+  hides them for the session.
+
 ## Qualities (`src/combat/traits.js`, `src/game/qualities.js`)
 
 Qualities are who a hero is (stored as `hero.traits`). Perks, abilities and gear are the
