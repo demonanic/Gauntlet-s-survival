@@ -23,6 +23,7 @@ import {
 import {
   buildBossEncounter, buildEndlessWave, buildLegendaryEncounter, buildStalkerEncounter, buildWildEncounter, describeSquad,
 } from "./encounters";
+import { ECOLOGIES } from "./ecology";
 import { awardPetXp, earnPetCrate } from "./pets";
 import { developQualities, recordFight, recordHistory, sharedQualities } from "./qualities";
 import { combatEnvironment, getEnvironment, heroResistance, rollEnvironmentEvent } from "./environment";
@@ -424,7 +425,7 @@ function runEvent(state, region, at, rng) {
 function tutorialEncounter(state, region, at, rng) {
   const run = state.expedition;
   run.tutorial = false;
-  const wave = buildWildEncounter({ ...region, wildlife: { ...region.wildlife, squad: [2, 2], eliteChance: 0 } }, 0, rng);
+  const wave = buildWildEncounter({ ...region, wildlife: { ...region.wildlife, squad: [2, 2], eliteChance: 0 } }, 0, rng, { ecology: false });
   startEncounter(state, region, at, wave, false);
   run.pending.patient = true;
 }
@@ -630,14 +631,32 @@ function startEncounter(state, region, at, wave, ambush) {
   }
   if (ambush) {
     ambushParty(state, at, `Ambush! ${squad} burst from the shadows!`);
-    openPending(run, at, { kind: "ambush", wave, label: squad, ...extra });
+    openPending(run, at, { kind: "ambush", wave, label: squad, ...extra, ...readFormation(state, wave) });
   } else {
     const chance = sneakChance(livingParty(state), wave, run.morale, region, conditionEffects(run.weather, run.night, run.scouted).sneak);
     addFeed(run, at, legend
       ? `A legend walks these halls: ${legend.name}, a monster out of the old stories, with ${describeSquad({ enemies: wave.enemies.filter((enemy) => enemy !== legend) })}. Fortune favours the bold... or the quiet.`
       : `The party spots ${squad} ahead. They haven't noticed yet.`, "danger", !!legend);
-    openPending(run, at, { kind: "sighting", wave, label: squad, sneakChance: chance, ...extra });
+    const formation = readFormation(state, wave);
+    if (formation.formation) {
+      const ecology = ECOLOGIES[formation.formation];
+      addFeed(run, at, formation.formationKnown ? `They move like a ${ecology.name}. ${ecology.sign}` : ecology.sign, "danger");
+    }
+    openPending(run, at, { kind: "sighting", wave, label: squad, sneakChance: chance, ...extra, ...formation });
   }
+}
+
+// Reading an enemy formation. A guild that has met this ecology before, or a
+// party with a veteran along, knows it by name; otherwise the party only sees
+// the signs. Either way it never says what to do about it.
+export const FORMATION_VETERAN_LEVEL = 8;
+
+export function readFormation(state, wave) {
+  if (!wave?.ecology || !ECOLOGIES[wave.ecology]) return {};
+  const seen = (state.ecologySeen ||= {});
+  const known = (seen[wave.ecology] || 0) > 0 || livingParty(state).some((hero) => hero.progression.level >= FORMATION_VETERAN_LEVEL);
+  seen[wave.ecology] = (seen[wave.ecology] || 0) + 1;
+  return { formation: wave.ecology, formationKnown: known };
 }
 
 function ambushParty(state, at, text) {
@@ -792,7 +811,7 @@ function raidCamp(state, region, at, rng) {
   } else {
     ambushParty(state, at, `${label} raid the camp in the night!`);
   }
-  run.pending = { ...run.pending, kind: "ambush", wave, label, promptAt: at };
+  run.pending = { ...run.pending, kind: "ambush", wave, label, promptAt: at, ...readFormation(state, wave) };
   return true;
 }
 
@@ -840,7 +859,7 @@ function applyEffects(state, region, effects, at, rng) {
     run.stats.encounters += 1;
     const label = describeSquad(wave);
     ambushParty(state, at, `${label} spring out!`);
-    run.pending = { ...run.pending, kind: "ambush", wave, label, promptAt: at };
+    run.pending = { ...run.pending, kind: "ambush", wave, label, promptAt: at, ...readFormation(state, wave) };
     return true;
   }
   return false;

@@ -8,6 +8,7 @@
 //   npm run scenarios -- --group qualities    # every innate quality (whole party), plus best/worst loadouts
 //   npm run scenarios -- --group revives      # revive rules
 //   npm run scenarios -- --group companions   # familiars and weapon crystals
+//   npm run scenarios -- --group ecology      # enemy formations vs party make-ups (single fights)
 //   npm run scenarios -- --trips 40           # more trips per scenario (less noise)
 //   npm run scenarios -- --regions ashen,blightmire
 //   npm run scenarios -- --active             # fire abilities as soon as they're ready
@@ -21,7 +22,10 @@ import { GEAR_SLOTS, PROVISION_KEYS, itemSockets } from "../src/combat/gear";
 import { PET_SPECIES_KEYS, PET_XP } from "../src/combat/pets";
 import { INNATE_KEYS, TRAITS } from "../src/combat/traits";
 import { debugSetLevels } from "../src/game/debug";
+import { ECOLOGIES } from "../src/game/ecology";
+import { buildWildEncounter } from "../src/game/encounters";
 import { createGuild, expeditionDurationMs, recruitHero, startExpedition, tick } from "../src/game/guild";
+import { simulateEncounter } from "../src/game/simulate";
 import { composeStats, createGearItem } from "../src/game/items";
 import { createPet } from "../src/game/pets";
 import { getRegion } from "../src/game/regions";
@@ -135,7 +139,64 @@ function runGroup(title, scenarios) {
   }
 }
 
+// Ecology: one fight at a time, every formation the region fields (and an
+// ordinary squad of the same size range) against several party make-ups.
+// Reports what a single fight costs: wins, HP left, knockouts, supplies and
+// arrows used, how long it took, and how much of the damage taken landed on
+// the single most-hit hero ("focus": hunters push it up).
+const ECOLOGY_PARTIES = {
+  mixed: MIXED, swords: ["sword", "sword", "sword", "sword"], bows: ["bow", "bow", "bow", "bow"], staves: ["staff", "staff", "staff", "staff"],
+};
+
+function fightStats(region, weapons, wave) {
+  const state = buildGuild(region, { weapons });
+  const party = state.heroes;
+  const before = party.map((hero) => hero.quickSlots.map((slot) => ({ ...slot })));
+  const { result, sim, elapsed } = simulateEncounter(party, wave, { regionTier: getRegion(region).tier, onStep: ACTIVE ? activePlayer : null });
+  const used = (match) => sim.heroes.reduce((sum, hero, index) => sum + hero.quickSlots.reduce((inner, slot, k) =>
+    inner + (match(before[index][k]?.key) ? (before[index][k].qty || 0) - (slot?.qty || 0) : 0), 0), 0);
+  const taken = sim.heroes.map((hero) => hero.battleStats?.taken || 0);
+  const totalTaken = taken.reduce((a, b) => a + b, 0);
+  return {
+    win: result?.victory ? 1 : 0,
+    endHp: sim.heroes.reduce((sum, hero) => sum + Math.max(0, hero.combat.hp) / classlessMaxHp(hero), 0) / sim.heroes.length,
+    kos: sim.heroes.filter((hero) => hero.combat.hp <= 0).length,
+    supplies: used((key) => key === "bandage" || key === "potion"),
+    arrows: used((key) => key === "arrows"),
+    seconds: elapsed,
+    focus: totalTaken > 0 ? Math.max(...taken) / totalTaken : 0,
+  };
+}
+
+function runEcology() {
+  const regions = flag("--regions") ? REGIONS : REGIONS.filter((region) => getRegion(region).wildlife.ecology);
+  console.log(`\n=== Enemy ecology (${TRIPS} fights each, ${ACTIVE ? "active" : "idle"}, ${GEAR} gear, mid-trip depth) ===`);
+  for (const region of regions) {
+    const info = getRegion(region);
+    const templates = Object.keys(info.wildlife.ecology?.templates || {});
+    console.log(`\n${info.name} · LV ${SETUPS[region].level}`);
+    console.log(`${"formation".padEnd(17)}${"party".padEnd(8)} win endHP  KOs  supply arrows  secs focus`);
+    for (const formation of ["random", ...templates]) {
+      for (const [partyName, weapons] of Object.entries(ECOLOGY_PARTIES)) {
+        const sum = { win: 0, endHp: 0, kos: 0, supplies: 0, arrows: 0, seconds: 0, focus: 0 };
+        for (let fight = 0; fight < TRIPS; fight += 1) {
+          const wildlife = formation === "random"
+            ? info.wildlife
+            : { ...info.wildlife, ecology: { chance: 1, templates: { [formation]: 1 } } };
+          const wave = buildWildEncounter({ ...info, wildlife }, 0.5, Math.random, { ecology: formation !== "random" });
+          const stats = fightStats(region, weapons, wave);
+          for (const key of Object.keys(sum)) sum[key] += stats[key];
+        }
+        const avg = (key) => sum[key] / TRIPS;
+        const name = formation === "random" ? "ordinary squad" : ECOLOGIES[formation].name;
+        console.log(`${name.padEnd(17)}${partyName.padEnd(8)}${pct(avg("win"))}  ${pct(avg("endHp"))} ${num(avg("kos"))} ${num(avg("supplies"))} ${num(avg("arrows"))}  ${num(avg("seconds"))} ${pct(avg("focus"))}`);
+      }
+    }
+  }
+}
+
 const groups = {
+  ecology: runEcology,
   party: () => runGroup("Party make-ups (no qualities)", [
     { name: "mixed: sword/bow/staff/sword", weapons: MIXED },
     { name: "all swords", weapons: ["sword", "sword", "sword", "sword"] },

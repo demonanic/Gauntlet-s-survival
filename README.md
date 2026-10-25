@@ -141,6 +141,29 @@ fallen, **Harriers** hunt and maul wounded heroes, **Carrion Priests** sacrifice
 allies to heal and empower the rest, and **Watchers** make sneaking past a squad much harder
 and mark heroes in battle. Legendary monsters hunt the wounded.
 
+**Formations.** Away from the Gutter, some squads are organized rather than random, and
+their strength comes from how their members' behaviors feed each other (nobody gets a
+hidden bonus for being in one):
+
+- **Hunt Pack** (Watcher, two Harriers): the Watcher marks a hero, the Harriers run down whoever gets hurt.
+- **Kill Team** (Dark Elf, Bandit, Watcher): sniper fire on your ranged heroes, a blitz on the wounded.
+- **Death Cult** (Bulwark, Carrion Priest, two fodder): the "fodder" is what the Priest feeds on.
+- **Grave Court** (Bulwark, Lesser Necromancer, two fighters): killing the Necromancer means reaching it.
+- **Demolition Crew** (Bulwark, two Gnome Sappers): the Sappers come in behind the shield.
+
+The **Bulwark** is the anchor: a shield-bearer that plants itself between the heroes and
+its squad's casters and archers. It takes half of any hit aimed past it, allies beside it
+are a little harder to hurt, and arrows glance off the shield while spells get around it.
+Move a hero around it (or up close to its ward) and the backline is open.
+
+Each region has its own personality: the Boneyard's dead keep each other going, Frostfang's
+hunters go for the weakest, Ashen Keep fights in formation, and the Blightmire grinds you
+down. Every squad is checked against limits that keep it fair: one Bulwark, at most two
+Sappers, one of each resurrector, no squad of nothing but healers. The encounter prompt
+shows a squad's threats and roles (pressure, support, control, anchor, wildcard); a
+formation shows its signs, and its name once your guild has met it (or a level 8+
+veteran is along). It never tells you what to do about it.
+
 **Stalkers** don't attack right away: something starts following the party, unseen, and
 strikes when a hero is badly hurt. A Tracker (or a lucky glance) may notice it first, and
 then the party can turn and fight, try to lose it, or keep going ready for it.
