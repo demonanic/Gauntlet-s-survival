@@ -12,7 +12,7 @@
 import { mergeClasslessBattleResults } from "../combat/classlessBattleResults";
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import * as C from "../combat/config";
-import { GEAR_SLOTS } from "../combat/gear";
+import { ARROW_RECOVERY, CONSUMABLES, GEAR_SLOTS, PROVISIONS, heroArrowCount, heroUsesArrows } from "../combat/gear";
 import { serializeGameState } from "../combat/heroModel";
 import { heroTraitEffects } from "../combat/traits";
 import {
@@ -22,7 +22,8 @@ import {
 import {
   buildBossEncounter, buildEndlessWave, buildLegendaryEncounter, buildWildEncounter, describeSquad,
 } from "./encounters";
-import { bankLoot, createGearItem, normalizeHeroGear, tierMult } from "./items";
+import { combatEnvironment, getEnvironment, heroResistance, rollEnvironmentEvent } from "./environment";
+import { bankLoot, createGearItem, normalizeHeroGear, restockQuickSlots, tierMult } from "./items";
 import { legacyBonuses } from "./legacy";
 import { BOSS_RANK_SCALING, bossForRank, getRegion } from "./regions";
 import { simulateEncounter } from "./simulate";
@@ -49,6 +50,8 @@ const RECENT_FLAVOR = 6;
 // Events can't shorten an expedition to less than this from now.
 const MIN_REMAINING_MS = 30_000;
 const FIGHT_KINDS = new Set(["sighting", "ambush", "boss", "rift"]);
+// Weight of environment events in regions with an environment (see ADVENTURE.eventWeights).
+const ENVIRONMENT_EVENT_WEIGHT = 12;
 // The wandering merchant charges this multiple of an item's sell value.
 const MERCHANT_PRICE_MULT = 4;
 
@@ -140,10 +143,15 @@ export function startExpedition(state, regionId, heroIds, now, rng = Math.random
     feed: [],
     loot: { gold: 0, items: [] },
     stats: { events: 0, encounters: 0, fights: 0, sneaks: 0, ambushes: 0, autoFightSeconds: 0 },
+    // Heroes carrying a provision against the region's environment.
+    packed: [],
     outcome: null,
   };
   next.expedition = run;
   addFeed(run, now, `The party sets out for ${region.name}.`, "good");
+  const unarmed = restockQuickSlots(next, ids);
+  for (const name of unarmed) addFeed(run, now, `${name} has no arrows and can't use their bow! Buy some in the Market.`, "danger");
+  packProvisions(next, region, now);
   if (!region.endless) {
     addFeed(run, now, `${run.night ? "Night has fallen. Ambushes are likelier, but so is treasure. " : ""}${WEATHER[run.weather].intro}`, "flavor");
   }
@@ -152,6 +160,25 @@ export function startExpedition(state, regionId, heroIds, now, rng = Math.random
     openPending(run, now, { kind: "rift", wave: buildEndlessWave(1, rng) });
   }
   return { ok: true, state: next };
+}
+
+// One provision per hero against the region's environment, from the stash,
+// skipping heroes whose gear already makes them immune.
+function packProvisions(state, region, at) {
+  const environment = getEnvironment(region);
+  const run = state.expedition;
+  if (!environment) return;
+  const provision = PROVISIONS[environment.provision];
+  for (const id of run.heroIds) {
+    const hero = findHero(state, id);
+    if (heroResistance(hero, environment) >= 1 || !(state.stash[provision.key] > 0)) continue;
+    state.stash[provision.key] -= 1;
+    run.packed.push(id);
+  }
+  const bare = run.heroIds.length - run.packed.length;
+  addFeed(run, at, run.packed.length
+    ? `${environment.name} ahead. Packed ${run.packed.length} ${provision.name}${run.packed.length > 1 ? "s" : ""}${bare ? `; ${bare} hero${bare > 1 ? "es go" : " goes"} without` : ""}.`
+    : `${environment.name} ahead, and no ${provision.name}s in the stash. ${environment.desc}`, run.packed.length ? "flavor" : "danger");
 }
 
 function openPending(run, at, details) {
@@ -269,7 +296,12 @@ function runEvent(state, region, at, rng) {
   const conditions = conditionEffects(run.weather, run.night, run.scouted);
   changeMorale(run, (ADVENTURE.startMorale - run.morale) * ADVENTURE.moraleDrift + conditions.moralePerEvent);
   const hero = pick(party, rng);
-  const weights = { ...ADVENTURE.eventWeights, hazard: ADVENTURE.eventWeights.hazard * conditions.hazard };
+  const environment = getEnvironment(region);
+  const weights = {
+    ...ADVENTURE.eventWeights,
+    hazard: ADVENTURE.eventWeights.hazard * conditions.hazard,
+    environment: environment ? ENVIRONMENT_EVENT_WEIGHT : 0,
+  };
   const roll = rng() * Object.values(weights).reduce((sum, weight) => sum + weight, 0);
   let cursor = 0;
   const kind = Object.entries(weights).find(([, weight]) => (cursor += weight) > roll)[0];
@@ -291,14 +323,27 @@ function runEvent(state, region, at, rng) {
     if (hazard.damage) for (const target of hazard.all ? party : [hero]) hurt(target, hazard.damage);
     changeMorale(run, hazard.morale);
     addFeed(run, at, hazard.text, hazard.tone);
+  } else if (kind === "environment") {
+    const event = rollEnvironmentEvent(environment, party, run.packed || [], rng);
+    changeMorale(run, event.morale);
+    addFeed(run, at, event.hurt.length ? `${event.text} (${event.hurt.join(", ")} hurt)` : `${event.text} The party's gear holds up.`, event.hurt.length ? "danger" : "good");
   } else if (kind === "encounter") {
     const progress = 1 - (run.endsAt - at) / run.durationMs;
-    startEncounter(state, region, at, buildWildEncounter(region, progress, rng), rng() < ADVENTURE.ambushShare + conditions.ambush);
+    startEncounter(state, region, at, buildWildEncounter(region, progress, rng), rng() < ADVENTURE.ambushShare + conditions.ambush + darknessAmbush(state, environment));
   } else if (kind === "rare") {
     rareEvent(state, region, hero, at, rng);
   } else {
     openStory(state, at, pick(STORY_KEYS, rng), rng);
   }
+}
+
+// Darkness makes ambushes likelier, less so for a well-lit party.
+function darknessAmbush(state, environment) {
+  if (!environment?.road.ambush) return 0;
+  const party = livingParty(state);
+  const run = state.expedition;
+  const exposed = party.reduce((sum, hero) => sum + 1 - heroResistance(hero, environment, run.packed?.includes(heroId(hero))), 0);
+  return party.length ? environment.road.ambush * (exposed / party.length) : 0;
 }
 
 function openStory(state, at, key, rng) {
@@ -359,9 +404,10 @@ function findSomething(state, region, hero, at, rng) {
     run.loot.gold += gold;
     addFeed(run, at, findLine("gold", hero.identity.name, gold, rng), "loot");
   } else if (roll < 0.8) {
-    const key = pick(["bandage", "bandage", "bandage", "potion", "ammo"], rng);
-    run.loot.items.push({ kind: "consumable", key, qty: 1 });
-    addFeed(run, at, findLine("supply", hero.identity.name, key === "potion" ? "Health Potion" : key === "ammo" ? "pouch of Barbed Ammo" : "Bandage", rng), "loot");
+    const key = pick(["bandage", "bandage", "bandage", "potion", "ammo", "arrows", "arrows"], rng);
+    const qty = key === "arrows" ? 5 + Math.floor(rng() * 6) : 1;
+    run.loot.items.push({ kind: "consumable", key, qty });
+    addFeed(run, at, findLine("supply", hero.identity.name, key === "arrows" ? `bundle of ${qty} arrows` : CONSUMABLES[key].name, rng), "loot");
   } else {
     const rarity = pick(["common", "common", "uncommon", "uncommon", "rare"], rng);
     const item = createGearItem({ slot: pick(GEAR_SLOTS, rng), rarity, tier: region.tier }, rng);
@@ -402,9 +448,16 @@ function ambushParty(state, at, text) {
 }
 
 // Heroes for the next fight, carrying the party's morale as a damage bonus.
+// The region's environment rides along as hero.environment (after resistance).
 export function currentEncounterParty(state) {
-  const bonus = moraleDamageBonus(state.expedition?.morale ?? ADVENTURE.startMorale);
-  return livingParty(state).map((hero) => ({ ...hero, moraleBonus: { damage: bonus } }));
+  const run = state.expedition;
+  const bonus = moraleDamageBonus(run?.morale ?? ADVENTURE.startMorale);
+  const environment = getEnvironment(getRegion(run?.regionId));
+  return livingParty(state).map((hero) => ({
+    ...hero,
+    moraleBonus: { damage: bonus },
+    environment: combatEnvironment(hero, environment, !!run?.packed?.includes(heroId(hero))),
+  }));
 }
 
 // The wave waiting in the current fight prompt.
@@ -514,6 +567,7 @@ function applyEffects(state, region, effects, at, rng) {
     const supplies = ["bandage", "bandage", rng() < 0.4 ? "potion" : "ammo"];
     run.loot.gold += gold;
     for (const key of supplies) run.loot.items.push({ kind: "consumable", key, qty: 1 });
+    run.loot.items.push({ kind: "consumable", key: "arrows", qty: 8 });
     addFeed(run, at, `Foraging turns up ${gold} gold and a few supplies.`, "loot");
   }
   if (effects.extend && run.endsAt != null) run.endsAt += ADVENTURE.treasureDetourMs;
@@ -598,10 +652,15 @@ function applyFightResult(state, region, { victory, party, xpGains, gold, items,
   const merged = mergeClasslessBattleResults(state, { heroIds: party.map(heroId), runtimeHeroes: party, xpGains: boostedXp });
   Object.assign(state, merged);
   const run = state.expedition;
-  // Quick-slot stacks spent in the fight come back on the runtime party.
+  // Quick-slot stacks spent in the fight come back on the runtime party. After
+  // a win, the party picks up some of the plain arrows it fired.
+  let recovered = 0;
   for (const runtime of party) {
     const saved = findHero(state, heroId(runtime));
-    if (saved) saved.quickSlots = normalizeHeroGear(runtime).quickSlots;
+    if (!saved) continue;
+    saved.quickSlots = normalizeHeroGear(runtime).quickSlots;
+    const spent = Math.floor((runtime.arrowsSpent?.arrows || 0) * ARROW_RECOVERY);
+    if (victory && spent > 0) recovered += returnArrows(state, saved, spent);
   }
   run.loot.gold += Math.round(gold || 0);
   run.loot.items.push(...(items || []));
@@ -637,6 +696,12 @@ function applyFightResult(state, region, { victory, party, xpGains, gold, items,
     return;
   }
   changeMorale(run, 8);
+  if (recovered > 0) addFeed(run, at, `Picked up ${recovered} arrow${recovered > 1 ? "s" : ""} from the field.`, "flavor");
+  for (const hero of party) {
+    if (heroUsesArrows(hero) && hero.combat.hp > 0 && heroArrowCount(findHero(state, heroId(hero))) === 0) {
+      addFeed(run, at, `${hero.identity.name} is out of arrows!`, "danger");
+    }
+  }
   addFeed(run, at, `Victory over ${pending.label}! +${Math.round(gold || 0)} gold${items?.length ? `, ${items.length} item${items.length > 1 ? "s" : ""}` : ""}.`, "good");
   if (pending.legendary) {
     const rng = Math.random;
@@ -665,6 +730,20 @@ function applyFightResult(state, region, { victory, party, xpGains, gold, items,
   }
   closePending(run, at);
   if (!livingParty(state).length) completeExpedition(state, "retreat", at);
+}
+
+// Put recovered plain arrows back in a hero's quiver; any that don't fit go
+// into the trip's loot. Returns how many were picked up.
+function returnArrows(state, hero, count) {
+  let left = count;
+  for (const slot of hero.quickSlots) {
+    if (slot?.key !== "arrows") continue;
+    const room = Math.min(left, CONSUMABLES.arrows.stackCap - slot.qty);
+    slot.qty += room;
+    left -= room;
+  }
+  if (left > 0) state.expedition.loot.items.push({ kind: "consumable", key: "arrows", qty: left });
+  return count;
 }
 
 function halveLoot(run) {

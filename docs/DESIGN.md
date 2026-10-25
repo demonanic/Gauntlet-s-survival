@@ -80,17 +80,69 @@ A deliberately small model (not Demonanic's 11 slots), defined in `src/combat/ge
 
 - **Gear slots:** head, chest, legs, arms, weapon, secondary, amulet/ring. Gear adds flat
   attack, defense, max HP, agility (dodge) and crit chance.
-- **Rarity × tier:** Common ×1, Uncommon ×1.5, Rare ×2.2, Epic ×3.2, multiplied by the
-  tier: ×1 / ×1.6 / ×2.4 for tiers 1–3 (The Gutter / Boneyard Crypt / Ashen Keep), then
+- **Rarity × tier:** Common ×1, Uncommon ×1.5, Rare ×2.2, Epic ×3.2, Legendary ×4.2, multiplied by the
+  tier: ×1 / ×1.6 / ×2.4 for tiers 1–3 (The Gutter / Boneyard Crypt / Frostfang Pass), then
   +0.8 per tier up to tier 10 (ranked bosses, deep Rift waves, the shop's Masterwork).
-- **Weapons:** sword (attack), bow (attack + crit), staff (attack + HP). Every hero starts
-  with a common one. Secondaries: shield, dagger, focus orb. Trinkets: amulet, ring.
+- **Weapons:** sword (attack), bow (attack + crit, needs arrows), staff (attack + HP). Every hero starts
+  with a common one. Secondaries: shield, dagger, focus orb, quiver (20% arrow saving). Trinkets: amulet, ring.
 - **Quick slots (2 per hero):** stacks of bandages (heal 20%), health potions (heal 45%)
-  or barbed ammo (next 8 attacks +50%). Heroes use them on their own: heals below an HP
+  whetstones (next 8 attacks +50%) or arrows. Heroes use them on their own: heals below an HP
   threshold, ammo while an elite or boss is on the field. The player can also tap them.
   Spent items are gone; unspent ones stay loaded.
 - **Loot:** at most one drop per kill, gear first, then supplies. Chances rise with enemy
-  tier; the boss always drops Rare or Epic gear. Spare gear sells for gold.
+  tier; the boss always drops Rare or Epic gear (8% of boss drops are Legendary, 15% for
+  legendary monsters). Spare gear sells for gold or salvages into essence.
+- **Affixes (`AFFIXES` in items.js):** Uncommon 1, Rare 2, Epic 3. The first two are a
+  prefix and a suffix and name the item ("Vampiric Sword of Warmth"). Flat values scale
+  with tierMult; percentages +10% per tier; resistances 20% +2% per tier (max 35%). An
+  item stores `baseStats` (forged) and `affixes`; `stats` is their sum (`composeStats`).
+  Reforge rerolls affixes for essence + a little gold.
+- **Special stats (`SPECIAL_STAT_KEYS` in gear.js):** damage/health %, attack speed, crit
+  damage, lifesteal, thorns, regen (HP/s), gold find, arrow saving, chill, burn, cleave,
+  volley, revive, blast ward, and four resistances. The engine reads them through
+  `hero.d.gear` (classlessHeroDerived).
+- **Sets (`GEAR_SETS`):** Gravewatch (Boneyard), Frostwarden (Frostfang), Emberforged
+  (Ashen), Mirewalker (Blightmire). 6–25% of a region's gear drops are set pieces (Rare or
+  Epic). 2-piece bonus: that region's resistance +40% plus a stat; 4-piece: a power stat.
+- **Legendaries (`LEGENDARIES`):** Dawnbreaker (sword, cleave 50%), Whisperwind (bow,
+  every 3rd shot +2 free arrows, 30% arrow saving), Embercall (staff, burn 40%), Heart of
+  the Mountain (chest, immune to environments), Gnomebane Buckler (halves explosions,
+  thorns), Gravebinder Ring (revive once per fight at 30%).
+- **Arrows:** bows draw one arrow per shot from the first quick slot holding arrows; no
+  arrows means no shooting (the hero falls back). Stacks of 50; 60% of plain arrows fired
+  are recovered after a won fight. Special arrows (Fletcher: 10 plain + 25–30g) are spent:
+  venom 60% of the hit over 4s, flame 35% splash + 30% burn, frost 35% slow for 2.5s.
+  Departure restocks every loaded slot from the stash and gives an arrowless archer
+  plain arrows in a free slot.
+
+## Environments (`src/game/environment.js`)
+
+| Environment | Region | On the road (per event, ×(1 − resist)) | In battle (×(1 − resist)) | Provision |
+| --- | --- | --- | --- | --- |
+| Darkness | Boneyard Crypt | 3% HP, +10% ambush chance | 15% of attacks miss | Torch Bundle |
+| Bitter Cold | Frostfang Pass | 6% HP | attacks 25% slower, moves 15% slower | Warming Draught |
+| Scorching Heat | Ashen Keep | 5% HP, morale −2 | 0.6% max HP/s burn | Cooling Salve |
+| Toxic Miasma | The Blightmire | 6% HP | 0.4% max HP/s, healing halved | Antitoxin |
+
+Environment events have weight 12 among the road events. Environment damage never knocks a
+hero out. Each hero packs one provision (+50% resistance for the trip) at departure if the
+stash has one and their gear isn't already immune.
+
+## Enemy roles (`engine._updateSpecialEnemy`)
+
+- **Gnome Sapper:** sprints at the nearest hero, lights a 0.7s fuse, explodes (6× its
+  damage, 72px radius). Killed first, it still goes off at half strength. Self-detonation
+  gives no gold or XP.
+- **Bandit:** chases the hero with the lowest HP fraction; blitzes (3.2× speed, 0.45s,
+  every 6s) and hits 1.6× after a blitz.
+- **Dark Elf (sniper):** keeps 150–330px away, aims 0.9s at a ranged hero (else the
+  weakest; a dashed line shows the aim), then fires a 2× shot. Cooldown 2.6s.
+- **Lesser Necromancer:** keeps 170–230px away, heals the most wounded non-boss ally 18%
+  every 4.5s, and raises one fallen non-boss ally at 50% HP (1.5s channel). Raised enemies
+  drop nothing.
+- **Bandit Warlord** (Frostfang boss): every 10s calls two bandits and blitzes.
+- **The Bog Lich** (Blightmire boss): every 7s heals its court 12%, raises up to two
+  fallen, and throws toxic bile.
 
 ## Heroes
 
@@ -163,7 +215,12 @@ out-range the party and stall a fight until it wiped).
 | --- | --- | --- | --- |
 | The Gutter | 0.9 | 0.9 | Tutorial: every 10-minute trip succeeds at LV 1 |
 | Boneyard Crypt | 2.0 | 1.7 | First clear on the first try, about an hour into the game (LV 4–5) |
-| Ashen Keep | 2.0 | 1.5 | First clear about 2.5–4 hours in (1–4 attempts, LV 7–11) |
+| Frostfang Pass | 2.1 | 1.6 | First clear about 1.5 hours in (LV 6–7) |
+| Ashen Keep | 2.0 | 1.5 | First clear about 2–3 hours in (1–4 attempts, LV 7–11) |
+| The Blightmire | 3.0 | 2.2 | First clear 3–10 hours in (LV 10–14, 25–45% of runs win) |
+
+Since environments and gear sets (Oct 2026), gear tiers are 1–5 for the five campaign
+regions (Ashen Keep went from tier 3 to tier 4).
 
 With timed expeditions (Oct 2026), progress is measured in real time: trips are 10–30
 minutes long. 4 hours after the first Ashen clear a scripted guild reaches boss rank 8–9,

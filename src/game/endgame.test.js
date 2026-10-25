@@ -35,7 +35,7 @@ describe("armory shop", () => {
   });
 
   test("shop tier rises with boss ranks", () => {
-    expect(shopTier({ ...createGuild(), clears: { ashen: 1 }, bossRank: 4 })).toBe(5);
+    expect(shopTier({ ...createGuild(), clears: { ashen: 1 }, bossRank: 4 })).toBe(6);
   });
 
   test("buying moves the item to the vault once", () => {
@@ -69,8 +69,10 @@ describe("forge", () => {
     let state = rich({ ...createGuild(), vault: [sword] });
     const cost = upgradeCost(sword);
     state = upgradeGear(state, sword.id).state;
-    expect(state.vault[0]).toMatchObject({ upgrade: 1, baseStats: sword.stats });
+    expect(state.vault[0]).toMatchObject({ upgrade: 1, baseStats: sword.baseStats, affixes: sword.affixes });
     expect(state.vault[0].stats.attack).toBe(Math.round(sword.stats.attack * 1.15));
+    // Affixes ride along unchanged; only base stats are forged.
+    for (const affix of sword.affixes) expect(state.vault[0].stats[affix.stat]).toBeCloseTo(sword.stats[affix.stat], 5);
     expect(state.gold).toBe(100_000 - cost);
     for (let level = 2; level <= 5; level += 1) state = upgradeGear(state, sword.id).state;
     expect(state.vault[0].stats.attack).toBe(Math.round(sword.stats.attack * 1.75));

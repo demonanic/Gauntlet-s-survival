@@ -47,10 +47,12 @@ describe("test mode", () => {
   test("sets the boss rank, clears regions, and hands out gear and supplies", () => {
     const state = createGuild();
     expect(debugSetBossRank(state, 7).state.bossRank).toBe(7);
-    expect(shopTier(debugClearRegions(state).state)).toBe(3);
+    expect(shopTier(debugClearRegions(state).state)).toBe(5);
     const geared = debugGiveGearSet(state, "epic", 6).state;
     expect(geared.vault.map((item) => item.slot)).toEqual([...GEAR_SLOTS]);
     expect(geared.vault.every((item) => item.rarity === "epic" && item.tier === 6)).toBe(true);
-    expect(debugGiveSupplies(state).state.stash).toEqual({ bandage: 16, potion: 10, ammo: 10 });
+    const supplied = debugGiveSupplies(state).state;
+    expect(supplied.stash).toMatchObject({ bandage: 16, potion: 10, ammo: 10, arrows: 140, flameArrows: 10, torch: 10, antitoxin: 10 });
+    expect(supplied.essence).toBe(100);
   });
 });

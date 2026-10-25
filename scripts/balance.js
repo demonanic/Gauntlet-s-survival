@@ -19,6 +19,8 @@ import { classlessMaxHp } from "../src/combat/classlessCombatEffects";
 import {
   createGuild, expeditionDurationMs, recruitCost, recruitHero, startExpedition, tick, updateHero,
 } from "../src/game/guild";
+import { PROVISIONS, heroUsesArrows } from "../src/combat/gear";
+import { getEnvironment } from "../src/game/environment";
 import { buyConsumable, equipGear, loadQuickSlot, sellGear, upgradeCost, upgradeGear } from "../src/game/items";
 import { REGIONS, getRegion } from "../src/game/regions";
 import { buyShopItem, shopStock } from "../src/game/shop";
@@ -29,7 +31,7 @@ const NO_GEAR = args.includes("--no-gear");
 const NO_SUPPLIES = args.includes("--no-supplies");
 const NO_SHOP = args.includes("--no-shop");
 const ENDGAME_MINUTES = (Number(args[args.indexOf("--hours") + 1]) || 8) * 60;
-const MAX_EXPEDITIONS = 70;
+const MAX_EXPEDITIONS = 160;
 const CAMPAIGN = REGIONS.filter((region) => !region.endless);
 // Gold kept back for supplies before spending in the Armory or Forge.
 const GOLD_RESERVE = 250;
@@ -38,7 +40,10 @@ const PERK_ORDER = ["V1", "W1", "P1", "V2", "W2", "P2a", "P3", "W2a", "S1", "P2"
 const SP_ORDER = ["attack", "defense", "attack"];
 
 const power = (item) => !item ? 0 : (item.stats.attack || 0) * 3 + (item.stats.defense || 0) * 2
-  + (item.stats.maxHp || 0) * 0.25 + (item.stats.agility || 0) + (item.stats.critChance || 0) * 150;
+  + (item.stats.maxHp || 0) * 0.25 + (item.stats.agility || 0) + (item.stats.critChance || 0) * 150
+  + ((item.stats.damageBonus || 0) + (item.stats.attackSpeed || 0) + (item.stats.lifesteal || 0)) * 120
+  + (item.stats.healthBonus || 0) * 100 + (item.stats.critDamage || 0) * 40
+  + ((item.stats.darkResist || 0) + (item.stats.coldResist || 0) + (item.stats.heatResist || 0) + (item.stats.toxicResist || 0)) * 15;
 
 function developHeroes(state) {
   for (const original of state.heroes) {
@@ -101,12 +106,26 @@ function spend(state, clock) {
   return state;
 }
 
-function stockUp(state, party) {
+// Bandages and potions (bow heroes carry arrows instead of potions), plus a
+// provision per hero against the region's environment.
+function stockUp(state, party, region) {
+  // Arrows are never optional: a bow can't shoot without them.
+  for (const id of party) {
+    const hero = state.heroes.find((entry) => entry.identity.id === id);
+    if (!heroUsesArrows(hero)) continue;
+    const have = hero.quickSlots[1]?.key === "arrows" ? hero.quickSlots[1].qty : 0;
+    const missing = Math.max(0, 50 - have - (state.stash.arrows || 0));
+    if (missing > 0 && state.gold >= missing) state = buyConsumable(state, "arrows", missing).state;
+    const loaded = loadQuickSlot(state, id, 1, "arrows");
+    if (loaded.ok) state = loaded.state;
+  }
   if (NO_SUPPLIES) return state;
   for (const id of party) {
-    for (const [slot, key, keepGold] of [[0, "bandage", 0], [1, "potion", 150]]) {
-      const hero = state.heroes.find((entry) => entry.identity.id === id);
-      const have = hero.quickSlots[slot]?.key === key ? hero.quickSlots[slot].qty : 0;
+    const hero = state.heroes.find((entry) => entry.identity.id === id);
+    const plan = heroUsesArrows(hero) ? [[0, "bandage", 0]] : [[0, "bandage", 0], [1, "potion", 150]];
+    for (const [slot, key, keepGold] of plan) {
+      const current = state.heroes.find((entry) => entry.identity.id === id);
+      const have = current.quickSlots[slot]?.key === key ? current.quickSlots[slot].qty : 0;
       const want = key === "bandage" ? 5 : 3;
       while ((state.stash[key] || 0) < want - have && state.gold - keepGold >= 35) {
         const bought = buyConsumable(state, key, 1);
@@ -116,6 +135,12 @@ function stockUp(state, party) {
       const loaded = loadQuickSlot(state, id, slot, key);
       if (loaded.ok) state = loaded.state;
     }
+  }
+  const environment = getEnvironment(region);
+  if (environment) {
+    const provision = PROVISIONS[environment.provision];
+    const missing = Math.max(0, party.length - (state.stash[provision.key] || 0));
+    if (missing > 0 && state.gold - 100 >= provision.price * missing) state = buyConsumable(state, provision.key, missing).state;
   }
   return state;
 }
@@ -150,7 +175,7 @@ function activePlayer(engine) {
 // prompts, so the party decides every sighting, story and boss on its own.
 // Time spent in auto-resolved fights is added on top of the trip timer.
 function runExpedition(state, clock, region, party, active) {
-  state = stockUp(state, party);
+  state = stockUp(state, party, region);
   const started = startExpedition(state, region.id, party, clock);
   if (!started.ok) throw new Error(`could not start ${region.id}: ${started.reason}`);
   state = started.state;
@@ -182,7 +207,7 @@ function playthrough(active) {
   const log = [];
   const firstClear = {};
   const attempts = {};
-  for (let run = 0; run < MAX_EXPEDITIONS && !firstClear.ashen; run++) {
+  for (let run = 0; run < MAX_EXPEDITIONS && !firstClear[CAMPAIGN.at(-1).id]; run++) {
     ({ state, clock } = prepare(state, clock));
     const { region, party } = chooseRun(state, clock, (entry) => (state.clears[entry.id] || 0) < 2 || entry === CAMPAIGN.at(-1));
     attempts[region.id] = (attempts[region.id] || 0) + 1;
@@ -197,7 +222,7 @@ function playthrough(active) {
   // Endgame: chase boss ranks, fall back to the Rift after two straight losses.
   const endgame = { start: clock, rankAt: {}, rift: [], boss: [], losses: 0 };
   const endAt = clock + ENDGAME_MINUTES * 60_000;
-  while (firstClear.ashen && clock < endAt) {
+  while (firstClear[CAMPAIGN.at(-1).id] && clock < endAt) {
     ({ state, clock } = prepare(state, clock));
     const party = [...state.heroes].sort((a, b) => b.progression.level - a.progression.level).slice(0, 4).map((hero) => hero.identity.id);
     const region = getRegion(endgame.losses >= 2 ? "rift" : "ashen");
@@ -237,15 +262,15 @@ function summarize(label, results) {
   }
   const boss = results.flatMap((result) => result.endgame.boss);
   const rift = results.flatMap((result) => result.endgame.rift);
-  console.log(`Endgame (${ENDGAME_MINUTES / 60}h after first Ashen clear): boss rank reached ` +
+  console.log(`Endgame (${ENDGAME_MINUTES / 60}h after first ${CAMPAIGN.at(-1).name} clear): boss rank reached ` +
     [2, 4, 8, 12, 24].filter((hours) => hours * 60 <= ENDGAME_MINUTES).map((hours) => `${hours}h ${fmt(results.map((result) => result.endgame.rankAt[hours] ?? 0))}`).join(" · "));
   console.log(`  Ashen runs: ${boss.length}, win rate ${boss.length ? Math.round(100 * boss.filter((run) => run.outcome === "victory").length / boss.length) : 0}%, ${perMinute(boss)} gold/min`);
   console.log(`  Rift runs: ${rift.length}, waves ${fmt(rift.map((run) => run.reached))} (median ${rift.map((run) => run.reached).sort((a, b) => a - b)[Math.floor(rift.length / 2)] ?? "-"}), ${perMinute(rift)} gold/min`);
   for (const [index, result] of results.entries()) {
-    console.log(`  #${index + 1}: first Ashen clear ${result.firstClear.ashen ? Math.round(result.firstClear.ashen.minutes) + " min" : "never"} · final rank ${result.state.bossRank}` +
+    console.log(`  #${index + 1}: campaign done ${result.firstClear[CAMPAIGN.at(-1).id] ? Math.round(result.firstClear[CAMPAIGN.at(-1).id].minutes) + " min" : "never"} · final rank ${result.state.bossRank}` +
       ` · levels ${result.state.heroes.map((hero) => hero.progression.level).join("/")} · gold ${result.state.gold}` +
       ` · best Rift wave ${result.state.records.riftBest}` +
-      ` · gear ${["common", "uncommon", "rare", "epic"].map((rarity) => result.rarities.filter((entry) => entry === rarity).length).join("/")} (C/U/R/E)` +
+      ` · gear ${["common", "uncommon", "rare", "epic", "legendary"].map((rarity) => result.rarities.filter((entry) => entry === rarity).length).join("/")} (C/U/R/E/L)` +
       ` · avg +${Math.round(result.state.heroes.flatMap((hero) => Object.values(hero.equipment || {})).reduce((sum, item, _, all) => sum + (item.upgrade || 0) / all.length, 0) * 10) / 10}`);
   }
 }

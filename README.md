@@ -56,9 +56,37 @@ higher level). Retired heroes are remembered there.
 ### Gear and supplies
 
 Each hero has seven gear slots (head, chest, legs, arms, weapon, secondary, amulet/ring)
-and two quick slots for stacks of bandages, health potions or barbed ammo. Enemies drop
-gear in four rarities; better regions drop stronger gear. Heroes use their supplies on
-their own in battle, or you can tap them.
+and two quick slots for stacks of bandages, health potions, whetstones or arrows. Heroes
+use their supplies on their own in battle, or you can tap them. Loaded quick slots refill
+from the stash every time a party sets out.
+
+- **Rarity and affixes:** Uncommon, Rare and Epic gear roll 1, 2 or 3 random affixes
+  (Vampiric, Swift, Brutal, Spiked, *of Warmth*, *of Purity*, ...): lifesteal, attack
+  speed, crit damage, thorns, regeneration, burn and chill on hit, and resistances.
+- **Sets:** each harsh region drops pieces of its own set, with bonuses at 2 and 4 pieces.
+- **Legendaries:** bosses (and legendary monsters) sometimes drop one of six legendary items
+  with a unique power, e.g. Whisperwind (free volleys), Gravebinder Ring (rise again once
+  per fight) or Heart of the Mountain (immune to every environment).
+- **Forge, Salvage, Reforge:** upgrade gear with gold; break spare gear down into essence;
+  spend essence to reroll an item's affixes.
+- **Arrows:** bows can't shoot without arrows in a quick slot (stacks of 50, one per shot,
+  60% picked back up after a win). The Fletcher in the Market turns plain arrows into
+  venom (poison), flame (burst and burn) or frost (slow) arrows.
+
+### Environments
+
+Every region past the Gutter has harsh conditions that wear heroes down on the road and
+handicap them in battle: Darkness (missed attacks, more ambushes), Bitter Cold (frostbite,
+slower attacks), Scorching Heat (burns) and Toxic Miasma (poison, halved healing). Counter
+them with resistance gear, or buy provisions in the Market (Torches, Warming Draughts,
+Cooling Salves, Antitoxins): each hero packs one when the party sets out.
+
+### Enemies
+
+Alongside the original roster: **Gnome Sappers** run at the party and blow up (they go
+off even when killed), **Bandits** blitz the weakest hero, **Dark Elf** snipers aim at
+ranged heroes and fire one heavy shot, and **Lesser Necromancers** heal their allies and
+raise a fallen one.
 
 ### Endgame
 
@@ -73,8 +101,10 @@ their own in battle, or you can tap them.
 | Region | Min level | Length | End boss | Bounty |
 | --- | --- | --- | --- | --- |
 | The Gutter | 1 | 10 min | none | 80g |
-| Boneyard Crypt | 3 | 20 min | Lieutenant | 300g |
-| Ashen Keep | 6 | 30 min | rotating (Demon → Necromancer → Abomination) | 800g, +15% per boss rank |
+| Boneyard Crypt (darkness) | 3 | 20 min | Lieutenant | 300g |
+| Frostfang Pass (cold) | 4 | 25 min | Bandit Warlord | 500g |
+| Ashen Keep (heat) | 6 | 30 min | rotating (Demon → Necromancer → Abomination) | 800g, +15% per boss rank |
+| The Blightmire (toxic) | 10 | 40 min | The Bog Lich | 1600g |
 | The Endless Rift | 3 | until you return | a boss every 10th wave | 10g per wave |
 
 ## Play it

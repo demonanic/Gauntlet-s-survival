@@ -189,7 +189,7 @@ describe("timed expeditions", () => {
   test("flavor lines don't repeat back to back", () => {
     let state = gutterRun(seeded(11));
     state = tick(state, T0 + 20 * MINUTE, { rng: seeded(12), interactive: false });
-    const flavor = state.lastReport.log.filter((line) => !/Victory|spots|Ambush|explored|sets out|gold|Slipped/.test(line));
+    const flavor = state.lastReport.log.filter((line) => !/Victory|spots|Ambush|explored|sets out|gold|Slipped|Picked up|out of arrows/.test(line));
     for (let index = 1; index < flavor.length; index += 1) expect(flavor[index]).not.toBe(flavor[index - 1]);
   });
 
@@ -307,7 +307,7 @@ describe("world events", () => {
     const scouted = choosePending(run, "scout", T0 + 10 * MINUTE).state;
     expect(scouted.expedition.scouted).toBe(true);
     const foraged = choosePending(run, "forage", T0 + 10 * MINUTE).state;
-    expect(foraged.expedition.loot.items.filter((item) => item.kind === "consumable")).toHaveLength(3);
+    expect(foraged.expedition.loot.items.filter((item) => item.kind === "consumable")).toHaveLength(4);
     expect(foraged.expedition.loot.gold).toBeGreaterThan(0);
   });
 

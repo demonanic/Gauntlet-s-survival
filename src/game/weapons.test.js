@@ -11,6 +11,7 @@ function heroWithWeapon(variant) {
   hero.guildBonus = { damage: 0, maxHp: 0 };
   if (variant) hero.equipment.weapon = createGearItem({ slot: "weapon", variant, rarity: "common", tier: 1 });
   else delete hero.equipment.weapon;
+  hero.quickSlots = variant === "bow" ? [{ key: "arrows", qty: 20 }, null] : [null, null];
   return hero;
 }
 

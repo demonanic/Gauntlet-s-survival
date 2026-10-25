@@ -23,7 +23,7 @@ const RECRUIT_NAMES = ["Vex", "Morrow", "Ilsa", "Tamsin", "Garrick", "Pell", "Wr
 const BASE_RECRUIT_COST = 80;
 const RECRUIT_COST_GROWTH = 1.6;
 const STARTER_WEAPONS = ["sword", "bow", "staff"];
-const STARTING_STASH = { bandage: 6 };
+const STARTING_STASH = { bandage: 6, arrows: 100 };
 export const MAX_NAME_LENGTH = 16;
 // Gold to turn away the current recruit candidate and see another.
 export const CANDIDATE_REROLL_COST = 25;
@@ -69,6 +69,8 @@ export function createGuild() {
     bench: [],
     injuries: {},
     vault: [],
+    // Salvaged gear becomes essence, spent at the Reforge.
+    essence: 0,
     stash: { ...STARTING_STASH },
     expedition: null,
     clears: {},
