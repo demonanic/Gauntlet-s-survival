@@ -9,6 +9,7 @@
 //   npm run scenarios -- --group revives      # revive rules
 //   npm run scenarios -- --group companions   # familiars and weapon crystals
 //   npm run scenarios -- --group ecology      # enemy formations vs party make-ups (single fights)
+//   npm run scenarios -- --group bosses       # each region's boss vs party make-ups (fresh party)
 //   npm run scenarios -- --trips 40           # more trips per scenario (less noise)
 //   npm run scenarios -- --regions ashen,blightmire
 //   npm run scenarios -- --active             # fire abilities as soon as they're ready
@@ -18,12 +19,12 @@
 // (on 20+ minute trips) revives fallen heroes at 10% HP in every scenario.
 // Half the trips start at noon and half at midnight.
 import { classlessMaxHp } from "../src/combat/classlessCombatEffects";
-import { GEAR_SLOTS, PROVISION_KEYS, itemSockets } from "../src/combat/gear";
+import { ARROW_STACK, GEAR_SLOTS, PROVISION_KEYS, itemSockets } from "../src/combat/gear";
 import { PET_SPECIES_KEYS, PET_XP } from "../src/combat/pets";
 import { INNATE_KEYS, TRAITS } from "../src/combat/traits";
 import { debugSetLevels } from "../src/game/debug";
 import { ECOLOGIES } from "../src/game/ecology";
-import { buildWildEncounter } from "../src/game/encounters";
+import { buildBossEncounter, buildWildEncounter } from "../src/game/encounters";
 import { createGuild, expeditionDurationMs, recruitHero, startExpedition, tick } from "../src/game/guild";
 import { simulateEncounter } from "../src/game/simulate";
 import { composeStats, createGearItem } from "../src/game/items";
@@ -31,6 +32,14 @@ import { createPet } from "../src/game/pets";
 import { getRegion } from "../src/game/regions";
 import { activePlayer, developHeroes } from "./simKit";
 
+// Tuning: TUNE="boneyard:1.3:1.3,frostfang:1:1.2" npm run scenarios ... multiplies
+// those regions' enemy HP and damage scales for this run only.
+for (const entry of (process.env.TUNE || "").split(",").filter(Boolean)) {
+  const [id, hp, dmg] = entry.split(":");
+  const region = getRegion(id);
+  region.hpScale *= Number(hp);
+  region.dmgScale *= Number(dmg);
+}
 const args = process.argv.slice(2);
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : null);
 const GROUP = flag("--group") || "all";
@@ -81,12 +90,12 @@ function buildGuild(region, { weapons = MIXED, qualities = null, ring = null, qu
       weapon.stats = composeStats(weapon);
     }
     hero.quickSlots = [
-      weapons[index] === "bow" && quivers > 1 ? { key: "arrows", qty: 50 } : { key: "bandage", qty: 5 },
-      weapons[index] === "bow" ? { key: "arrows", qty: 50 } : { key: "potion", qty: 3 },
+      weapons[index] === "bow" && quivers > 1 ? { key: "arrows", qty: ARROW_STACK } : { key: "bandage", qty: 5 },
+      weapons[index] === "bow" ? { key: "arrows", qty: ARROW_STACK } : { key: "potion", qty: 3 },
     ];
     hero.combat.hp = classlessMaxHp(hero);
   });
-  state.stash = { bandage: 40, potion: 12, arrows: 300 };
+  state.stash = { bandage: 40, potion: 12, arrows: 600 };
   for (const key of PROVISION_KEYS) state.stash[key] = 8;
   return state;
 }
@@ -148,11 +157,12 @@ const ECOLOGY_PARTIES = {
   mixed: MIXED, swords: ["sword", "sword", "sword", "sword"], bows: ["bow", "bow", "bow", "bow"], staves: ["staff", "staff", "staff", "staff"],
 };
 
-function fightStats(region, weapons, wave) {
-  const state = buildGuild(region, { weapons });
+function fightStats(region, weapons, wave, quivers = 1) {
+  const state = buildGuild(region, { weapons, quivers });
   const party = state.heroes;
   const before = party.map((hero) => hero.quickSlots.map((slot) => ({ ...slot })));
-  const { result, sim, elapsed } = simulateEncounter(party, wave, { regionTier: getRegion(region).tier, onStep: ACTIVE ? activePlayer : null });
+  const { result, sim, elapsed, engine } = simulateEncounter(party, wave, { regionTier: getRegion(region).tier, onStep: ACTIVE ? activePlayer : null });
+  const boss = engine.active.find((enemy) => enemy.boss);
   const used = (match) => sim.heroes.reduce((sum, hero, index) => sum + hero.quickSlots.reduce((inner, slot, k) =>
     inner + (match(before[index][k]?.key) ? (before[index][k].qty || 0) - (slot?.qty || 0) : 0), 0), 0);
   const taken = sim.heroes.map((hero) => hero.battleStats?.taken || 0);
@@ -165,6 +175,7 @@ function fightStats(region, weapons, wave) {
     arrows: used((key) => key === "arrows"),
     seconds: elapsed,
     focus: totalTaken > 0 ? Math.max(...taken) / totalTaken : 0,
+    bossLeft: boss ? Math.max(0, boss.hp) / boss.maxHp : 0,
   };
 }
 
@@ -195,8 +206,31 @@ function runEcology() {
   }
 }
 
+// Bosses: a fresh party (full HP, full quivers) against each region's end
+// boss, by party make-up ("bows x2": two arrow stacks each, no bandages).
+// "boss left" is the boss's HP share when the fight ended.
+function runBosses() {
+  console.log(`\n=== Boss fights (${TRIPS} each, ${ACTIVE ? "active" : "idle"}, ${GEAR} gear, fresh party) ===`);
+  for (const region of REGIONS) {
+    const info = getRegion(region);
+    if (!info.boss) continue;
+    console.log(`\n${info.name} · LV ${SETUPS[region].level}`);
+    console.log(`${"party".padEnd(8)} win endHP  KOs  supply arrows  secs  boss left`);
+    for (const [partyName, weapons, quivers] of [...Object.entries(ECOLOGY_PARTIES), ["bows x2", ECOLOGY_PARTIES.bows, 2]]) {
+      const sum = { win: 0, endHp: 0, kos: 0, supplies: 0, arrows: 0, seconds: 0, bossLeft: 0 };
+      for (let fight = 0; fight < TRIPS; fight += 1) {
+        const stats = fightStats(region, weapons, buildBossEncounter(info, 0), quivers);
+        for (const key of Object.keys(sum)) sum[key] += stats[key];
+      }
+      const avg = (key) => sum[key] / TRIPS;
+      console.log(`${partyName.padEnd(8)}${pct(avg("win"))}  ${pct(avg("endHp"))} ${num(avg("kos"))} ${num(avg("supplies"))} ${num(avg("arrows"))}  ${num(avg("seconds"))}  ${pct(avg("bossLeft"))}`);
+    }
+  }
+}
+
 const groups = {
   ecology: runEcology,
+  bosses: runBosses,
   party: () => runGroup("Party make-ups (no qualities)", [
     { name: "mixed: sword/bow/staff/sword", weapons: MIXED },
     { name: "all swords", weapons: ["sword", "sword", "sword", "sword"] },

@@ -87,4 +87,54 @@ describe("weapons decide how a hero fights", () => {
     engine._updateEnemy(demon, 1 / 30);
     expect(engine.projectiles.some((shot) => shot.kind === "napalm")).toBe(false);
   });
+
+  test("a ranged hero backs away from an enemy closing in while reloading, and holds still otherwise", () => {
+    const engine = engineWith([heroWithWeapon("bow")]);
+    const hero = engine.heroes[0];
+    engine.spawnQueue = [];
+    hero.y = 400;
+    const brute = enemyAt(hero.x, hero.y - 40);
+    engine.active = [brute];
+    engine.update(1 / 30);
+    // It fired, then started stepping back during the reload.
+    const afterShot = hero.y;
+    for (let step = 0; step < 6; step += 1) engine.update(1 / 30);
+    expect(hero.y).toBeGreaterThan(afterShot);
+    // A distant enemy is no reason to move.
+    brute.y = hero.y - 200;
+    const before = { x: hero.x, y: hero.y };
+    for (let step = 0; step < 20; step += 1) engine.update(1 / 30);
+    expect({ x: hero.x, y: hero.y }).toEqual(before);
+  });
+
+  test("a sword hero doesn't kite; a hero under manual control isn't moved", () => {
+    const engine = engineWith([heroWithWeapon("sword"), heroWithWeapon("bow")]);
+    const [sword, bow] = engine.heroes;
+    engine.spawnQueue = [];
+    bow.manual = true;
+    bow.x = 300; bow.y = 400;
+    const start = { x: bow.x, y: bow.y };
+    engine.active = [enemyAt(sword.x, sword.y - 30), enemyAt(bow.x, bow.y - 30)];
+    for (let step = 0; step < 10; step += 1) engine.update(1 / 30);
+    expect({ x: bow.x, y: bow.y }).toEqual(start);
+    expect(engine._kite(bow, 1 / 30)).toBe(true);
+  });
+
+  test("heroes on auto step out from under a bomb about to land on them", () => {
+    const engine = engineWith([heroWithWeapon("staff")]);
+    const hero = engine.heroes[0];
+    engine.spawnQueue = [];
+    engine.active = [enemyAt(hero.x, 40)];
+    hero.y = 500;
+    const bomb = () => ({ kind: "napalm", x: hero.x, y: hero.y - 150, tx: hero.x + 10, ty: hero.y, spd: 250, splash: 60, dmg: 100, target: hero, t: 0 });
+    const hp = hero.ref.hp;
+    engine.projectiles = [bomb()];
+    for (let step = 0; step < 30; step += 1) engine.update(1 / 30);
+    expect(hero.ref.hp).toBe(hp);
+    // Under manual control the hero stays where the player put it.
+    hero.manual = true;
+    engine.projectiles = [bomb()];
+    for (let step = 0; step < 30; step += 1) engine.update(1 / 30);
+    expect(hero.ref.hp).toBeLessThan(hp);
+  });
 });

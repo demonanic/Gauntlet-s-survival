@@ -370,6 +370,39 @@ bonuses are stamped onto every hero as `hero.guildBonus` so the engine can read 
   at any time to keep everything plus 10 gold per wave; a wipe keeps half. Best wave is
   recorded.
 
+## Difficulty and weapon balance (Oct 2026, second pass)
+
+Target: a party of four at a region's minimum level, common gear one tier below the
+region, playing idle (`npm run scenarios -- --group party`), wins about 70% of whole trips.
+Measured at 64 trips per scenario after tuning:
+
+| Region | HP × | Damage × | mixed | swords | bows | bows, 2 stacks | staves | trio |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Boneyard Crypt | 3.3 | 2.8 | 72% | 58% | 100% | 95% | 98% | 38% |
+| Frostfang Pass | 2.52 | 1.92 | 77% | 95% | 66% | 33% | 48% | 3% |
+| Ashen Keep | 3.07 | 2.31 | 78% | 100% | 78% | 25% | 63% | 0% |
+| The Blightmire | 4.63 | 3.35 | 80% | 95% | 0% | 58% | 97% | 3% |
+
+("bows, 2 stacks" swaps every bandage and potion for a second arrow stack.) The Gutter is
+unchanged: it teaches the basics.
+
+How the weapons got closer (before: all-bow parties won 0–40% past the Boneyard):
+
+- **Kiting:** auto ranged heroes backpedal at half speed from an enemy within 45 px of
+  their body, for the first 40% of each reload (`_kite`, `KITE_*`). Unlimited kiting made
+  ranged parties untouchable (heroes are ~5× faster than most enemies), hence the limits.
+- **Dodging:** heroes on auto step away from a lobbed bomb or bile whose fixed landing
+  point is within its splash (+8 px) and lands within 0.8 s (`_dodgeBlast`). The landing
+  circle is drawn. Manual heroes are never moved by either.
+- **Bows:** damage ×1.45, interval ×1.15 (≈87% of a sword's damage per second, more per
+  arrow). Arrow stacks hold 100 (`ARROW_STACK`).
+- **Bosses** (`npm run scenarios -- --group bosses`, fresh party): every make-up beats every
+  boss except all-bow parties on one stack at the Bog Lich, which needs ~470 arrows. With
+  two stacks they win; it's the one place archers have to prepare for.
+
+Known gaps: three-hero parties (the starting roster) rarely win past the Boneyard; the
+best single-weapon party differs by region (ranged in the Boneyard, swords elsewhere).
+
 ## Balance (Oct 2026, `npm run balance`)
 
 Heroes close on enemies that sit out of range (previously warlocks and the demon could

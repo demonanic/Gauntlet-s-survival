@@ -102,6 +102,8 @@ export const GEAR_SETS = Object.freeze({
 // arrows at the Fletcher. `effect` is applied to the enemy hit.
 const ARROW_DESC = "Bows need arrows: one per shot. 75% are picked back up after a won fight.";
 export const ARROW_KEYS = Object.freeze(["arrows", "venomArrows", "flameArrows", "frostArrows"]);
+// Arrows per quick-slot stack: enough for a long boss fight from one slot.
+export const ARROW_STACK = 100;
 
 // Consumables live in the guild stash and are loaded into quick slots in
 // stacks. `auto` is the HP fraction (or condition) at which a hero uses one
@@ -122,21 +124,21 @@ export const CONSUMABLES = Object.freeze({
   }),
   arrows: Object.freeze({
     key: "arrows", name: "Arrows", short: "ARW", color: "#E2E8F0", arrow: true,
-    desc: ARROW_DESC, price: 1, stackCap: 50, effect: null,
+    desc: ARROW_DESC, price: 1, stackCap: ARROW_STACK, effect: null,
   }),
   venomArrows: Object.freeze({
     key: "venomArrows", name: "Venom Arrows", short: "VNM", color: "#39FF14", arrow: true,
-    desc: "Poisons the target for 60% of the hit over 4s. Spent on use.", price: 4, stackCap: 50,
+    desc: "Poisons the target for 60% of the hit over 4s. Spent on use.", price: 4, stackCap: ARROW_STACK,
     effect: Object.freeze({ dot: 0.6, dotSeconds: 4, dotColor: "#39FF14" }),
   }),
   flameArrows: Object.freeze({
     key: "flameArrows", name: "Flame Arrows", short: "FLM", color: "#FF6600", arrow: true,
-    desc: "Bursts for 35% damage around the target and burns it for 30% over 3s. Spent on use.", price: 4, stackCap: 50,
+    desc: "Bursts for 35% damage around the target and burns it for 30% over 3s. Spent on use.", price: 4, stackCap: ARROW_STACK,
     effect: Object.freeze({ splash: 0.35, splashRadius: 42, dot: 0.3, dotSeconds: 3, dotColor: "#FF6600" }),
   }),
   frostArrows: Object.freeze({
     key: "frostArrows", name: "Frost Arrows", short: "FRS", color: "#7DD3FC", arrow: true,
-    desc: "Slows the target's movement and attacks by 35% for 2.5s. Spent on use.", price: 4, stackCap: 50,
+    desc: "Slows the target's movement and attacks by 35% for 2.5s. Spent on use.", price: 4, stackCap: ARROW_STACK,
     effect: Object.freeze({ slow: 0.35, slowSeconds: 2.5 }),
   }),
 });
@@ -235,7 +237,7 @@ export function heroGearStats(hero) {
 // baseline attack.
 export const WEAPON_PROFILES = Object.freeze({
   sword: Object.freeze({ label: "Sword", style: "Melee", rangeMode: "melee", range: 46, damage: 1.3, intervalScale: 0.9 }),
-  bow: Object.freeze({ label: "Bow", style: "Ranged", rangeMode: "midline", range: 250, damage: 1, intervalScale: 1, usesArrows: true }),
+  bow: Object.freeze({ label: "Bow", style: "Ranged", rangeMode: "midline", range: 250, damage: 1.45, intervalScale: 1.15, usesArrows: true }),
   staff: Object.freeze({ label: "Staff", style: "Magic", rangeMode: "midline", range: 200, damage: 1.1, intervalScale: 1.15 }),
 });
 

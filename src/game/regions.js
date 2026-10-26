@@ -43,8 +43,8 @@ export const REGIONS = Object.freeze([
     tier: 2,
     minLevel: 3,
     durationMinutes: 20,
-    hpScale: 2.0,
-    dmgScale: 1.7,
+    hpScale: 3.3,
+    dmgScale: 2.8,
     completionGold: 300,
     recoverySeconds: 120,
     // Death sustains death: priests, necromancers and the shields that guard them.
@@ -65,8 +65,8 @@ export const REGIONS = Object.freeze([
     tier: 3,
     minLevel: 4,
     durationMinutes: 25,
-    hpScale: 2.1,
-    dmgScale: 1.6,
+    hpScale: 2.52,
+    dmgScale: 1.92,
     completionGold: 500,
     recoverySeconds: 180,
     // Hunters: everything here goes for whoever is weakest.
@@ -87,8 +87,8 @@ export const REGIONS = Object.freeze([
     bossRotation: true,
     minLevel: 6,
     durationMinutes: 30,
-    hpScale: 2.0,
-    dmgScale: 1.5,
+    hpScale: 3.07,
+    dmgScale: 2.31,
     completionGold: 800,
     recoverySeconds: 240,
     // Organized warfare: shields, snipers and sappers in formation.
@@ -109,8 +109,8 @@ export const REGIONS = Object.freeze([
     tier: 5,
     minLevel: 10,
     durationMinutes: 40,
-    hpScale: 3.6,
-    dmgScale: 2.6,
+    hpScale: 4.63,
+    dmgScale: 3.35,
     completionGold: 1600,
     recoverySeconds: 300,
     // Attrition and corruption: the dead get back up, the hunters wait for you to weaken.
