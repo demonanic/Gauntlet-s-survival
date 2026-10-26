@@ -381,20 +381,25 @@ merchants (`merchantDiscount`, max 25%). Battle effects use the hero's own Luck
 (`classlessHeroDerived`); road effects, loot and merchants use the party's average
 (`partyRoadEffects`, `createEncounterSim`). The Perks screen lists a hero's Luck effects.
 
-Measured (`npm run scenarios -- --group luck`, 48 trips, baseline mixed party; win rate
-only, so Luck's loot, event and price value doesn't show):
+Measured (`npm run scenarios -- --group luck`, 48 trips, baseline mixed party, after the
+Defense fix below; win rate only, so Luck's loot, event and price value doesn't show):
 
 | SP spent on | Boneyard (2 SP) | Frostfang (3) | Ashen (5) | Blightmire (9) |
 | --- | --- | --- | --- | --- |
-| attack/defense (default) | 71% | 83% | 81% | 79% |
-| all luck | 65% | 67% | 58% | 48% |
-| half luck, half attack | 65% | 65% | 69% | 69% |
-| all attack | 73% | 90% | 81% | 77% |
-| all defense | 58% | 77% | 60% | 50% |
+| attack/defense (default) | 73% | 79% | 67% | 77% |
+| all luck | 56% | 63% | 52% | 44% |
+| half luck, half attack | 67% | 69% | 54% | 63% |
+| all attack | 71% | 75% | 83% | 67% |
+| all defense | 67% | 77% | 79% | 77% |
 
-So Luck is a real trade: a party that pours everything into it fights noticeably worse
-(about as much as one that pours everything into Defense) in exchange for loot, events
-and prices. Side finding: Defense points are weak next to Attack.
+So Luck is a real trade: a party that pours everything into it fights noticeably worse in
+exchange for loot, events and prices.
+
+**Defense points** (`DEFENSE_PER_POINT`, `statDefense` in `heroModel.js`): defense works on
+a curve (damage × 100 / (100 + defense)), so one point added under 1% survivability
+while an Attack point added 2–4% damage, and all-defense parties won 50–77%. Each SP in
+Defense now counts as 4 defense (about 2.5–3% survivability per point); gear defense is
+unchanged. All-defense and all-attack parties now land close together.
 
 ## Difficulty and weapon balance (Oct 2026, second pass)
 
