@@ -1,6 +1,7 @@
 import * as C from "../combat/config";
 import { LEGENDARY, legendName } from "./adventure";
 import { constrainSquad, fillEcology, rollEcology } from "./ecology";
+import { luckEffects, partyLuck } from "../combat/luck";
 import { rollLoot } from "./items";
 import { BOSS_RANK_SCALING, BOSS_ROTATION, bossForRank } from "./regions";
 
@@ -177,7 +178,8 @@ export function createEncounterSim(party, regionTier, wave = null) {
     minionScale: wave?.scale ?? { hp: 1, dmg: 1 },
     set: wave?.set ?? null,
   };
-  sim.rollDrop = (enemy) => rollLoot(enemy, sim.lootTier, Math.random, { set: sim.set });
+  const luck = luckEffects(partyLuck(party)).rareLoot;
+  sim.rollDrop = (enemy) => rollLoot(enemy, sim.lootTier, Math.random, { set: sim.set, luck });
   sim.makeMinion = (type) => makeEnemy(C.ENEMIES[type] || C.ENEMIES.skeleton,
     sim.minionScale.hp * MINION_SCALE.hp, sim.minionScale.dmg * MINION_SCALE.dmg);
   return sim;

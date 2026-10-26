@@ -9,6 +9,7 @@
 // finds, hazards, stalkers): see partyRoadEffects and game/expedition.js.
 // Evolved qualities have three tiers; hero.qualityTiers[key] says which one.
 
+import { luckEffects, partyLuck } from "./luck";
 import { petRoadEffects } from "./pets";
 
 const tiers = (names, list) => list.map((tier, index) => ({ name: names[index], ...tier }));
@@ -184,7 +185,7 @@ const PERSONAL_ROAD = new Set(["hazardDodge", "envDrain"]);
 // Caps on the party's summed road effects.
 const ROAD_CAPS = Object.freeze({
   ambushVolley: 0.75, spotAmbush: 0.6, nightAmbush: 1, campGuard: 1, stalkerDetect: 0.5, moraleLossCut: 0.6,
-  scavengeOnWin: 0.6, findChance: 1, rareChance: 1.5, moraleBase: 20, postFightHeal: 0.1,
+  scavengeOnWin: 0.6, findChance: 1, rareChance: 1.5, moraleBase: 20, postFightHeal: 0.1, merchantDiscount: 0.25,
 });
 
 // A hero's road effects: their qualities, plus their familiar's.
@@ -207,6 +208,11 @@ export function partyRoadEffects(party) {
       total[stat] = (total[stat] || 0) + value;
       if (value > 0 || stat === "moralePerDanger") (total.who[stat] ||= []).push(hero);
     }
+  }
+  // The party's average Luck tilts its road odds and merchant prices.
+  const luck = luckEffects(partyLuck(party));
+  for (const stat of ["gambleLuck", "findChance", "rareChance", "merchantDiscount"]) {
+    if (luck[stat] > 0) total[stat] = (total[stat] || 0) + luck[stat];
   }
   for (const [stat, cap] of Object.entries(ROAD_CAPS)) if (total[stat] > cap) total[stat] = cap;
   return total;

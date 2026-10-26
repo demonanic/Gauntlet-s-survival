@@ -201,7 +201,7 @@ export function awardClasslessXp(progression, amount) {
 export function allocateClasslessStat(hero, stat) {
   if (!hero || typeof hero !== "object" || hero.cls || !hero.identity?.id ||
     !hero.combat?.stats || !hero.progression || !Number.isInteger(hero.progression.sp) ||
-    hero.progression.sp <= 0 || !["attack", "defense", "agility", "intelligence"].includes(stat) ||
+    hero.progression.sp <= 0 || !["attack", "defense", "agility", "intelligence", "luck"].includes(stat) ||
     !Number.isInteger(hero.combat.stats[stat])) return { ok: false, reason: "invalid_allocation" };
   return {
     ok: true,

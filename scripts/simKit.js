@@ -7,8 +7,8 @@ import { updateHero } from "../src/game/guild";
 export const PERK_ORDER = ["V1", "W1", "P1", "V2", "W2", "P2a", "P3", "W2a", "S1", "P2", "V3", "T1", "S2", "F1"];
 export const SP_ORDER = ["attack", "defense", "attack"];
 
-// Spend every hero's AP on PERK_ORDER and SP on SP_ORDER.
-export function developHeroes(state) {
+// Spend every hero's AP on PERK_ORDER and SP on `spOrder` (SP_ORDER by default).
+export function developHeroes(state, spOrder = SP_ORDER) {
   for (const original of state.heroes) {
     let hero = original;
     for (const nodeId of PERK_ORDER) {
@@ -17,7 +17,7 @@ export function developHeroes(state) {
     }
     let spent = 0;
     while (hero.progression.sp > 0) {
-      const result = allocateClasslessStat(hero, SP_ORDER[spent++ % SP_ORDER.length]);
+      const result = allocateClasslessStat(hero, spOrder[spent++ % spOrder.length]);
       if (!result.ok) break;
       hero = result.hero;
     }
