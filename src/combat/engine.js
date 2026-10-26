@@ -5,6 +5,7 @@
 // Simulation is separate from React; mutates a cloned `sim` fragment and
 // accumulates XP gains, returned to the UI at wave end.
 import { drawGearMarks, heroGearMarks } from "./heroLook";
+import { luckEffects } from "./luck";
 import * as C from "./config";
 import { heroDerived, makeSingleEnemy } from "./logic";
 import { rollEquipmentDrop } from "./equipment";
@@ -78,6 +79,7 @@ function classlessHeroDerived(hero) {
   const combat = hero.combat;
   const attack = combat.basicAttack;
   const stats = combat.stats;
+  const luck = luckEffects(stats.luck);
   const effects = classlessCombatEffects(hero.progression?.ownedNodeIds);
   const gear = heroGearStats(hero);
   const traits = heroTraitEffects(hero);
@@ -105,9 +107,10 @@ function classlessHeroDerived(hero) {
     agility: stats.agility + gear.agility + traits.agility,
     intelligence: stats.intelligence,
     critChance: Math.min(0.5, attack.criticalChance + effects.critChance + gear.critChance + traits.critChance
-      + ((weapon?.rangeMode ?? attack.rangeMode) === "midline" ? traits.rangedCrit : 0)),
+      + ((weapon?.rangeMode ?? attack.rangeMode) === "midline" ? traits.rangedCrit : 0) + luck.critChance),
     critMult: Math.min(3, attack.criticalDamageMultiplier + effects.critDamage + gear.critDamage + traits.critDamage),
-    dodge: C.dodgeChance(stats.agility + gear.agility + traits.agility),
+    // Luck's dodge shares agility's dodge cap.
+    dodge: Math.min(C.dodgeChance(Infinity), C.dodgeChance(stats.agility + gear.agility + traits.agility) + luck.dodge),
     lowHpDodge: 0,
     moveSpeedMultiplier: 1,
     abilityDamageMultiplier: 1,

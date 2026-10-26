@@ -1,3 +1,4 @@
+import { describeLuck, heroLuck } from "../combat/luck";
 import { CANONICAL_NODES, purchaseClasslessNode } from "../combat/classlessProgression";
 
 const REASONS = {
@@ -70,7 +71,7 @@ export default function ClasslessPerkTree({ hero, onPurchase, onAllocate, onClos
         </p>
         <section className="mb-4 rounded border border-cyan-400/20 p-3" aria-label="Allocate stat points">
           <div className="mb-2 font-mono-g text-[10px] text-cyan-100">STAT POINTS · {hero.progression.sp} SP</div>
-          <p className="mb-2 font-mono-g text-[9px] text-slate-400">Attack, Defense, and Agility feed current combat stats. Intelligence is saved; classless spell scaling is not connected yet.</p>
+          <p className="mb-2 font-mono-g text-[9px] text-slate-400">Attack, Defense, and Agility feed current combat stats. Intelligence is saved; classless spell scaling is not connected yet. Luck never adds damage or HP: it tilts the odds, in battle and on the road.</p>
           <div className="grid grid-cols-2 gap-2">
             {Object.entries(hero.combat.stats).map(([stat, value]) => (
               <button key={stat} type="button" disabled={hero.progression.sp <= 0}
@@ -80,6 +81,9 @@ export default function ClasslessPerkTree({ hero, onPurchase, onAllocate, onClos
               </button>
             ))}
           </div>
+          <p className="mt-2 font-mono-g text-[9px] text-emerald-200" data-testid="luck-effects">
+            LUCK {heroLuck(hero)}: {describeLuck(heroLuck(hero)).join(" · ")}
+          </p>
         </section>
         <div className="grid gap-3 sm:grid-cols-2">
           {branches.map((branch) => (

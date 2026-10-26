@@ -8,6 +8,7 @@
 //   npm run scenarios -- --group qualities    # every innate quality (whole party), plus best/worst loadouts
 //   npm run scenarios -- --group revives      # revive rules
 //   npm run scenarios -- --group companions   # familiars and weapon crystals
+//   npm run scenarios -- --group luck         # stat points into luck vs attack/defense
 //   npm run scenarios -- --group ecology      # enemy formations vs party make-ups (single fights)
 //   npm run scenarios -- --group bosses       # each region's boss vs party make-ups (fresh party)
 //   npm run scenarios -- --trips 40           # more trips per scenario (less noise)
@@ -62,14 +63,14 @@ const REGIONS = (flag("--regions") || (GROUP === "qualities" ? "frostfang" : Obj
 const MIXED = ["sword", "bow", "staff", "sword"];
 
 // Build a guild for one scenario. `weapons` sets the party size and make-up.
-function buildGuild(region, { weapons = MIXED, qualities = null, ring = null, quivers = 1, pet = null, crystal = null }) {
+function buildGuild(region, { weapons = MIXED, qualities = null, ring = null, quivers = 1, pet = null, crystal = null, spOrder }) {
   const { level, tier } = SETUPS[region];
   let state = createGuild();
   state.gold = 1e9;
   while (state.heroes.length < weapons.length) state = recruitHero(state).state;
   state.heroes = state.heroes.slice(0, weapons.length);
   state = debugSetLevels(state, level).state;
-  state = developHeroes(state);
+  state = developHeroes(state, spOrder);
   state.heroes.forEach((hero, index) => {
     hero.traits = qualities ? [qualities[index % qualities.length]].filter(Boolean) : [];
     hero.qualityTiers = {};
@@ -251,6 +252,13 @@ const groups = {
     { name: "none" },
     ...PET_SPECIES_KEYS.map((key) => ({ name: `pet: ${key}`, pet: key })),
     ...["ember-2", "frost-2", "venom-2", "storm-2", "swift-2", "blood-2"].map((id) => ({ name: `crystal: ${id}`, crystal: id })),
+  ]),
+  luck: () => runGroup("Where stat points go (mixed party; level 3 has 2 SP, level 10 has 9)", [
+    { name: "attack/defense (default)" },
+    { name: "all into luck", spOrder: ["luck"] },
+    { name: "half luck, half attack", spOrder: ["luck", "attack"] },
+    { name: "all into attack", spOrder: ["attack"] },
+    { name: "all into defense", spOrder: ["defense"] },
   ]),
   revives: () => runGroup("Revives (mixed party, no qualities)", [
     { name: "current rules (camp + boss rest)" },

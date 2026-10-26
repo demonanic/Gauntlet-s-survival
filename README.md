@@ -61,6 +61,13 @@ things stalking the party, **Keen-Eared** heroes blunt ambushes, **Night Eyes**,
 **Charismatic**, **Inspiring**, **Steadfast**, **Optimist**), and some are mixed blessings
 (**Reckless**, **Loud**, **Frail**, **Greedy**, **Paranoid**).
 
+**Stat points.** Each level gives a stat point to spend on Attack, Defense, Agility,
+Intelligence or **Luck**. Luck never adds damage or HP; it tilts the odds. Per point: +0.2%
+crit chance and +0.1% dodge (both inside their usual caps), better gear drops, better odds
+on road gambles, a few more finds and rare encounters, and 1% off wandering merchants (up to
+25%). Points past 20 count half. In a fight a hero uses their own Luck; on the road the
+party uses its average. The Perks screen lists exactly what a hero's Luck is doing.
+
 Veterans develop more qualities from how they actually fought and travelled: at level 10
 and 16 the game looks back over the hero's career and they may become a **Marksman**,
 **Bladesworn**, **Survivor**, **Giantslayer**, **Ghost-Step**, **Bulwark**, **Field

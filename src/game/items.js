@@ -407,13 +407,17 @@ export function randomLegendary(tier, rng = Math.random) {
 
 // Loot for one kill, or null. Handed to the engine as sim.rollDrop.
 // `set` is the region's gear set, if it has one.
-export function rollLoot(enemy, tier = 1, rng = Math.random, { set = null } = {}) {
+// `luck` (a fraction, from the party's Luck) adds weight to every gear rarity
+// above common.
+export function rollLoot(enemy, tier = 1, rng = Math.random, { set = null, luck = 0 } = {}) {
   const enemyTier = LOOT_TABLE.gearChance[enemy?.tier] != null ? enemy.tier : "basic";
   if (rng() < LOOT_TABLE.gearChance[enemyTier]) {
     const legendChance = enemy?.legendary ? LOOT_TABLE.legendaryChance.legend : enemyTier === "boss" ? LOOT_TABLE.legendaryChance.boss : 0;
     if (legendChance && rng() < legendChance) return randomLegendary(tier, rng);
     const slot = GEAR_SLOTS[Math.floor(rng() * GEAR_SLOTS.length)];
-    const rarity = weightedPick(LOOT_TABLE.rarityWeights[enemyTier], rng);
+    const weights = Object.fromEntries(Object.entries(LOOT_TABLE.rarityWeights[enemyTier])
+      .map(([key, weight]) => [key, key === "common" ? weight : weight * (1 + luck)]));
+    const rarity = weightedPick(weights, rng);
     if (set && GEAR_SETS[set] && rng() < LOOT_TABLE.setChance[enemyTier]) {
       return createGearItem({ slot, rarity: rarity === "epic" ? "epic" : "rare", tier, set }, rng);
     }

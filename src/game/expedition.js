@@ -571,7 +571,8 @@ function rareEvent(state, region, hero, at, rng) {
   } else {
     const rarity = pick(["uncommon", "rare", "rare", "epic"], rng);
     const item = createGearItem({ slot: pick(GEAR_SLOTS, rng), rarity, tier: region.tier + 1 }, rng);
-    const price = item.value * MERCHANT_PRICE_MULT;
+    // A lucky party gets a better deal.
+    const price = Math.max(1, Math.round(item.value * MERCHANT_PRICE_MULT * (1 - roadEffect(road(state), "merchantDiscount"))));
     addFeed(run, at, `A wandering merchant waves the party over. "Fine wares, fair prices!" They're selling a ${item.name} for ${price} gold.`, "story", true);
     openPending(run, at, { kind: "merchant", item, price, text: `A wandering merchant offers a ${item.name} for ${price} gold.` });
   }

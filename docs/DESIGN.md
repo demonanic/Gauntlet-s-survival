@@ -370,6 +370,32 @@ bonuses are stamped onto every hero as `hero.guildBonus` so the engine can read 
   at any time to keep everything plus 10 gold per wave; a wipe keeps half. Best wave is
   recorded.
 
+## Luck (`src/combat/luck.js`)
+
+A fifth stat bought with SP (heroes start at 0; old saves get 0). It never adds damage or
+HP. Per point (`LUCK.perPoint`), with points past 20 counting half: +0.2% crit chance
+(inside the 50% cap), +0.1% dodge (inside agility's 35% dodge cap), +2% weight on
+uncommon-or-better gear drops (`rollLoot` `luck`), +0.5% road gamble odds (`gambleLuck`),
++1% finds (`findChance`), +2% rare encounters (`rareChance`) and 1% off wandering
+merchants (`merchantDiscount`, max 25%). Battle effects use the hero's own Luck
+(`classlessHeroDerived`); road effects, loot and merchants use the party's average
+(`partyRoadEffects`, `createEncounterSim`). The Perks screen lists a hero's Luck effects.
+
+Measured (`npm run scenarios -- --group luck`, 48 trips, baseline mixed party; win rate
+only, so Luck's loot, event and price value doesn't show):
+
+| SP spent on | Boneyard (2 SP) | Frostfang (3) | Ashen (5) | Blightmire (9) |
+| --- | --- | --- | --- | --- |
+| attack/defense (default) | 71% | 83% | 81% | 79% |
+| all luck | 65% | 67% | 58% | 48% |
+| half luck, half attack | 65% | 65% | 69% | 69% |
+| all attack | 73% | 90% | 81% | 77% |
+| all defense | 58% | 77% | 60% | 50% |
+
+So Luck is a real trade: a party that pours everything into it fights noticeably worse
+(about as much as one that pours everything into Defense) in exchange for loot, events
+and prices. Side finding: Defense points are weak next to Attack.
+
 ## Difficulty and weapon balance (Oct 2026, second pass)
 
 Target: a party of four at a region's minimum level, common gear one tier below the

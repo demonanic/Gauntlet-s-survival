@@ -44,7 +44,8 @@ export function ensureHeroIdentityColor(hero) {
 // Appearance and progression are deliberately separate from combat identity.
 export const HERO_BASELINE = Object.freeze({
   hp: 300,
-  stats: Object.freeze({ attack: 10, defense: 10, agility: 10, intelligence: 10 }),
+  // Luck starts at nothing: every point is a choice (combat/luck.js).
+  stats: Object.freeze({ attack: 10, defense: 10, agility: 10, intelligence: 10, luck: 0 }),
   basicAttack: Object.freeze({
     damage: 16,
     intervalSeconds: 1.05,
