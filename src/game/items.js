@@ -7,7 +7,8 @@ import {
   CONSUMABLES, CORE_STAT_KEYS, CRYSTAL_KEYS, CRYSTALS, FLETCHING, GEAR_SETS, PROVISIONS, crystalFits, crystalInfo, itemSockets, GEAR_SLOTS, GEAR_STAT_KEYS, GEAR_STAT_LABELS, PERCENT_STATS,
   QUICK_SLOT_COUNT, SUPPLY_STYLES, heroGearStats, heroUsesArrows, heroWeaponProfile,
 } from "../combat/gear";
-import { HERO_BASELINE, serializeGameState } from "../combat/heroModel";
+import { HERO_BASELINE, serializeGameState, statDefense } from "../combat/heroModel";
+import { luckEffects } from "../combat/luck";
 import { heroTraitEffects } from "../combat/traits";
 
 export const RARITIES = Object.freeze({
@@ -627,10 +628,10 @@ export function heroCombatSummary(hero) {
   const weapon = (attack.damage + (stats.attack - HERO_BASELINE.stats.attack) + gear.attack) * (heroWeaponProfile(hero)?.damage ?? 1);
   return {
     attack: Math.round(weapon * (1 + effects.weaponDamage) * (1 + traits.damage)),
-    defense: stats.defense + gear.defense + traits.defense,
+    defense: statDefense(stats) + gear.defense + traits.defense,
     maxHp: classlessMaxHp(hero),
-    dodge: C.dodgeChance(stats.agility + gear.agility + traits.agility),
-    critChance: Math.min(0.5, attack.criticalChance + effects.critChance + gear.critChance + traits.critChance),
+    dodge: Math.min(C.dodgeChance(Infinity), C.dodgeChance(stats.agility + gear.agility + traits.agility) + luckEffects(stats.luck).dodge),
+    critChance: Math.min(0.5, attack.criticalChance + effects.critChance + gear.critChance + traits.critChance + luckEffects(stats.luck).critChance),
   };
 }
 

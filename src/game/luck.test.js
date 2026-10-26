@@ -2,11 +2,11 @@ import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import { allocateClasslessStat } from "../combat/classlessProgression";
 import { Engine } from "../combat/engine";
 import { LUCK, describeLuck, effectiveLuck, luckEffects, partyLuck } from "../combat/luck";
-import { normalizeClasslessHero } from "../combat/heroModel";
+import { DEFENSE_PER_POINT, normalizeClasslessHero } from "../combat/heroModel";
 import { partyRoadEffects } from "../combat/traits";
 import { buildWildEncounter, createEncounterSim } from "./encounters";
 import { createGuild } from "./guild";
-import { createGearItem, rollLoot } from "./items";
+import { createGearItem, heroCombatSummary, rollLoot } from "./items";
 import { getRegion } from "./regions";
 
 function plainHero(luck = 0) {
@@ -73,5 +73,30 @@ describe("luck", () => {
       return better / drops;
     };
     expect(share(1)).toBeGreaterThan(share(0) + 0.04);
+  });
+});
+
+describe("stat points", () => {
+  const withStat = (hero, stat, value) => ({ ...hero, combat: { ...hero.combat, stats: { ...hero.combat.stats, [stat]: value } } });
+
+  test("a Defense point is worth about as much as an Attack point", () => {
+    const hero = plainHero();
+    const base = derived(hero);
+    const tougher = derived(withStat(hero, "defense", hero.combat.stats.defense + 1));
+    const stronger = derived(withStat(hero, "attack", hero.combat.stats.attack + 1));
+    expect(tougher.defense - base.defense).toBe(DEFENSE_PER_POINT);
+    const survival = (100 + tougher.defense) / (100 + base.defense) - 1;
+    const damage = stronger.attack / base.attack - 1;
+    expect(survival).toBeGreaterThan(damage * 0.5);
+    expect(survival).toBeLessThan(damage * 2);
+  });
+
+  test("the hero summary matches what battle uses, Luck included", () => {
+    const hero = withStat(withStat(plainHero(20), "defense", 13), "agility", 14);
+    const summary = heroCombatSummary(hero);
+    const battle = derived(hero);
+    expect(summary.defense).toBe(battle.defense);
+    expect(summary.dodge).toBeCloseTo(battle.dodge);
+    expect(summary.critChance).toBeCloseTo(battle.critChance);
   });
 });

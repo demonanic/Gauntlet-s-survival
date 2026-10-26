@@ -40,6 +40,18 @@ export function ensureHeroIdentityColor(hero) {
   return { ...hero, appearance: { ...appearance, identityColor: migratedIdentityColor(hero) } };
 }
 
+// Each stat point spent on Defense is worth this much defense. Defense works
+// on a curve (damage x 100 / (100 + defense)), so a single point barely moved
+// it: an Attack point added 2-4% damage while a Defense point added under 1%
+// survivability. Scaled, the two are worth about the same.
+export const DEFENSE_PER_POINT = 4;
+
+// The defense a hero's stats give (before gear and qualities).
+export function statDefense(stats) {
+  const base = HERO_BASELINE.stats.defense;
+  return base + ((Number(stats?.defense) || base) - base) * DEFENSE_PER_POINT;
+}
+
 // Authoritative starting combat profile for newly created classless heroes.
 // Appearance and progression are deliberately separate from combat identity.
 export const HERO_BASELINE = Object.freeze({

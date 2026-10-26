@@ -10,7 +10,7 @@ import * as C from "./config";
 import { heroDerived, makeSingleEnemy } from "./logic";
 import { rollEquipmentDrop } from "./equipment";
 import { unlockedAbilities, getAbility, MAGE_SPELLS } from "./perks";
-import { HERO_BASELINE } from "./heroModel";
+import { HERO_BASELINE, statDefense } from "./heroModel";
 import { classlessCombatEffects, classlessMaxHp } from "./classlessCombatEffects";
 import { getUnlockedClasslessAbilities, validateClasslessAbilityUse } from "./classlessAbilities";
 import { HERO_SPRITE_ATLAS, selectHeroSpriteFrame } from "./heroSprite";
@@ -103,7 +103,7 @@ function classlessHeroDerived(hero) {
     movementSpeed: attack.movementSpeed * (1 + traits.moveSpeed) * (1 - (env?.moveSlow || 0)),
     magic: false,
     damageType: null,
-    defense: stats.defense + gear.defense + traits.defense,
+    defense: statDefense(stats) + gear.defense + traits.defense,
     agility: stats.agility + gear.agility + traits.agility,
     intelligence: stats.intelligence,
     critChance: Math.min(0.5, attack.criticalChance + effects.critChance + gear.critChance + traits.critChance
