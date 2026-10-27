@@ -2,6 +2,7 @@ import {
   createGuild, recruitCost, recruitHero, startExpedition, tick,
 } from "./guild";
 import { loadGuild, saveGuild } from "./storage";
+import { withoutArmor } from "../test/expeditionFixtures";
 
 const T0 = 1_000_000;
 const ids = (state) => state.heroes.map((hero) => hero.identity.id);
@@ -33,6 +34,16 @@ describe("guild roster", () => {
 });
 
 describe("guild basics", () => {
+  test("new heroes and recruits come with a weapon and a plain set of armor", () => {
+    const state = createGuild();
+    const recruit = recruitHero(state).state.heroes.at(-1);
+    for (const hero of [...state.heroes, recruit]) {
+      for (const slot of ["weapon", "head", "chest", "legs", "arms"]) expect(hero.equipment[slot]).toMatchObject({ slot, rarity: "common", tier: 1 });
+      expect(hero.equipment.secondary).toBeUndefined();
+      expect(hero.equipment.trinket).toBeUndefined();
+    }
+  });
+
   test("rejects regions above the party's level", () => {
     const state = createGuild();
     expect(startExpedition(state, "boneyard", ids(state), T0)).toEqual({ ok: false, reason: "level_required" });
@@ -40,7 +51,8 @@ describe("guild basics", () => {
 
   test("resting at the guild heals wounded heroes", () => {
     let state = createGuild();
-    state.heroes[0].traits = []; // no trait, so max HP is exactly 300
+    state.heroes[0].traits = []; // no trait and no armor, so max HP is exactly 300
+    withoutArmor(state.heroes[0]);
     state.heroes[0].combat.hp = 100;
     state = tick(state, T0);
     state = tick(state, T0 + 30_000);

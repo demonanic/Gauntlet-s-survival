@@ -8,6 +8,8 @@
 //   npm run balance -- --no-shop    # never buy from the Armory or use the Forge
 //   npm run balance -- --hours 12   # endgame length after the campaign
 //   npm run balance -- --histories  # print each hero's career history (quality calibration)
+//   npm run balance -- --trace boneyard   # print every trip to that region: party, gear, how it ended
+//   npm run balance -- --until boneyard   # stop each playthrough after its first trip there
 //
 // "Idle" players never tap abilities (heroes only auto-attack and auto-use
 // supplies). "Active" players fire every ability the moment it is ready.
@@ -33,6 +35,9 @@ const NO_GEAR = args.includes("--no-gear");
 const NO_SUPPLIES = args.includes("--no-supplies");
 const NO_SHOP = args.includes("--no-shop");
 const ENDGAME_MINUTES = (Number(args[args.indexOf("--hours") + 1]) || 8) * 60;
+const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : null);
+const TRACE = flag("--trace");
+const UNTIL = flag("--until");
 const MAX_EXPEDITIONS = 160;
 const CAMPAIGN = REGIONS.filter((region) => !region.endless);
 // Gold kept back for supplies before spending in the Armory or Forge.
@@ -155,9 +160,19 @@ function runExpedition(state, clock, region, party, active) {
   state = started.state;
   // Detours (treasure maps) can run past the planned length, so allow an hour extra.
   const until = region.endless ? clock : clock + expeditionDurationMs(state, region) + 60 * 60_000;
+  const before = TRACE === region.id ? party.map((id) => {
+    const hero = state.heroes.find((entry) => entry.identity.id === id);
+    const gear = Object.values(hero.equipment || {});
+    const slots = hero.quickSlots.map((slot) => (slot ? `${slot.key}${slot.qty}` : "-")).join("/");
+    return `L${hero.progression.level} ${hero.equipment?.weapon?.weaponType || "unarmed"} ${gear.length}pc[${gear.map((item) => item.rarity[0]).join("")}] ${slots}`;
+  }) : null;
   state = tick(state, until, { onStep: active ? activePlayer : null });
   if (state.expedition) throw new Error(`${region.id} expedition did not finish`);
   const report = state.lastReport;
+  if (before) {
+    console.log(`[${active ? "active" : "idle"}] ${region.id} ${report.outcome} · fights ${report.stats.fights} · ambushes ${report.stats.ambushes} · party ${before.join(" | ")}`);
+    if (report.outcome !== "victory") console.log(`    ...${report.log.slice(-3).join(" | ").slice(0, 300)}`);
+  }
   return {
     state,
     clock: report.endedAt + report.stats.autoFightSeconds * 1000,
@@ -191,6 +206,7 @@ function playthrough(active) {
       firstClear[region.id] = { minutes: clock / 60000, attempts: attempts[region.id], level: Math.max(...state.heroes.map((hero) => hero.progression.level)) };
     }
     log.push({ region: region.id, outcome: run_.outcome, reached: run_.reached });
+    if (UNTIL === region.id) return { firstClear, attempts, log, state, minutes: clock / 60000, rarities: [], endgame: { boss: [], rift: [], rankAt: {} } };
   }
 
   // Endgame: chase boss ranks, fall back to the Rift after two straight losses.

@@ -81,6 +81,8 @@ on the Demonanic combat engine.
   items (gear, loot, supplies), local save, headless encounter simulator.
 - `scripts/balance.js` (`npm run balance`): plays scripted guilds from a fresh save through
   the real game code and reports first-clear times, attempts, levels and win rates.
+  `--trace <region>` prints every trip there (party levels, gear, supplies, how it
+  ended); `--until <region>` stops each playthrough after its first trip there.
 - `scripts/scenarios.js` (`npm run scenarios`): plays the same expedition many times with
   one thing changed and reports the results side by side: party make-ups (all swords,
   all bows, all staves, mixed, trio, duo, solo), every innate quality and best/worst
@@ -230,6 +232,13 @@ Thrifty ×0.65); `hero.savePotions` keeps potions until an elite or boss is on t
   right after the roster, points at Recruit and then Hire, and advances once there are four
   heroes. Old saves with three heroes get it too, through a "Next up" hint that opens the
   recruit dialog. After it, recruits cost what they always did (the fifth hero 128g).
+- **Starter armor:** every new hero (starters and recruits) comes with common tier-1 helm,
+  cuirass, greaves and bracers as well as their weapon (`STARTER_ARMOR` in `guild.js`).
+  Region difficulty is tuned for at least that much armor, but armor only drops 4–8% of
+  the time from ordinary enemies, so new parties used to reach the Boneyard in little more
+  than their weapons. Traced with `npm run balance -- --runs 12 --trace boneyard --until
+  boneyard`: idle players' first Boneyard trips went from 5 of 11 won (the losses: worn
+  down, or overrun right after an ambush) to 8 of 12; active players from 10 of 12 to 12 of 12.
 - **Hints:** `guildHints` lists up to three things to deal with (unspent AP/SP, better
   vault gear of the same weapon kind by `gearScore`, low arrows, empty quick slots with
   supplies in the stash, a newly opened region, a hero ready to retire), each with a

@@ -9,3 +9,10 @@ export function withPendingFight(state, at, kind = "ambush") {
   state.expedition.pending = { kind, wave, label: "the test squad", at, promptAt: at, engagedAt: at };
   return state;
 }
+
+// Take off a hero's starter armor (mutates and returns the hero), for tests
+// that work out exact numbers for a hero in nothing but their weapon.
+export function withoutArmor(hero) {
+  for (const slot of ["head", "chest", "legs", "arms"]) delete hero.equipment[slot];
+  return hero;
+}

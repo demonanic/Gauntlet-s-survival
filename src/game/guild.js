@@ -25,6 +25,7 @@ const RECRUIT_NAMES = ["Vex", "Morrow", "Ilsa", "Tamsin", "Garrick", "Pell", "Wr
 const BASE_RECRUIT_COST = 80;
 const RECRUIT_COST_GROWTH = 1.6;
 const STARTER_WEAPONS = ["sword", "bow", "staff"];
+const STARTER_ARMOR = ["head", "chest", "legs", "arms"];
 const STARTING_STASH = { bandage: 6, arrows: 100 };
 export const MAX_NAME_LENGTH = 16;
 // Gold to turn away the current recruit candidate and see another.
@@ -38,6 +39,10 @@ function newHero(name, weaponVariant, { trait = rollTrait(), hueShift = null, le
   hero.appearance = { ...hero.appearance, ...palette };
   hero.traits = [trait];
   hero.equipment.weapon = createGearItem({ slot: "weapon", variant: weaponVariant, rarity: "common", tier: 1 });
+  // Guild-issue armor: plain, but a full set. Without it a new party reaches
+  // the Boneyard in little more than its weapons, and every region is tuned
+  // for heroes in at least this much.
+  for (const slot of STARTER_ARMOR) hero.equipment[slot] = createGearItem({ slot, rarity: "common", tier: 1 });
   if (level > 1) {
     const awarded = awardClasslessXp(hero.progression, C.HERO_XP[Math.min(level, C.HERO_XP.length) - 1]);
     if (awarded.ok) hero.progression = awarded.progression;

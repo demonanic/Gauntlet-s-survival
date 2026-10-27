@@ -1,4 +1,4 @@
-import { withPendingFight } from "../test/expeditionFixtures";
+import { withoutArmor, withPendingFight } from "../test/expeditionFixtures";
 import { Engine } from "../combat/engine";
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import * as C from "../combat/config";
@@ -114,8 +114,8 @@ describe("traits", () => {
   const heroWith = (trait) => {
     const hero = structuredClone(createGuild().heroes[0]);
     hero.traits = [trait];
-    delete hero.equipment.weapon; // unarmed, so only the trait changes the numbers
-    return hero;
+    delete hero.equipment.weapon; // unarmed and unarmored, so only the trait changes the numbers
+    return withoutArmor(hero);
   };
 
   test("stat traits change the hero's combat numbers", () => {
@@ -160,7 +160,7 @@ describe("prestige", () => {
     expect(retired.state.heroes).toHaveLength(2);
     expect(retired.state.legacy.renown).toBe(3);
     expect(retired.state.legacy.legends[0]).toMatchObject({ name: state.heroes[0].identity.name, level: 20 });
-    expect(retired.state.vault.map((item) => item.slot)).toEqual(["weapon"]);
+    expect(retired.state.vault.map((item) => item.slot).sort()).toEqual(["arms", "chest", "head", "legs", "weapon"]);
     expect(retired.state.stash.potion).toBe(2);
     expect(retireHero(state, heroId(state, 1), T0)).toEqual({ ok: false, reason: "level_required" });
     expect(retireHero({ ...state, bossRank: 10 }, heroId(state), T0).state.legacy.renown).toBe(5);
@@ -176,7 +176,7 @@ describe("prestige", () => {
     expect(buyLegacyUpgrade(withRenown(state, 0), "vigor")).toEqual({ ok: false, reason: "insufficient_renown" });
     const vigor = buyLegacyUpgrade(withRenown(state, 1), "vigor").state;
     vigor.heroes[0].traits = [];
-    expect(classlessMaxHp(vigor.heroes[0])).toBe(312);
+    expect(classlessMaxHp(withoutArmor(vigor.heroes[0]))).toBe(312);
   });
 
   test("Mentorship starts recruits at a higher level; Swift Roads and Fortune apply on expeditions", () => {

@@ -4,11 +4,13 @@ import { buildWildEncounter, createEncounterSim } from "./encounters";
 import { createGuild } from "./guild";
 import { createGearItem, heroCombatSummary } from "./items";
 import { getRegion } from "./regions";
+import { withoutArmor } from "../test/expeditionFixtures";
 
 function heroWithWeapon(variant) {
   const hero = structuredClone(createGuild().heroes[0]);
   hero.traits = [];
   hero.guildBonus = { damage: 0, maxHp: 0 };
+  withoutArmor(hero);
   if (variant) hero.equipment.weapon = createGearItem({ slot: "weapon", variant, rarity: "common", tier: 1 });
   else delete hero.equipment.weapon;
   hero.quickSlots = variant === "bow" ? [{ key: "arrows", qty: 20 }, null] : [null, null];

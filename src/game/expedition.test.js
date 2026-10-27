@@ -1,5 +1,5 @@
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
-import { withPendingFight } from "../test/expeditionFixtures";
+import { withoutArmor, withPendingFight } from "../test/expeditionFixtures";
 import {
   ADVENTURE, WEATHER, conditionEffects, isNight, moraleDamageBonus, rollBanter, rollWeather, sneakChance,
 } from "./adventure";
@@ -189,6 +189,7 @@ describe("timed expeditions", () => {
   test("the party patches up slowly between events, but not while a prompt holds it", () => {
     let state = gutterRun(() => 0.999); // first event at 40s
     state.heroes[0].traits = [];
+    withoutArmor(state.heroes[0]);
     state.heroes[0].combat.hp = 100;
     state = tick(state, T0 + 30_000, { interactive: true });
     expect(state.heroes[0].combat.hp).toBeCloseTo(120, 0); // 300 max HP / 450 per second x 30s
