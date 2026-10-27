@@ -2,6 +2,7 @@ import * as C from "../combat/config";
 import { LEGENDARY, legendName } from "./adventure";
 import { constrainSquad, fillEcology, rollEcology } from "./ecology";
 import { luckEffects, partyLuck } from "../combat/luck";
+import { NEMESIS, nemesisStats } from "./nemesis";
 import { rollLoot } from "./items";
 import { BOSS_RANK_SCALING, BOSS_ROTATION, bossForRank } from "./regions";
 
@@ -105,6 +106,23 @@ export function buildLegendaryEncounter(region, progress = 0, rng = Math.random)
   legend.families = [...new Set([...legend.families, "hunter", "predator"])];
   wave.enemies.unshift(legend);
   return { ...wave, total: wave.enemies.length, lootTier: region.tier + 1, legendary: true };
+}
+
+// A nemesis at `level` leads the first wave of an ordinary encounter in its
+// region. It is an elite that hunts the wounded, may flee once when nearly
+// dead, and carries the traits it has earned (see nemesis.js).
+export function buildNemesisEncounter(region, nemesis, level, progress = 0, rng = Math.random) {
+  const wave = buildWildEncounter({ ...region, wildlife: { ...region.wildlife, squad: [2, 3], eliteChance: 0 } }, progress, rng, { ecology: false });
+  const depth = 1 + DEPTH_SCALE_AT_END * Math.max(0, Math.min(1, progress));
+  const stats = nemesisStats(level);
+  const foe = makeEnemy(C.ENEMIES[nemesis.type], region.hpScale * depth * stats.hp, region.dmgScale * depth * stats.dmg);
+  Object.assign(foe, {
+    name: nemesis.name, tier: "elite", nemesisId: nemesis.id, nemesisLevel: level,
+    attackSpeed: stats.attackSpeed, regen: stats.regen, fleeBelow: NEMESIS.fleeBelow, fleeChance: stats.fleeChance,
+  });
+  foe.families = [...new Set([...foe.families, "hunter"])];
+  wave.enemies.unshift(foe);
+  return { ...wave, total: wave.enemies.length, lootTier: region.tier + 1, nemesisId: nemesis.id };
 }
 
 // The region's end boss. In a boss-rotation region the boss follows the

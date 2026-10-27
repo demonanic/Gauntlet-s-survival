@@ -87,6 +87,8 @@ export function createGuild() {
     petCrates: [],
     // Enemy formations (ecology.js) the guild has met, which it now knows by name.
     ecologySeen: {},
+    // Named enemies that beat the guild's heroes (nemesis.js), alive and slain.
+    nemeses: [],
     stash: { ...STARTING_STASH },
     expedition: null,
     clears: {},

@@ -1,4 +1,5 @@
 import HallOfLegends from "../components/HallOfLegends";
+import NemesisBoard from "../components/NemesisBoard";
 import HeroRow from "../components/HeroRow";
 import ItemDetails from "../components/ItemDetails";
 import { NeonButton, Panel } from "../components/ui";
@@ -105,6 +106,7 @@ export default function GuildHall({
           </ul>
         )}
       </Panel>
+      <NemesisBoard guild={guild} />
       <HallOfLegends guild={guild} onBuy={onBuyLegacy} />
     </div>
   );

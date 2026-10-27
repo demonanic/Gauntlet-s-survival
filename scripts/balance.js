@@ -260,6 +260,7 @@ function summarize(label, results) {
     console.log(`  #${index + 1}: campaign done ${result.firstClear[CAMPAIGN.at(-1).id] ? Math.round(result.firstClear[CAMPAIGN.at(-1).id].minutes) + " min" : "never"} · final rank ${result.state.bossRank}` +
       ` · levels ${result.state.heroes.map((hero) => hero.progression.level).join("/")} · gold ${result.state.gold}` +
       ` · best Rift wave ${result.state.records.riftBest}` +
+      ` · nemeses ${(result.state.nemeses || []).map((nemesis) => `${nemesis.typeName} L${nemesis.level}${nemesis.slainAt ? "†" : ""}`).join(", ") || "none"}` +
       ` · gear ${["common", "uncommon", "rare", "epic", "legendary"].map((rarity) => result.rarities.filter((entry) => entry === rarity).length).join("/")} (C/U/R/E/L)` +
       ` · qualities ${result.state.heroes.map((hero) => heroQualities(hero).map((quality) => quality.name).join("+")).join(", ")}` +
       ` · avg +${Math.round(result.state.heroes.flatMap((hero) => Object.values(hero.equipment || {})).reduce((sum, item, _, all) => sum + (item.upgrade || 0) / all.length, 0) * 10) / 10}`);

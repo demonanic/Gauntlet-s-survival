@@ -4,6 +4,7 @@ import { ECOLOGIES, squadRoles } from "../game/ecology";
 import { ADVENTURE, STORIES, WEATHER, moraleLabel } from "../game/adventure";
 import { RARITIES, formatGearStats } from "../game/items";
 import { getEnvironment } from "../game/environment";
+import { nemesisTraits } from "../game/nemesis";
 import { getRegion } from "../game/regions";
 import { Bar, NeonButton, Panel, formatSeconds } from "./ui";
 
@@ -29,6 +30,7 @@ function PendingPrompt({ pending, now, gold, onAttack, onChoose }) {
   // And how they work together: the squad's roles, and its formation if it has one.
   const roles = pending.wave && pending.kind !== "rift" ? squadRoles(pending.wave.enemies).map((role) => ROLE_LABELS[role]).filter(Boolean) : [];
   const formation = pending.formation && ECOLOGIES[pending.formation];
+  const nemesis = pending.nemesisId ? pending.wave?.enemies.find((enemy) => enemy.nemesisId === pending.nemesisId) : null;
   const button = (label, color, onClick, testId) => (
     <NeonButton key={testId} color={color} onClick={onClick} data-testid={testId}>{label}</NeonButton>
   );
@@ -76,6 +78,12 @@ function PendingPrompt({ pending, now, gold, onAttack, onChoose }) {
       )}
       {roles.length > 0 && (
         <p className="font-mono-g text-[10px] text-slate-500" data-testid="prompt-roles">Roles: {roles.join(", ")}</p>
+      )}
+      {nemesis && (
+        <p className="font-mono-g text-[10px] font-bold text-amber-400" data-testid="prompt-nemesis">
+          Nemesis: {nemesis.name} · LV {nemesis.nemesisLevel}
+          {nemesisTraits(nemesis.nemesisLevel).map((trait) => ` · ${trait.name}`).join("")}
+        </p>
       )}
       {formation && (
         <p className="font-mono-g text-[10px] text-amber-200" data-testid="prompt-formation">

@@ -287,6 +287,33 @@ the party notices it with 3% + `stalkerDetect` (Tracker 18%, Paranoid 12%, Keen-
 ready for it (its strike loses the volley). Camp rests have a 20% chance of a raid; a Light
 Sleeper turns the raid's volley into a warning.
 
+## Nemeses (`src/game/nemesis.js`)
+
+- **Rising:** after a fight in a region of tier 2+ (`NEMESIS.fromTier`), each creature that
+  downed a hero (the engine records the last enemy to hit each hero who falls:
+  `engine.downed`, passed on as `outcome.downed`) may rise as a nemesis: 35% per fight
+  (`riseChance`), always if the party was wiped. Bosses and summoned or raised minions
+  never rise. One per region, three active at most (`maxActive`). It gets a name
+  (`nemesisName`), its victims (hero id and name) and level 1.
+- **Leveling (automated):** +1 level every 2 hours of real time (`growthHours`, computed
+  on read by `nemesisLevel`, settled into `level` by `growNemesis`), +1 per hero it downs
+  and +1 for wiping the party (`nemesisTriumphs`), +1 when it flees. Cap 10.
+- **Stats** (`nemesisStats`, on top of the region and depth scaling): HP ×(3 + 0.3 per
+  level after 1), damage ×(1.3 + 0.08 per level). Traits: Relentless at LV 3 (attacks
+  25% faster: `enemy.attackSpeed`), Ironhide at 5 (HP ×1.25), Regenerating at 7 (1% max
+  HP per second: `enemy.regen`), Dread at 9 (damage ×1.15 and it never flees).
+- **Meeting it:** each ordinary encounter in its region has a 12% chance
+  (`appearChance`, doubled if one of its victims is in the party) to be the nemesis
+  instead, at most once a trip (`run.nemesisMet`). `buildNemesisEncounter` puts it at the
+  head of a normal multi-wave encounter as a named elite that hunts the wounded; the
+  feed and prompt name it, its level and traits, and whom it remembers. Its name and level
+  float above it in battle.
+- **Fleeing:** below 20% HP it rolls once per fight (50%, `fleeChance`) to escape
+  (`engine._nemesisTick`); it leaves the wave, the fight goes on, and it gains a level.
+- **Slain:** gold 45 × level × the tier multiplier, a Rare/Epic trophy one tier up (Epic
+  from LV 6), +20 morale, and every hero in the party it once beat gets 40 XP × its level.
+  The last 12 slain stay on the Guild Hall's Nemeses board.
+
 ## Enemy behavior families (`C.ENEMY_FAMILIES`)
 
 Hunter, predator, protector, disruptor, attrition, ambusher, skirmisher and watcher tags

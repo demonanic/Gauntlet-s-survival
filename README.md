@@ -197,6 +197,17 @@ veteran is along). It never tells you what to do about it.
 strikes when a hero is badly hurt. A Tracker (or a lucky glance) may notice it first, and
 then the party can turn and fight, try to lose it, or keep going ready for it.
 
+**Nemeses:** when a creature knocks out one of your heroes (from Boneyard Crypt on), it
+may rise as a named nemesis: "Grak the Bonebreaker". It always does if it wipes the party.
+It remembers every hero it beat, gains a level every 2 hours on its own and another for
+each hero it downs, and waits for you in its region (one per region, three at most). It
+may find the party on a later trip, more often when one of its victims is along, leading
+a squad as a named elite. With levels come traits: Relentless (attacks faster, LV 3),
+Ironhide (+25% HP, LV 5), Regenerating (LV 7) and Dread (never flees, hits harder, LV 9).
+Nearly dead, it may flee to come back a level stronger. Kill it for gold, a Rare or Epic
+trophy and bonus XP for every hero it once beat. The Guild Hall lists your nemeses and
+the ones you've slain.
+
 ### Endgame
 
 - **Boss rotation:** after the Three-Headed Demon falls, Ashen Keep's throne passes to the
