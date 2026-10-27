@@ -23,7 +23,7 @@ function plainHero(weapon = "sword") {
 }
 
 function arena(heroes) {
-  const engine = new Engine({ getContext: () => null }, createEncounterSim(heroes, 1), buildWildEncounter(getRegion("gutter"), 0, fixed(0.5)), {});
+  const engine = new Engine({ getContext: () => null }, createEncounterSim(heroes, 1), buildWildEncounter(getRegion("gutter"), 0, fixed(0.5), { waves: 1 }), {});
   engine.spawnQueue = [];
   engine.active = [];
   return engine;

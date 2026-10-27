@@ -82,7 +82,7 @@ describe("hero history", () => {
 
   test("the engine tallies each hero's hits, crits, kills and damage", () => {
     const hero = structuredClone(plainGuild().heroes[0]);
-    const engine = new Engine({ getContext: () => null }, createEncounterSim([hero], 1), buildWildEncounter(getRegion("gutter"), 0, fixed(0.5)), {});
+    const engine = new Engine({ getContext: () => null }, createEncounterSim([hero], 1), buildWildEncounter(getRegion("gutter"), 0, fixed(0.5), { waves: 1 }), {});
     engine.spawnQueue = [];
     const h = engine.heroes[0];
     engine.active = [{ id: 1, type: "goblin", name: "Goblin", tier: "basic", hp: 60, maxHp: 60, speed: 0, damage: 0, x: h.x, y: h.y - 30, dmgBy: {}, atkCd: 99, affinities: {} }];
@@ -194,7 +194,7 @@ describe("quality development", () => {
     archer.qualityTiers = { marksman: 3 };
     archer.equipment.weapon = createGearItem({ slot: "weapon", variant: "bow", rarity: "common", tier: 1 });
     archer.quickSlots = [{ key: "arrows", qty: 50 }, null];
-    const engine = new Engine({ getContext: () => null }, createEncounterSim([archer], 1), buildWildEncounter(getRegion("gutter"), 0, fixed(0.5)), {});
+    const engine = new Engine({ getContext: () => null }, createEncounterSim([archer], 1), buildWildEncounter(getRegion("gutter"), 0, fixed(0.5), { waves: 1 }), {});
     const hero = engine.heroes[0];
     const target = (tier, extra = {}) => ({ id: tier, type: "goblin", name: "Goblin", tier, hp: 15, maxHp: 100, speed: 0, damage: 0, x: hero.x, y: hero.y - 200, dmgBy: {}, atkCd: 99, affinities: {}, ...extra });
     const hit = (enemy) => engine._applyClasslessHit({ target: enemy, heroIndex: 0, sourceId: "H0", dmg: 1, damageCategory: "weapon", classless: true, guaranteedCrit: true });
@@ -296,7 +296,7 @@ describe("stalkers", () => {
 
 describe("enemy behavior families", () => {
   function arena(heroes) {
-    const engine = new Engine({ getContext: () => null }, createEncounterSim(heroes, 1), buildWildEncounter(getRegion("gutter"), 0, fixed(0.5)), {});
+    const engine = new Engine({ getContext: () => null }, createEncounterSim(heroes, 1), buildWildEncounter(getRegion("gutter"), 0, fixed(0.5), { waves: 1 }), {});
     engine.spawnQueue = [];
     engine.active = [];
     return engine;

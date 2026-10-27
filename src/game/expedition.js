@@ -71,6 +71,9 @@ const STALKER_STRIKE_PARTY_HP = 0.55;
 const STALKER_POUNCE = 0.12;
 // Share of max HP each hero recovers just before the end boss.
 const BOSS_BREATHER_HEAL = 0.3;
+// Share of max HP each standing hero gets back after winning a fight, so each
+// fight is its own challenge instead of one long bleed across the trip.
+const AFTER_FIGHT_HEAL = 0.25;
 // The tutorial trip's first event: this soon, and an easy sighting.
 const TUTORIAL_FIRST_EVENT_MS = 6_000;
 
@@ -425,7 +428,7 @@ function runEvent(state, region, at, rng) {
 function tutorialEncounter(state, region, at, rng) {
   const run = state.expedition;
   run.tutorial = false;
-  const wave = buildWildEncounter({ ...region, wildlife: { ...region.wildlife, squad: [2, 2], eliteChance: 0 } }, 0, rng, { ecology: false });
+  const wave = buildWildEncounter({ ...region, wildlife: { ...region.wildlife, squad: [2, 2], eliteChance: 0 } }, 0, rng, { ecology: false, waves: 1 });
   startEncounter(state, region, at, wave, false);
   run.pending.patient = true;
 }
@@ -987,6 +990,7 @@ function applyFightResult(state, region, { victory, party, xpGains, gold, items,
   }
   const qualities = road(state);
   changeMorale(state, 8 + roadEffect(qualities, "moraleOnWin"));
+  for (const hero of livingParty(state)) heal(hero, AFTER_FIGHT_HEAL);
   afterVictory(state, qualities, at);
   if (recovered > 0) addFeed(run, at, `Picked up ${recovered} arrow${recovered > 1 ? "s" : ""} from the field.`, "flavor");
   for (const hero of party) {

@@ -19,7 +19,7 @@ function plainHero(luck = 0) {
   return hero;
 }
 
-const derived = (hero) => new Engine({ getContext: () => null }, createEncounterSim([hero], 1), buildWildEncounter(getRegion("gutter"), 0, () => 0.5), {}).heroes[0].d;
+const derived = (hero) => new Engine({ getContext: () => null }, createEncounterSim([hero], 1), buildWildEncounter(getRegion("gutter"), 0, () => 0.5, { waves: 1 }), {}).heroes[0].d;
 
 describe("luck", () => {
   test("new heroes start with none, old saves gain it at zero, and stat points buy it", () => {

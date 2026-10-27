@@ -6,20 +6,21 @@ import { heroGearStats } from "../combat/gear";
 import { heroRoadEffects, heroTraitEffects, partyRoadEffects } from "../combat/traits";
 
 export const ADVENTURE = Object.freeze({
-  // Seconds between feed events (random within the range).
-  eventEverySeconds: [20, 40],
-  // Encounters are the backbone of a trip: about a third of all events.
-  eventWeights: Object.freeze({ flavor: 38, find: 20, hazard: 10, encounter: 26, story: 6, rare: 3 }),
+  // Seconds between feed events (random within the range). Kept short: the
+  // road is the gap between fights, and the fights are the game.
+  eventEverySeconds: [12, 24],
+  // Encounters are the backbone of a trip: over a third of all events.
+  eventWeights: Object.freeze({ flavor: 28, find: 20, hazard: 10, encounter: 36, story: 6, rare: 3 }),
   // A run of this many events without a fight forces the next one to be an encounter.
-  maxQuietEvents: 3,
+  maxQuietEvents: 2,
   // Share of flavor events told as a hero's own banter instead.
   banterShare: 0.35,
   // Chance per event that the weather turns.
   weatherChangeChance: 0.06,
-  // Long trips (this many minutes or more) stop to make camp halfway.
-  campFromMinutes: 20,
+  // Long trips (this many minutes or more on the road) stop to make camp halfway.
+  campFromMinutes: 10,
   // A treasure map detour adds this long to the trip; the stash is found at its end.
-  treasureDetourMs: 3 * 60_000,
+  treasureDetourMs: 90_000,
   // Night is from 20:00 to 06:00 local time.
   nightHours: Object.freeze([20, 6]),
   // Share of encounters that are ambushes (no choice) rather than sightings.

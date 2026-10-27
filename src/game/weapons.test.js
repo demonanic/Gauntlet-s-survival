@@ -18,7 +18,7 @@ function heroWithWeapon(variant) {
 }
 
 function engineWith(heroes) {
-  return new Engine({ getContext: () => null }, createEncounterSim(heroes, 1), buildWildEncounter(getRegion("gutter"), 0, () => 0.5), {});
+  return new Engine({ getContext: () => null }, createEncounterSim(heroes, 1), buildWildEncounter(getRegion("gutter"), 0, () => 0.5, { waves: 1 }), {});
 }
 
 function enemyAt(x, y) {
