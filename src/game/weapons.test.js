@@ -152,10 +152,13 @@ describe("weapons decide how a hero fights", () => {
     engine.projectiles = [bomb()];
     for (let step = 0; step < 30; step += 1) engine.update(1 / 30);
     expect(hero.ref.hp).toBe(hp);
-    // Under manual control the hero stays where the player put it.
+    // Under manual control the hero stays where the player put it (and,
+    // with the dodge roll pinned, takes the hit).
     hero.manual = true;
     engine.projectiles = [bomb()];
+    const roll = vi.spyOn(Math, "random").mockReturnValue(0.99);
     for (let step = 0; step < 30; step += 1) engine.update(1 / 30);
+    roll.mockRestore();
     expect(hero.ref.hp).toBeLessThan(hp);
   });
 });
