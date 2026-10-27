@@ -9,13 +9,15 @@ on the Demonanic combat engine.
    gear from the vault, buy supplies and load them into quick slots.
 2. **Expedition Board:** choose a destination and a party of 1–4 ready heroes.
 3. **Adventure (timed, `src/game/expedition.js` + `adventure.js`):** the party explores
-   for the region's duration (10–40 min). Every 20–40s a feed event fires, weighted
-   flavor 38, find 20, hazard 10, encounter 26, story choice 6, rare 3 (plus environment 12
-   in harsh regions). Encounters are the backbone: after 3 events in a row without one,
-   the next event is always an encounter, so a trip sees a fight about every 1–1.5 min.
+   for the region's duration (6–20 min). Every 20–40s a feed event fires, weighted
+   flavor 28, find 20, hazard 10, encounter 36, story choice 6, rare 3 (plus environment 12
+   in harsh regions). Encounters are the backbone: after 2 events in a row without one,
+   the next event is always an encounter, so a trip sees a fight about every 45–60 s of
+   road (see Combat pacing).
    Before an end boss the party takes a breather: everyone heals 30%, heroes knocked
    out on the road get back up for the final fight, and archers gather 15 spent arrows.
-   At camp (20+ minute trips), fallen heroes come around at 10% HP, anyone below 40% HP
+   After every won fight each standing hero heals 25% (`AFTER_FIGHT_HEAL`).
+   At camp (10+ minute trips), fallen heroes come around at 10% HP, anyone below 40% HP
    uses a bandage or potion from their quick slots, and archers whittle 15 arrows; after
    that it's natural healing (1/450 max HP per second) or the camp's Rest option.
    `startExpedition(..., { revives })` grants second chances: a lost fight puts the whole
@@ -55,7 +57,7 @@ on the Demonanic combat engine.
   (a 3-minute detour that ends in a stash of gold and Rare/Epic gear), and a legendary
   monster (the region's toughest creature at ×5 HP and ×1.6 damage with two followers;
   beating it pays a hoard of gold plus Rare/Epic gear).
-- **Camp:** trips of 20+ minutes stop halfway: Rest (heal 30%), Scout ahead (+15% sneak
+- **Camp:** trips of 10+ minutes stop halfway: Rest (heal 30%), Scout ahead (+15% sneak
   for the rest of the trip) or Forage (gold and supplies).
 - **Notifications:** feed lines flagged `notify` (boss reached, legendary monster,
   merchant, treasure, rare gear) and the trip's report trigger a browser notification
@@ -127,7 +129,7 @@ A deliberately small model (not Demonanic's 11 slots), defined in `src/combat/ge
   every 3rd shot +2 free arrows, 30% arrow saving), Embercall (staff, burn 40%), Heart of
   the Mountain (chest, immune to environments), Gnomebane Buckler (halves explosions,
   thorns), Gravebinder Ring (revive once per fight at 30%).
-- **Arrows:** bows draw one arrow per shot from the first quick slot holding arrows; no
+- **Arrows:** bows draw one arrow every 4 shots (`ARROW_SHOTS`) from the first quick slot holding arrows; no
   arrows means no shooting (the hero falls back). Stacks of 50; 75% of plain arrows fired
   are recovered after a won fight. Special arrows (Fletcher: 10 plain + 25–30g) are spent:
   venom 60% of the hit over 4s, flame 35% splash + 30% burn, frost 35% slow for 2.5s.
@@ -416,6 +418,44 @@ a curve (damage × 100 / (100 + defense)), so one point added under 1% survivabi
 while an Attack point added 2–4% damage, and all-defense parties won 50–77%. Each SP in
 Defense now counts as 4 defense (about 2.5–3% survivability per point); gear defense is
 unchanged. All-defense and all-attack parties now land close together.
+
+## Combat pacing (Oct 2026)
+
+Fights used to be over in a few seconds, with long road gaps in between. Now the fights
+are the main event:
+
+- **Waves:** an ordinary encounter comes in 3 waves (`ENCOUNTER_WAVES`; the Gutter's
+  wildlife sets `waves: 2`) with a 3 s breather between them (`WAVE_BREAK_SECONDS`); the
+  battle header shows "Wave x/y". The first wave can use an ecology template; the others
+  are plain squads. Legendary monsters, stalkers and the tutorial fight are one wave.
+- **Tougher, slower-hitting enemies:** every enemy gets HP ×2.6 and damage ×0.45
+  (`COMBAT_PACING`), so abilities, perks and positioning have time to matter. A whole
+  encounter lasts about 45–90 s.
+- **Bosses** use their own pacing (HP ×1.1, damage ×0.45) and bring one guard wave of the
+  region's wildlife first (`wave.vanguard`). The Demon and the Imperial Necromancer only
+  summon up to 4 living minions (`BOSS_MINIONS`); uncapped, the Ashen Demon buried idle
+  parties (mixed party 38% → 100%). Boss fights run 70–120 s; the Bog Lich about 4 min.
+- **Arrows:** a bow spends one arrow every 4 shots (`ARROW_SHOTS`); longer fights would
+  otherwise eat 100+ arrows each.
+- **Trips:** 6 / 10 / 12 / 15 / 20 minutes (Gutter → Blightmire), events every 20–40 s,
+  encounter weight 36 and at most 2 quiet events in a row, camp on 10+ minute trips. A
+  trip has about 7 (Boneyard) to 17 (Blightmire) fights, so with the fights played out a
+  trip takes about as long as before. After each won fight the standing heroes heal 25%
+  (`AFTER_FIGHT_HEAL`) so each fight is its own challenge rather than one long bleed.
+
+Region multipliers were retuned for the ~70% baseline (40 trips per scenario):
+
+| Region | HP × | Damage × | mixed | swords | bows | staves | trio |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Boneyard Crypt | 2.48 | 1.67 | 68% | 93% | 100% | 100% | 10% |
+| Frostfang Pass | 2.95 | 1.59 | 78% | 95% | 88% | 73% | 0% |
+| Ashen Keep | 3.07 | 1.67 | 75% | 88% | 88% | 93% | 0% |
+| The Blightmire | 4.63 | 1.66 | 80% | 93% | 85% | 95% | 5% |
+
+Campaign (`npm run balance`, 6 playthroughs each): idle players finish the Blightmire
+111–266 minutes in, active players 116–168; boss rank 25–27 eight hours later. The
+mixed party is now the weakest four-hero make-up; trios rarely win (every guild gets a
+fourth hero in the tutorial). The table below is the previous pass, for comparison.
 
 ## Difficulty and weapon balance (Oct 2026, second pass)
 

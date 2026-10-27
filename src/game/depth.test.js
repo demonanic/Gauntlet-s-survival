@@ -37,7 +37,7 @@ function plainHero(weapon = "sword", quickSlots = [null, null]) {
 }
 
 function engineWith(heroes) {
-  const engine = new Engine({ getContext: () => null }, createEncounterSim(heroes, 1), buildWildEncounter(getRegion("gutter"), 0, () => 0.5), {});
+  const engine = new Engine({ getContext: () => null }, createEncounterSim(heroes, 1), buildWildEncounter(getRegion("gutter"), 0, () => 0.5, { waves: 1 }), {});
   engine.spawnQueue = [];
   engine.active = [];
   return engine;
@@ -63,12 +63,14 @@ const think = (engine, unit, seconds = STEP) => {
 };
 
 describe("arrows", () => {
-  test("a bow spends one arrow per shot and can't shoot without them", () => {
+  test("a bow spends an arrow every few shots and can't shoot without them", () => {
     const engine = engineWith([plainHero("bow", [{ key: "arrows", qty: 2 }, null])]);
     const hero = engine.heroes[0];
     const target = enemy("goblin", hero.x, hero.y - 200, { hp: 10_000, maxHp: 10_000, speed: 0, atkCd: 99 });
     engine.active = [target];
-    run(engine, 5);
+    run(engine, 2);
+    expect(hero.model.quickSlots[0].qty).toBe(2); // the first shots reuse the same arrow
+    run(engine, 20);
     expect(hero.model.quickSlots[0].qty).toBe(0);
     expect(hero.model.arrowsSpent.arrows).toBe(2);
     expect(engine.floaters.some((floater) => floater.text === "NO ARROWS") || hero.outOfArrows).toBe(true);

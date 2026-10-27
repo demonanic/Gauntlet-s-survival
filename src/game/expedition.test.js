@@ -15,8 +15,12 @@ import { parseGuild } from "./storage";
 const T0 = 1_000_000;
 const MINUTE = 60_000;
 const ids = (state) => state.heroes.map((hero) => hero.identity.id);
-// rng 0.8: events every 36s, and each event roll lands on "encounter", as a sighting.
-const sightingRng = () => 0.8;
+// rng 0.75: each event roll lands on "encounter", as a sighting, and events
+// come FIRST ms apart.
+const sightingRng = () => 0.75;
+const [GAP_MIN, GAP_MAX] = ADVENTURE.eventEverySeconds;
+const FIRST = (GAP_MIN + 0.75 * (GAP_MAX - GAP_MIN)) * 1000;
+const TRIP = getRegion("gutter").durationMinutes * MINUTE;
 
 function seeded(seed = 7) {
   let a = seed;
@@ -47,12 +51,11 @@ function gutterRun(rng = sightingRng, heroCount = 3) {
 describe("timed expeditions", () => {
   test("an expedition runs for the region's duration and starts the feed", () => {
     const state = gutterRun();
-    expect(state.expedition).toMatchObject({ endsAt: T0 + 10 * MINUTE, morale: ADVENTURE.startMorale, pending: null });
-    expect(state.expedition.nextEventAt).toBe(T0 + 36_000);
+    expect(state.expedition).toMatchObject({ endsAt: T0 + TRIP, morale: ADVENTURE.startMorale, pending: null });
+    expect(state.expedition.nextEventAt).toBe(T0 + FIRST);
     expect(state.expedition.feed[0].text).toBe("The party sets out for The Gutter.");
     expect(heroStatus(state, state.heroes[0], T0)).toBe("away");
-    expect(getRegion("boneyard").durationMinutes).toBe(20);
-    expect(getRegion("ashen").durationMinutes).toBe(30);
+    expect(getRegion("ashen").durationMinutes).toBeGreaterThan(getRegion("gutter").durationMinutes);
   });
 
   test("left alone, a party plays the whole trip and comes home with a report", () => {
@@ -61,7 +64,7 @@ describe("timed expeditions", () => {
     expect(state.expedition).toBeNull();
     const report = state.lastReport;
     expect(["victory", "retreat"]).toContain(report.outcome);
-    expect(report.stats.events).toBeGreaterThan(10);
+    expect(report.stats.events).toBeGreaterThan(5);
     expect(report.log.length).toBeGreaterThan(report.stats.events);
     expect(state.heroes.some((hero) => hero.progression.xp > 0) || report.stats.fights === 0).toBe(true);
     if (report.outcome === "victory") {
@@ -72,52 +75,52 @@ describe("timed expeditions", () => {
 
   test("while the player is watching, a sighting waits for an answer and pauses the timer", () => {
     let state = gutterRun();
-    state = tick(state, T0 + 36_000, { interactive: true, rng: sightingRng });
+    state = tick(state, T0 + FIRST, { interactive: true, rng: sightingRng });
     const { pending } = state.expedition;
-    expect(pending).toMatchObject({ kind: "sighting", at: T0 + 36_000 });
+    expect(pending).toMatchObject({ kind: "sighting", at: T0 + FIRST });
     expect(pending.sneakChance).toBeGreaterThan(0);
     expect(pending.wave.enemies.length).toBeGreaterThan(0);
     // Still waiting 30 seconds later, and the timer hasn't moved.
-    state = tick(state, T0 + 66_000, { interactive: true, rng: sightingRng });
+    state = tick(state, T0 + FIRST + 30_000, { interactive: true, rng: sightingRng });
     expect(state.expedition.pending).not.toBeNull();
-    expect(state.expedition.endsAt).toBe(T0 + 10 * MINUTE);
+    expect(state.expedition.endsAt).toBe(T0 + TRIP);
   });
 
   test("an unanswered prompt is decided by the party after a while", () => {
     let state = gutterRun();
-    state = tick(state, T0 + 36_000, { interactive: true, rng: sightingRng });
-    state = tick(state, T0 + 36_000 + ADVENTURE.autoDecideMs, { interactive: true, rng: sightingRng });
+    state = tick(state, T0 + FIRST, { interactive: true, rng: sightingRng });
+    state = tick(state, T0 + FIRST + ADVENTURE.autoDecideMs, { interactive: true, rng: sightingRng });
     const lines = state.expedition?.feed.map((entry) => entry.text).join(" ") ?? state.lastReport.log.join(" ");
     expect(lines).toMatch(/Victory over|Slipped past|overrun/);
   });
 
   test("sneaking: success slips past and resumes the timer; failure turns into an ambush", () => {
-    let state = tick(gutterRun(), T0 + 36_000, { interactive: true, rng: sightingRng });
-    const sneaked = choosePending(state, "sneak", T0 + 46_000, { rng: () => 0 }).state;
+    let state = tick(gutterRun(), T0 + FIRST, { interactive: true, rng: sightingRng });
+    const sneaked = choosePending(state, "sneak", T0 + FIRST + 10_000, { rng: () => 0 }).state;
     expect(sneaked.expedition.pending).toBeNull();
     expect(sneaked.expedition.stats.sneaks).toBe(1);
-    expect(sneaked.expedition.endsAt).toBe(T0 + 10 * MINUTE + 10_000); // paused 10 seconds
+    expect(sneaked.expedition.endsAt).toBe(T0 + TRIP + 10_000); // paused 10 seconds
     expect(sneaked.expedition.feed.at(-1).text).toMatch(/^Slipped past/);
 
-    const spotted = choosePending(state, "sneak", T0 + 46_000, { rng: () => 0.999 }).state;
-    expect(spotted.expedition.pending).toMatchObject({ kind: "ambush", promptAt: T0 + 46_000 });
+    const spotted = choosePending(state, "sneak", T0 + FIRST + 10_000, { rng: () => 0.999 }).state;
+    expect(spotted.expedition.pending).toMatchObject({ kind: "ambush", promptAt: T0 + FIRST + 10_000 });
     const before = state.heroes[0].combat.hp;
     expect(spotted.heroes[0].combat.hp).toBe(before - Math.round(classlessMaxHp(state.heroes[0]) * ADVENTURE.ambushVolley));
-    expect(choosePending(spotted, "sneak", T0 + 47_000)).toEqual({ ok: false, reason: "invalid_choice" });
+    expect(choosePending(spotted, "sneak", T0 + FIRST + 11_000)).toEqual({ ok: false, reason: "invalid_choice" });
   });
 
   test("attacking holds the prompt for a live battle; winning resumes the trip", () => {
-    let state = tick(gutterRun(), T0 + 36_000, { interactive: true, rng: sightingRng });
-    state = engagePending(state, T0 + 40_000).state;
-    expect(state.expedition.pending.engagedAt).toBe(T0 + 40_000);
+    let state = tick(gutterRun(), T0 + FIRST, { interactive: true, rng: sightingRng });
+    state = engagePending(state, T0 + FIRST + 4_000).state;
+    expect(state.expedition.pending.engagedAt).toBe(T0 + FIRST + 4_000);
     // A battle in progress is never decided by the party, and can't be recalled.
     expect(tick(state, T0 + 5 * MINUTE, { interactive: true }).expedition.pending).not.toBeNull();
-    expect(recallExpedition(state, T0 + 50_000)).toEqual({ ok: false, reason: "cannot_recall" });
+    expect(recallExpedition(state, T0 + FIRST + 14_000)).toEqual({ ok: false, reason: "cannot_recall" });
     const party = structuredClone(currentEncounterParty(state));
-    const won = resolveEncounter(state, { victory: true, party, xpGains: { 0: 30 }, gold: 12, items: [] }, T0 + 96_000).state;
+    const won = resolveEncounter(state, { victory: true, party, xpGains: { 0: 30 }, gold: 12, items: [] }, T0 + FIRST + 60_000).state;
     expect(won.expedition.pending).toBeNull();
     expect(won.expedition.loot.gold).toBe(12);
-    expect(won.expedition.endsAt).toBe(T0 + 10 * MINUTE + 60_000);
+    expect(won.expedition.endsAt).toBe(T0 + TRIP + 60_000);
     expect(won.expedition.morale).toBe(ADVENTURE.startMorale + 8);
     expect(won.heroes[0].progression.xp).toBeGreaterThan(0);
   });
@@ -187,21 +190,23 @@ describe("timed expeditions", () => {
   });
 
   test("the party patches up slowly between events, but not while a prompt holds it", () => {
-    let state = gutterRun(() => 0.999); // first event at 40s
+    let state = gutterRun(() => 0.999); // first event just before GAP_MAX
     state.heroes[0].traits = [];
     withoutArmor(state.heroes[0]);
     state.heroes[0].combat.hp = 100;
-    state = tick(state, T0 + 30_000, { interactive: true });
-    expect(state.heroes[0].combat.hp).toBeCloseTo(120, 0); // 300 max HP / 450 per second x 30s
-    withPendingFight(state, T0 + 30_000);
-    state = tick(state, T0 + 90_000, { interactive: true });
-    expect(state.heroes[0].combat.hp).toBeCloseTo(120, 0);
+    const before = GAP_MIN * 1000;
+    state = tick(state, T0 + before, { interactive: true });
+    const healed = 100 + (300 / 450) * GAP_MIN; // 300 max HP / 450 per second
+    expect(state.heroes[0].combat.hp).toBeCloseTo(healed, 0);
+    withPendingFight(state, T0 + before);
+    state = tick(state, T0 + before + 60_000, { interactive: true });
+    expect(state.heroes[0].combat.hp).toBeCloseTo(healed, 0);
   });
 
   test("an unattended party heads home after a fight leaves it badly hurt", () => {
     let state = gutterRun(sightingRng, 1);
     state.heroes[0].combat.hp = 5;
-    state = tick(state, T0 + 36_000 + ADVENTURE.autoDecideMs, { rng: sightingRng });
+    state = tick(state, T0 + FIRST + ADVENTURE.autoDecideMs, { rng: sightingRng });
     const lines = state.lastReport.log.join(" ");
     expect(state.expedition).toBeNull();
     expect(lines).toMatch(/limps home|overrun|Slipped past/);
@@ -216,11 +221,12 @@ describe("timed expeditions", () => {
 
   test("shortcuts shorten a trip but never lengthen it", () => {
     const state = gutterRun();
-    state.expedition.pending = { kind: "story", story: "campfire", at: T0 + 590_000, promptAt: T0 + 590_000, engagedAt: null };
-    const pressed = choosePending(state, "press", T0 + 590_000).state;
-    expect(pressed.expedition.endsAt).toBe(T0 + 10 * MINUTE);
+    const late = T0 + TRIP - 10_000;
+    state.expedition.pending = { kind: "story", story: "campfire", at: late, promptAt: late, engagedAt: null };
+    const pressed = choosePending(state, "press", late).state;
+    expect(pressed.expedition.endsAt).toBe(T0 + TRIP);
     state.expedition.pending.at = state.expedition.pending.promptAt = T0 + 60_000;
-    expect(choosePending(state, "press", T0 + 60_000).state.expedition.endsAt).toBe(T0 + 9 * MINUTE);
+    expect(choosePending(state, "press", T0 + 60_000).state.expedition.endsAt).toBe(T0 + TRIP - MINUTE);
   });
 
   test("recalling heads home at once with everything found so far", () => {
@@ -355,14 +361,15 @@ describe("world events", () => {
     const state = plainGuild();
     state.heroes[0].progression.level = 3;
     let run = startExpedition(state, "boneyard", [ids(state)[0]], T0, () => 0.999).state;
-    expect(run.expedition.campAt).toBe(T0 + 10 * MINUTE);
+    const half = T0 + (getRegion("boneyard").durationMinutes * MINUTE) / 2;
+    expect(run.expedition.campAt).toBe(half);
     expect(gutterRun().expedition.campAt).toBeNull();
-    run.expedition.nextEventAt = T0 + 20 * MINUTE; // nothing else happens first
-    run = tick(run, T0 + 10 * MINUTE, { interactive: true });
+    run.expedition.nextEventAt = T0 + 60 * MINUTE; // nothing else happens first
+    run = tick(run, half, { interactive: true });
     expect(run.expedition.pending).toMatchObject({ kind: "story", story: "camp" });
-    const scouted = choosePending(run, "scout", T0 + 10 * MINUTE).state;
+    const scouted = choosePending(run, "scout", half).state;
     expect(scouted.expedition.scouted).toBe(true);
-    const foraged = choosePending(run, "forage", T0 + 10 * MINUTE).state;
+    const foraged = choosePending(run, "forage", half).state;
     expect(foraged.expedition.loot.items.filter((item) => item.kind === "consumable")).toHaveLength(4);
     expect(foraged.expedition.loot.gold).toBeGreaterThan(0);
   });

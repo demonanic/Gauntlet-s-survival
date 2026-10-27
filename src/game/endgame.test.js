@@ -1,6 +1,6 @@
 import { Engine } from "../combat/engine";
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
-import { buildBossEncounter, buildEndlessWave, createEncounterSim, endlessWaveSource } from "./encounters";
+import { COMBAT_PACING, buildBossEncounter, buildEndlessWave, createEncounterSim, endlessWaveSource } from "./encounters";
 import { withPendingFight } from "../test/expeditionFixtures";
 import {
   createGuild, currentEncounterWave, engagePending, resolveEncounter, riftBounty, startExpedition, treatInjury, treatmentCost,
@@ -191,6 +191,7 @@ describe("boss mechanics", () => {
   function bossFight(type) {
     const party = structuredClone(createGuild().heroes);
     const wave = buildBossEncounter({ ...getRegion("ashen"), bossRotation: false, boss: [type] }, 0);
+    delete wave.vanguard; // straight to the boss, without its guards
     const sim = createEncounterSim(party, 3, wave);
     const engine = new Engine({ getContext: () => null }, sim, wave, {});
     engine.update(1 / 30); // spawn the boss
@@ -216,7 +217,7 @@ describe("boss mechanics", () => {
     engine.update(1 / 30);
     const minions = engine.active.filter((enemy) => !enemy.boss);
     expect(minions.map((enemy) => enemy.type).sort()).toEqual(["ghost", "skeleton", "skeleton"]);
-    // Minions spawn at 60% of the encounter's HP scale.
-    expect(minions.find((enemy) => enemy.type === "skeleton").maxHp).toBe(Math.round(70 * engine.sim.minionScale.hp * 0.6));
+    // Minions spawn at 60% of the encounter's HP scale (with ordinary combat pacing).
+    expect(minions.find((enemy) => enemy.type === "skeleton").maxHp).toBe(Math.round(70 * engine.sim.minionScale.hp * 0.6 * COMBAT_PACING.hp));
   });
 });

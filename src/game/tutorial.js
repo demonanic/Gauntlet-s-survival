@@ -69,7 +69,7 @@ export const TUTORIAL_STEPS = Object.freeze([
   {
     id: "party",
     title: "Send a party",
-    text: "The Gutter, a short and safe 10-minute trip, is already picked. Tap all four heroes to add them, then tap Send party. The first hero you pick is the Leader. Later regions have harsh weather: the readiness check tells you which provisions to pack.",
+    text: "The Gutter, a short and safe trip, is already picked. Tap all four heroes to add them, then tap Send party. The first hero you pick is the Leader. Later regions have harsh weather: the readiness check tells you which provisions to pack.",
     target: "[data-testid='party-panel']",
     placement: "top",
     tab: "board",

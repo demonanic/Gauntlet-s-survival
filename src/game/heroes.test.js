@@ -121,7 +121,7 @@ describe("traits", () => {
   test("stat traits change the hero's combat numbers", () => {
     expect(classlessMaxHp(heroWith("brawny"))).toBe(Math.round(300 * 1.12));
     expect(classlessMaxHp(heroWith("glassCannon"))).toBe(270);
-    const engine = new Engine({ getContext: () => null }, createEncounterSim([heroWith("ironhide"), heroWith("quickHands")], 1), buildWildEncounter(getRegion("gutter"), 0, () => 0.5), {});
+    const engine = new Engine({ getContext: () => null }, createEncounterSim([heroWith("ironhide"), heroWith("quickHands")], 1), buildWildEncounter(getRegion("gutter"), 0, () => 0.5, { waves: 1 }), {});
     expect(engine.heroes[0].d.defense).toBe(18);
     expect(engine.heroes[1].d.rate).toBeCloseTo(1.05 / 1.08);
   });
@@ -187,7 +187,7 @@ describe("prestige", () => {
     expect(recruit.guildBonus).toBeDefined();
 
     const run = startExpedition(state, "gutter", [heroId(state)], T0).state;
-    expect(run.expedition.endsAt - T0).toBe(10 * 60_000 * 0.92);
+    expect(run.expedition.endsAt - T0).toBe(getRegion("gutter").durationMinutes * 60_000 * 0.92);
     // At the end of the timer: 100 found + 80 Gutter bounty, then Fortune adds 10%.
     run.expedition.loot.gold = 100;
     run.expedition.endsAt = T0 + 5;

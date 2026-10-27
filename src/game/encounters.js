@@ -9,6 +9,16 @@ import { BOSS_RANK_SCALING, BOSS_ROTATION, bossForRank } from "./regions";
 // damage by the time the timer runs out. The end boss fights at full depth.
 const DEPTH_SCALE_AT_END = 0.3;
 
+// Waves in an ordinary encounter, unless the region says otherwise.
+export const ENCOUNTER_WAVES = 3;
+
+// Combat pacing, applied to every enemy on top of the region's scales: more
+// HP and softer blows, so a fight lasts long enough (60-90 s for an ordinary
+// encounter) for heroes to use their abilities several times, without each
+// hit being more dangerous. Bosses were already built for long fights, so
+// they get their own, smaller factors (aiming at about 2-3 minutes).
+export const COMBAT_PACING = Object.freeze({ hp: 2.6, dmg: 0.45, bossHp: 1.1, bossDmg: 0.45 });
+
 // Endless Rift wave curve (wave 1 is the first wave). Like boss ranks it
 // compounds, so every party is eventually overrun.
 export const ENDLESS = Object.freeze({
@@ -46,9 +56,22 @@ function weightedPick(weights, rng) {
 // the expedition timer the party is (0 to 1).
 // Some regions field a tactical composition instead (ecology.js); pass
 // `ecology: false` for a squad that must stay ordinary (tutorial, escorts).
-export function buildWildEncounter(region, progress = 0, rng = Math.random, { ecology = true } = {}) {
+//
+// An encounter comes in `waves` (default: the region's `wildlife.waves`, else
+// ENCOUNTER_WAVES): the first is the squad the party sees, the rest arrive as
+// `reinforcements` once it is beaten. Later waves are ordinary squads.
+export function buildWildEncounter(region, progress = 0, rng = Math.random, { ecology = true, waves } = {}) {
   const wildlife = region?.wildlife;
   if (!wildlife) throw new RangeError(`Region ${region?.id} has no wildlife`);
+  const count = Math.max(1, waves ?? wildlife.waves ?? ENCOUNTER_WAVES);
+  const first = buildSquad(region, progress, rng, ecology);
+  if (count === 1) return first;
+  const reinforcements = Array.from({ length: count - 1 }, () => ({ enemies: buildSquad(region, progress, rng, false).enemies }));
+  return { ...first, reinforcements };
+}
+
+function buildSquad(region, progress, rng, ecology) {
+  const wildlife = region.wildlife;
   const template = ecology ? rollEcology(wildlife, rng) : null;
   let squad;
   if (template) {
@@ -71,7 +94,7 @@ export function buildWildEncounter(region, progress = 0, rng = Math.random, { ec
 // A legendary monster: the toughest creature in the region's wildlife, grown
 // huge (LEGENDARY hp and damage), with two ordinary followers and better loot.
 export function buildLegendaryEncounter(region, progress = 0, rng = Math.random) {
-  const wave = buildWildEncounter({ ...region, wildlife: { ...region.wildlife, squad: [2, 2], eliteChance: 0 } }, progress, rng, { ecology: false });
+  const wave = buildWildEncounter({ ...region, wildlife: { ...region.wildlife, squad: [2, 2], eliteChance: 0 } }, progress, rng, { ecology: false, waves: 1 });
   const toughest = Object.keys(region.wildlife.pool).sort((a, b) => C.ENEMIES[b].hp - C.ENEMIES[a].hp)[0];
   const depth = 1 + DEPTH_SCALE_AT_END * Math.max(0, Math.min(1, progress));
   const legend = makeEnemy(C.ENEMIES[toughest], region.hpScale * depth * LEGENDARY.hp, region.dmgScale * depth * LEGENDARY.dmg);
@@ -86,8 +109,11 @@ export function buildLegendaryEncounter(region, progress = 0, rng = Math.random)
 
 // The region's end boss. In a boss-rotation region the boss follows the
 // guild's boss rank, and each rank compounds its difficulty and loot tier.
-export function buildBossEncounter(region, bossRank = 0) {
+// The party fights through a wave of the region's creatures guarding the boss
+// (`vanguard`) before the boss itself comes out.
+export function buildBossEncounter(region, bossRank = 0, rng = Math.random) {
   if (!region?.boss) throw new RangeError(`Region ${region?.id} has no boss`);
+  const vanguard = region.wildlife ? [{ enemies: buildSquad(region, 1, rng, false).enemies }] : [];
   const rank = region.bossRotation ? Math.max(0, bossRank) : 0;
   const squad = region.boss.map((key) => (region.bossRotation && C.ENEMIES[key]?.boss ? bossForRank(rank) : key));
   const depth = 1 + DEPTH_SCALE_AT_END;
@@ -95,7 +121,7 @@ export function buildBossEncounter(region, bossRank = 0) {
     hp: region.hpScale * depth * BOSS_RANK_SCALING.hpGrowth ** rank,
     dmg: region.dmgScale * depth * BOSS_RANK_SCALING.dmgGrowth ** rank,
   };
-  return { ...assembleWave(squad, scale, region.tier + Math.floor(rank / 2)), set: region.set || null };
+  return { ...assembleWave(squad, scale, region.tier + Math.floor(rank / 2)), set: region.set || null, vanguard };
 }
 
 // A short description of a squad for the adventure feed: "3 Skeletons and a Ghost".
@@ -109,7 +135,7 @@ export function describeSquad(wave) {
 // Something that has been following the party: a Stalker and one of the
 // region's creatures, at the expedition's current depth.
 export function buildStalkerEncounter(region, progress = 0, rng = Math.random) {
-  const wave = buildWildEncounter({ ...region, wildlife: { ...region.wildlife, squad: [1, 1], eliteChance: 0 } }, progress, rng, { ecology: false });
+  const wave = buildWildEncounter({ ...region, wildlife: { ...region.wildlife, squad: [1, 1], eliteChance: 0 } }, progress, rng, { ecology: false, waves: 1 });
   const depth = 1 + DEPTH_SCALE_AT_END * Math.max(0, Math.min(1, progress));
   wave.enemies.unshift(makeEnemy(C.ENEMIES.stalker, region.hpScale * depth, region.dmgScale * depth));
   return { ...wave, total: wave.enemies.length };
@@ -142,10 +168,11 @@ function assembleWave(squad, scale, lootTier) {
 
 function makeEnemy(base, hpScale, dmgScale) {
   if (!base) throw new TypeError("Unknown enemy type in encounter");
-  const maxHp = Math.round(base.hp * hpScale);
+  const pacing = base.boss ? { hp: COMBAT_PACING.bossHp, dmg: COMBAT_PACING.bossDmg } : COMBAT_PACING;
+  const maxHp = Math.round(base.hp * hpScale * pacing.hp);
   return {
     id: nextEnemyId(), type: base.key, name: base.name, tier: base.tier,
-    hp: maxHp, maxHp, speed: base.speed, damage: base.damage * dmgScale,
+    hp: maxHp, maxHp, speed: base.speed, damage: base.damage * dmgScale * pacing.dmg,
     color: base.color, floats: !!base.floats, magicImmune: !!base.magicImmune,
     boss: !!base.boss, group: 0, objective: "squad",
     affinities: { ...(base.affinities || {}) },

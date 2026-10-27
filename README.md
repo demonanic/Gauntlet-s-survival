@@ -23,12 +23,13 @@ quick slots, low arrows, a newly opened region, a hero ready to retire.
 2. **Market:** buy gear from the Armory (stock rotates every 4 hours, with one featured
    Masterwork) and supplies for your heroes' quick slots.
 3. **Expedition Board:** pick a destination and a party of 1–4 ready heroes.
-4. **Adventure (timed):** The Gutter runs 10 minutes, Boneyard Crypt 20, Ashen Keep 30.
+4. **Adventure (timed):** The Gutter runs 6 minutes, Boneyard Crypt 10, Ashen Keep 15.
    A live feed fills with what happens on the road every 20–40 seconds: flavor ("the air
    is still, the vibes are chill"), finds (gold, supplies, gear), close calls and hazards,
    and story choices (pray at a shrine or loot it? open the chest?).
-5. **Encounters** are the heart of a trip: one about every minute or so, and never more
-   than three quiet events in a row. **Sightings** let you **Attack** or **Sneak
+5. **Encounters** are the heart of a trip: one about every 45 seconds or so, never more
+   than two quiet events in a row, and each one a real fight of two or three **waves**
+   (about a minute all told) rather than a few seconds of trading blows. **Sightings** let you **Attack** or **Sneak
    by**; the sneak chance depends on the party's agility, stealth perks and traits, level,
    party size, morale, and how many and which enemies there are. A failed sneak, or a
    surprise **ambush**, opens with a volley and forces a fight. While the game is open the
@@ -36,14 +37,15 @@ quick slots, low arrows, a newly opened region, a hero ready to retire.
    and the party decides and fights on its own, so expeditions keep going while you're
    away.
 6. **Morale** rises and falls with the feed (wins, finds, scares) and gives up to ±10%
-   damage. HP carries over between fights, with slow healing on the road; fallen heroes
+   damage. HP carries over between fights; each hero still standing gets back 25% after a
+   win, with slow healing on the road; fallen heroes
    come around (weak) when the party makes camp on long trips, and get back up for the
    end boss; bandages and natural healing do the rest. Recall the party at any time to keep the loot.
 7. **World:** each trip has weather (clear, rain, fog, storm) and knows whether it's
    night (local time). Night means more ambushes but better finds; fog helps sneaking;
    storms bring hazards. Heroes banter in the feed about their traits and the mood.
    Rare events: a **wandering merchant** selling better gear for guild gold, a **treasure
-   map** detour that ends in a stash, and **legendary monsters** with a hoard. Trips of 20
+   map** detour that ends in a stash, and **legendary monsters** with a hoard. Trips of 10
    minutes or more stop to **make camp** halfway: rest, scout ahead (better sneak odds) or
    forage. Turn on **Notifications** (bottom of the page) to hear about bosses, legends,
    merchants, treasure and the party coming home while the game is in the background.
@@ -101,7 +103,7 @@ from the stash every time a party sets out.
   per fight) or Heart of the Mountain (immune to every environment).
 - **Forge, Salvage, Reforge:** upgrade gear with gold; break spare gear down into essence;
   spend essence to reroll an item's affixes.
-- **Arrows:** bows can't shoot without arrows in a quick slot (stacks of 100, one per shot,
+- **Arrows:** bows can't shoot without arrows in a quick slot (stacks of 100, one every 4 shots,
   75% picked back up after a win). A long boss fight can eat a whole stack, so archers
   heading for the Blightmire want two. The Fletcher in the Market turns plain arrows into
   venom (poison), flame (burst and burn) or frost (slow) arrows.
@@ -207,11 +209,11 @@ then the party can turn and fight, try to lose it, or keep going ready for it.
 
 | Region | Min level | Length | End boss | Bounty |
 | --- | --- | --- | --- | --- |
-| The Gutter | 1 | 10 min | none | 80g |
-| Boneyard Crypt (darkness) | 3 | 20 min | Lieutenant | 300g |
-| Frostfang Pass (cold) | 4 | 25 min | Bandit Warlord | 500g |
-| Ashen Keep (heat) | 6 | 30 min | rotating (Demon → Necromancer → Abomination) | 800g, +15% per boss rank |
-| The Blightmire (toxic) | 10 | 40 min | The Bog Lich | 1600g |
+| The Gutter | 1 | 6 min | none | 80g |
+| Boneyard Crypt (darkness) | 3 | 10 min | Lieutenant | 300g |
+| Frostfang Pass (cold) | 4 | 12 min | Bandit Warlord | 500g |
+| Ashen Keep (heat) | 6 | 15 min | rotating (Demon → Necromancer → Abomination) | 800g, +15% per boss rank |
+| The Blightmire (toxic) | 10 | 20 min | The Bog Lich | 1600g |
 | The Endless Rift | 3 | until you return | a boss every 10th wave | 10g per wave |
 
 ## Play it

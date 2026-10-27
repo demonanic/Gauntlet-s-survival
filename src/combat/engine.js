@@ -147,9 +147,15 @@ function heroMovementSpeed(hero, legacyBase, currentTime, applyLegacyModifiers =
 
 const LANES = 5;
 const ENDLESS_WAVE_BREAK_SECONDS = 3;
+// Breather between the waves of an ordinary encounter.
+const WAVE_BREAK_SECONDS = 3;
+// Shots a bow gets out of one arrow (they are gathered and loosed again).
+const ARROW_SHOTS = 4;
 // Enemy body radii for collisions (bosses and elites need more room).
 // The most bandits the Bandit Warlord keeps around him at once.
 const WARLORD_GANG = 3;
+// The most summoned minions the Demon or the Imperial Necromancer keeps alive.
+const BOSS_MINIONS = 4;
 // Bulwarks: the share of a hit a Bulwark in the line of fire takes, and the
 // damage reduction for allies standing beside one.
 const BULWARK_COVER = 0.5;
@@ -186,7 +192,13 @@ export class Engine {
     this.speed = 1;
     this.running = false;
     this.last = 0;
-    this.spawnQueue = [...wave.enemies];
+    // Gauntlet encounters come in waves ({ enemies } each), sent in one at a
+    // time: any `vanguard` waves first (a boss's guards), then the encounter's
+    // own `enemies`, then its `reinforcements`.
+    const waves = [...(wave.vanguard || []), { enemies: wave.enemies }, ...(wave.reinforcements || [])];
+    this.spawnQueue = [...waves[0].enemies];
+    this.reinforcements = waves.slice(1);
+    this.waveCount = waves.length;
     this.spawnTimer = 0;
     this.active = [];           // live enemies
     this.projectiles = [];
@@ -1266,13 +1278,16 @@ export class Engine {
     return slots.find((slot) => slot && CONSUMABLES[slot.key]?.arrow && slot.qty > 0) || null;
   }
 
-  // Take one arrow for a shot (a quiver or Whisperwind may save it). Returns
-  // the arrow's on-hit effect, or false when the quiver is empty.
+  // Draw an arrow for a shot. Arrows are gathered and loosed again during a
+  // fight, so only every ARROW_SHOTS-th shot spends one (and a quiver or
+  // Whisperwind may save even that). Returns the arrow's on-hit effect, or
+  // false when the quiver is empty.
   _drawArrow(h) {
     const slot = this._arrowSlot(h);
     if (!slot) return false;
     const item = CONSUMABLES[slot.key];
-    if (!(Math.random() < Math.min(0.75, h.d.gear?.arrowSaver || 0))) {
+    h.arrowShots = (h.arrowShots || 0) + 1;
+    if (h.arrowShots % ARROW_SHOTS === 0 && !(Math.random() < Math.min(0.75, h.d.gear?.arrowSaver || 0))) {
       slot.qty -= 1;
       h.model.arrowsSpent ||= {};
       h.model.arrowsSpent[slot.key] = (h.model.arrowsSpent[slot.key] || 0) + 1;
@@ -1288,7 +1303,18 @@ export class Engine {
 
   // Gauntlet scales summoned minions to the encounter through sim.makeMinion.
   _summon(type) {
-    this.injectEnemy(this.sim.makeMinion ? this.sim.makeMinion(type) : makeSingleEnemy(this.sim, type));
+    const minion = this.sim.makeMinion ? this.sim.makeMinion(type) : makeSingleEnemy(this.sim, type);
+    minion.summoned = true;
+    this.injectEnemy(minion);
+  }
+
+  // Summon from `types` in order until `cap` summoned minions are alive.
+  // Returns how many were called.
+  _summonUpTo(types, cap) {
+    const alive = this.active.filter((enemy) => enemy.summoned && enemy.hp > 0).length;
+    const called = types.slice(0, Math.max(0, cap - alive));
+    for (const type of called) this._summon(type);
+    return called.length;
   }
 
   injectEnemy(e) {
@@ -1674,14 +1700,15 @@ export class Engine {
           this._raiseFallen(e, 250, 2);
           if (lobTarget) this._throwNapalm(e, lobTarget);
         } else if (target) {
+          // Both top their minions back up to BOSS_MINIONS alive, never past
+          // it: in a long fight, unlimited summons buried the party.
           if (e.type === "imperialNecromancer") {
             // Raise dead: a larger, slower pack of minions, plus a soul bomb.
             e.abilityCd = 8;
-            for (const type of ["skeleton", "skeleton", "ghost"]) this._summon(type);
-            this._float(e.x, e.y - 34, "RAISE DEAD", e.color);
+            if (this._summonUpTo(["skeleton", "skeleton", "ghost"], BOSS_MINIONS)) this._float(e.x, e.y - 34, "RAISE DEAD", e.color);
           } else {
             e.abilityCd = 6;
-            for (let k = 0; k < 2; k++) this._summon("skeleton");
+            this._summonUpTo(["skeleton", "skeleton"], BOSS_MINIONS);
           }
           if (lobTarget) this._throwNapalm(e, lobTarget);
         } else {
@@ -3441,6 +3468,7 @@ export class Engine {
       remaining: this.active.length + this.spawnQueue.length,
       gold: this.sim.gold,
       wave: this.wavesCleared + 1,
+      waveCount: this.cb.nextWave ? null : this.waveCount,
       heroes: this.heroes.map((h) => ({ name: h.ref.name, hp: h.ref.hp, maxHp: h.d.maxHp, alive: h.alive, shield: h.ref.shield || 0 })),
       heroAbilities: this.heroes.map((h) => this.getHeroAbilityStatus(h.i)),
       heroSpells: this.heroes.map((h) => this.getHeroSpellStatus(h.i)),
@@ -3473,6 +3501,16 @@ export class Engine {
     if (this.spawnQueue.length === 0 && this.active.length === 0) {
       // Gauntlet endless mode: a cleared wave rolls straight into the next one
       // after a short breather. The fight only ends on a wipe or returnHome().
+      // Gauntlet encounters come in waves: the next one arrives after a breather.
+      if (this.reinforcements.length) {
+        this.wavesCleared += 1;
+        const next = this.reinforcements.shift();
+        this.wave = { ...this.wave, ...next, total: next.enemies.length };
+        this.spawnQueue = [...next.enemies];
+        this.spawnTimer = WAVE_BREAK_SECONDS;
+        this._float(W / 2, H * 0.4, `WAVE ${this.wavesCleared + 1}/${this.waveCount}`, "#00F3FF");
+        return;
+      }
       if (this.cb.nextWave) {
         this.wavesCleared += 1;
         const next = this.cb.nextWave(this.wavesCleared);
