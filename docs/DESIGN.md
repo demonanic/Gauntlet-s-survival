@@ -426,7 +426,7 @@ Measured at 64 trips per scenario after tuning:
 | Region | HP × | Damage × | mixed | swords | bows | bows, 2 stacks | staves | trio |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Boneyard Crypt | 3.3 | 2.8 | 72% | 58% | 100% | 95% | 98% | 38% |
-| Frostfang Pass | 2.52 | 1.92 | 77% | 95% | 66% | 33% | 48% | 3% |
+| Frostfang Pass | 2.95 | 2.25 | 77% | 94% | 77% | 16% | 66% | 0% |
 | Ashen Keep | 3.07 | 2.31 | 78% | 100% | 78% | 25% | 63% | 0% |
 | The Blightmire | 4.63 | 3.35 | 80% | 95% | 0% | 58% | 97% | 3% |
 
@@ -446,6 +446,15 @@ How the weapons got closer (before: all-bow parties won 0–40% past the Boneyar
 - **Bosses** (`npm run scenarios -- --group bosses`, fresh party): every make-up beats every
   boss except all-bow parties on one stack at the Bog Lich, which needs ~470 arrows. With
   two stacks they win; it's the one place archers have to prepare for.
+
+**Bandit Warlord** (Frostfang's boss): every 10 s he calls bandits, but only to top his
+gang back up to three alive (`WARLORD_GANG`), never past it. Before, he added two every
+10 s with no limit, so a party arriving worn out from the trip was buried in bandits: all
+of the idle campaign's Frostfang losses were at him (`npm run balance -- --trace frostfang
+--until frostfang`: idle first trips won 7 of 14, active 12 of 14). The cap alone made
+the region too easy (baseline 98%), so Frostfang's enemies were raised ×1.17 (HP 2.95,
+damage 2.25; the row above is after both). Now: baseline 77%; idle first trips 10 of 15,
+active 15 of 15.
 
 Known gaps: three-hero parties (the starting roster) rarely win past the Boneyard; the
 best single-weapon party differs by region (ranged in the Boneyard, swords elsewhere).

@@ -148,6 +148,8 @@ function heroMovementSpeed(hero, legacyBase, currentTime, applyLegacyModifiers =
 const LANES = 5;
 const ENDLESS_WAVE_BREAK_SECONDS = 3;
 // Enemy body radii for collisions (bosses and elites need more room).
+// The most bandits the Bandit Warlord keeps around him at once.
+const WARLORD_GANG = 3;
 // Bulwarks: the share of a hit a Bulwark in the line of fire takes, and the
 // damage reduction for allies standing beside one.
 const BULWARK_COVER = 0.5;
@@ -1655,10 +1657,14 @@ export class Engine {
             e.abilityCd = 0.5;
           }
         } else if (e.type === "banditWarlord") {
-          // Calls his gang in, then charges the weakest hero himself.
+          // Calls his gang in (topping it back up to WARLORD_GANG, never
+          // past it, so cutting his bandits down gets somewhere), then
+          // charges the weakest hero himself.
           e.abilityCd = 10;
-          for (let k = 0; k < 2; k++) this._summon("bandit");
-          this._float(e.x, e.y - 34, "TO ME, LADS!", e.color);
+          const gang = this.active.filter((ally) => ally.type === "bandit" && ally.hp > 0).length;
+          const called = Math.min(2, Math.max(0, WARLORD_GANG - gang));
+          for (let k = 0; k < called; k++) this._summon("bandit");
+          if (called) this._float(e.x, e.y - 34, "TO ME, LADS!", e.color);
           e.blitzUntil = this.time + 0.6;
           e.blitzStrike = true;
         } else if (target && e.type === "bogLich") {
