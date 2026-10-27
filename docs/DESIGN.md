@@ -9,13 +9,15 @@ on the Demonanic combat engine.
    gear from the vault, buy supplies and load them into quick slots.
 2. **Expedition Board:** choose a destination and a party of 1–4 ready heroes.
 3. **Adventure (timed, `src/game/expedition.js` + `adventure.js`):** the party explores
-   for the region's duration (10–40 min). Every 20–40s a feed event fires, weighted
-   flavor 38, find 20, hazard 10, encounter 26, story choice 6, rare 3 (plus environment 12
-   in harsh regions). Encounters are the backbone: after 3 events in a row without one,
-   the next event is always an encounter, so a trip sees a fight about every 1–1.5 min.
+   for the region's duration (6–20 min). Every 20–40s a feed event fires, weighted
+   flavor 28, find 20, hazard 10, encounter 36, story choice 6, rare 3 (plus environment 12
+   in harsh regions). Encounters are the backbone: after 2 events in a row without one,
+   the next event is always an encounter, so a trip sees a fight about every 45–60 s of
+   road (see Combat pacing).
    Before an end boss the party takes a breather: everyone heals 30%, heroes knocked
    out on the road get back up for the final fight, and archers gather 15 spent arrows.
-   At camp (20+ minute trips), fallen heroes come around at 10% HP, anyone below 40% HP
+   After every won fight each standing hero heals 25% (`AFTER_FIGHT_HEAL`).
+   At camp (10+ minute trips), fallen heroes come around at 10% HP, anyone below 40% HP
    uses a bandage or potion from their quick slots, and archers whittle 15 arrows; after
    that it's natural healing (1/450 max HP per second) or the camp's Rest option.
    `startExpedition(..., { revives })` grants second chances: a lost fight puts the whole
@@ -55,7 +57,7 @@ on the Demonanic combat engine.
   (a 3-minute detour that ends in a stash of gold and Rare/Epic gear), and a legendary
   monster (the region's toughest creature at ×5 HP and ×1.6 damage with two followers;
   beating it pays a hoard of gold plus Rare/Epic gear).
-- **Camp:** trips of 20+ minutes stop halfway: Rest (heal 30%), Scout ahead (+15% sneak
+- **Camp:** trips of 10+ minutes stop halfway: Rest (heal 30%), Scout ahead (+15% sneak
   for the rest of the trip) or Forage (gold and supplies).
 - **Notifications:** feed lines flagged `notify` (boss reached, legendary monster,
   merchant, treasure, rare gear) and the trip's report trigger a browser notification
@@ -127,7 +129,7 @@ A deliberately small model (not Demonanic's 11 slots), defined in `src/combat/ge
   every 3rd shot +2 free arrows, 30% arrow saving), Embercall (staff, burn 40%), Heart of
   the Mountain (chest, immune to environments), Gnomebane Buckler (halves explosions,
   thorns), Gravebinder Ring (revive once per fight at 30%).
-- **Arrows:** bows draw one arrow per shot from the first quick slot holding arrows; no
+- **Arrows:** bows draw one arrow every 4 shots (`ARROW_SHOTS`) from the first quick slot holding arrows; no
   arrows means no shooting (the hero falls back). Stacks of 50; 75% of plain arrows fired
   are recovered after a won fight. Special arrows (Fletcher: 10 plain + 25–30g) are spent:
   venom 60% of the hit over 4s, flame 35% splash + 30% burn, frost 35% slow for 2.5s.
