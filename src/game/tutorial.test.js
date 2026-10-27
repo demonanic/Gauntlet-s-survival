@@ -1,6 +1,6 @@
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import { createGearItem } from "./items";
-import { choosePending, createGuild, startExpedition, tick } from "./guild";
+import { choosePending, createGuild, recruitHero, startExpedition, tick } from "./guild";
 import { guildHints } from "./hints";
 import { parseGuild } from "./storage";
 import {
@@ -18,7 +18,7 @@ describe("tutorial", () => {
     const old = JSON.parse(JSON.stringify(createGuild()));
     delete old.tutorial;
     expect(tutorialActive(parseGuild(old))).toBe(false);
-    const midway = { ...JSON.parse(JSON.stringify(createGuild())), tutorial: { step: 4, done: false } };
+    const midway = { ...JSON.parse(JSON.stringify(createGuild())), tutorial: { step: TUTORIAL_STEPS.findIndex((step) => step.id === "board"), done: false } };
     expect(stepId(parseGuild(midway))).toBe("board");
   });
 
@@ -28,6 +28,10 @@ describe("tutorial", () => {
     expect(stepId(guild)).toBe("roster");
     expect(advanceTutorial(guild, ui())).toBe(guild); // a "next" step waits for its button
     guild = nextTutorialStep(guild);
+    expect(stepId(guild)).toBe("recruit");
+    expect(advanceTutorial(guild, ui())).toBe(guild);
+    guild = recruitHero(guild).state;
+    guild = advanceTutorial(guild, ui());
     expect(stepId(guild)).toBe("gear");
     guild = advanceTutorial(guild, ui({ gearOpen: true }));
     expect(stepId(guild)).toBe("gearSheet");
@@ -89,11 +93,24 @@ describe("guild hints", () => {
       hero.combat.hp = classlessMaxHp(hero);
       hero.quickSlots = [{ key: "bandage", qty: 5 }, null];
     }
+    guild.freeRecruitUsed = true;
     return guild;
   };
 
   test("a quiet guild has nothing to say", () => {
     expect(guildHints(ready(), T0)).toEqual([]);
+  });
+
+  test("a short roster hears about its free recruit first", () => {
+    const guild = { ...ready(), freeRecruitUsed: false };
+    expect(guildHints(guild, T0)[0]).toMatchObject({ id: "free-recruit", action: { kind: "recruit" } });
+    expect(guildHints(recruitHero(guild).state, T0).map((hint) => hint.id)).not.toContain("free-recruit");
+  });
+
+  test("players who already have a full roster skip the recruit step", () => {
+    let guild = nextTutorialStep(nextTutorialStep(createGuild()));
+    guild = { ...recruitHero(guild).state, tutorial: guild.tutorial };
+    expect(stepId(advanceTutorial(guild, ui()))).toBe("gear");
   });
 
   test("unspent points, better gear, low arrows and empty quick slots", () => {

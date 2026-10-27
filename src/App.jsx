@@ -131,6 +131,7 @@ export default function App() {
             onAct={(action) => {
               if (action.kind === "perks") setPerkHeroId(action.heroId);
               else if (action.kind === "gear") setGearHeroId(action.heroId);
+              else if (action.kind === "recruit") { setTab("hall"); setRecruiting(true); }
               else setTab(action.tab);
             }}
           />

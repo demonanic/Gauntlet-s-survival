@@ -102,10 +102,11 @@ describe("recruiting", () => {
     expect(renameHero(state, heroId(state), "  ")).toEqual({ ok: false, reason: "invalid_name" });
   });
 
-  test("recruit cost follows the roster size", () => {
+  test("recruit cost follows the roster size; the first recruit for a short roster is free", () => {
     const state = rich(createGuild());
-    expect(recruitCost(state)).toBe(80);
+    expect(recruitCost(state)).toBe(0);
     expect(recruitCost(recruitHero(state).state)).toBe(128);
+    expect(recruitCost({ ...state, freeRecruitUsed: true })).toBe(80);
   });
 });
 

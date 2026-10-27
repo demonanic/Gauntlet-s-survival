@@ -19,12 +19,13 @@ describe("guild roster", () => {
     expect(state.gold).toBe(100);
   });
 
-  test("recruiting spends gold and grows the cost", () => {
+  test("the first recruit is free; after that recruiting spends gold and grows the cost", () => {
     const state = createGuild();
     const first = recruitHero(state);
     expect(first.ok).toBe(true);
     expect(first.state.heroes).toHaveLength(4);
-    expect(first.state.gold).toBe(100 - 80);
+    expect(first.state.gold).toBe(100);
+    expect(first.state.freeRecruitUsed).toBe(true);
     expect(recruitCost(first.state)).toBe(128);
     expect(recruitHero(first.state)).toEqual({ ok: false, reason: "insufficient_gold" });
     expect(state.heroes).toHaveLength(3); // input untouched

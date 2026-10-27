@@ -4,6 +4,8 @@
 // the save (guild.tutorial), so it survives reloads and syncs to the cloud.
 //
 // A player who has already sent a party out skips the guild-hall steps.
+import { FULL_PARTY, freeRecruitAvailable } from "./guild";
+
 const home = (guild) => !guild.expedition;
 
 // Each step names the element it points at (`target`, a CSS selector) and
@@ -21,11 +23,21 @@ export const TUTORIAL_STEPS = Object.freeze([
   {
     id: "roster",
     title: "Your heroes",
-    text: "These three are your starting heroes. Each was born with a quality, like Brawny or Tracker: who they are, not something you pick. Veterans develop more qualities from how they fight.",
+    text: "These are your starting heroes. Each was born with a quality, like Brawny or Tracker: who they are, not something you pick. Veterans develop more qualities from how they fight.",
     target: "[data-testid='roster']",
     placement: "top",
     tab: "hall",
     next: "Next",
+  },
+  {
+    id: "recruit",
+    title: "One more hero",
+    text: "Three heroes struggle once the real fights start; a full party is four. A fighter wants to join, and your first recruit is free. Tap Recruit, give them a name (or keep this one), then tap Hire.",
+    // The Recruit button, then the Hire button once the dialog is open.
+    target: ["[data-testid='recruit-hire']", "[data-testid='recruit']"],
+    tab: "hall",
+    skipUnless: (guild) => home(guild) && freeRecruitAvailable(guild),
+    advance: (guild) => guild.heroes.length >= FULL_PARTY,
   },
   {
     id: "gear",
@@ -57,7 +69,7 @@ export const TUTORIAL_STEPS = Object.freeze([
   {
     id: "party",
     title: "Send a party",
-    text: "The Gutter, a short and safe 10-minute trip, is already picked. Tap each hero to add them, then tap Send party. The first hero you pick is the Leader. Later regions have harsh weather: the readiness check tells you which provisions to pack.",
+    text: "The Gutter, a short and safe 10-minute trip, is already picked. Tap all four heroes to add them, then tap Send party. The first hero you pick is the Leader. Later regions have harsh weather: the readiness check tells you which provisions to pack.",
     target: "[data-testid='party-panel']",
     placement: "top",
     tab: "board",

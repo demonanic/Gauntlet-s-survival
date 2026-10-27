@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { TUTORIAL_STEPS } from "../game/tutorial";
 import { NeonButton } from "./ui";
 
-// Find the step's target on screen and follow it as the page moves.
-function useTargetRect(selector) {
+// Find the step's target on screen and follow it as the page moves. A step
+// may list several selectors: the first one on screen wins.
+function useTargetRect(target) {
+  const selector = Array.isArray(target) ? target.join("|") : target;
   const [rect, setRect] = useState(null);
   useEffect(() => {
     if (!selector) {
@@ -13,7 +15,7 @@ function useTargetRect(selector) {
     let frame;
     let scrolled = false;
     const update = () => {
-      const element = document.querySelector(selector);
+      const element = selector.split("|").map((entry) => document.querySelector(entry)).find(Boolean);
       const box = element?.getBoundingClientRect();
       if (element && !scrolled) {
         scrolled = true;

@@ -2,7 +2,7 @@
 // player's attention right now, each with where to go to deal with it.
 // Pure: computed from the save every render, nothing stored.
 import { CONSUMABLES, heroArrowCount, heroUsesArrows } from "../combat/gear";
-import { heroStatus } from "./guild";
+import { freeRecruitAvailable, heroStatus } from "./guild";
 import { gearScore } from "./items";
 import { canRetire } from "./legacy";
 import { pendingPetMods } from "./pets";
@@ -14,10 +14,19 @@ const MAX_HINTS = 3;
 
 const names = (heroes) => heroes.map((hero) => hero.identity.name).join(", ");
 
-// Each hint: { id, text, action: { kind: "perks" | "gear" | "tab", heroId?, tab? } }.
+// Each hint: { id, text, action: { kind: "perks" | "gear" | "tab" | "recruit", heroId?, tab? } }.
 export function guildHints(guild, now) {
   const hints = [];
   const home = guild.heroes.filter((hero) => heroStatus(guild, hero, now) !== "away");
+
+  // A short roster is the most common reason an early party loses.
+  if (freeRecruitAvailable(guild)) {
+    hints.push({
+      id: "free-recruit",
+      text: "Your first recruit is free. A party of four is much stronger than three.",
+      action: { kind: "recruit", label: "Recruit" },
+    });
+  }
 
   const learner = home.find((hero) => hero.pet && pendingPetMods(hero.pet).length);
   if (learner) {
