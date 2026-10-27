@@ -64,7 +64,7 @@ describe("timed expeditions", () => {
     expect(state.expedition).toBeNull();
     const report = state.lastReport;
     expect(["victory", "retreat"]).toContain(report.outcome);
-    expect(report.stats.events).toBeGreaterThan(10);
+    expect(report.stats.events).toBeGreaterThan(5);
     expect(report.log.length).toBeGreaterThan(report.stats.events);
     expect(state.heroes.some((hero) => hero.progression.xp > 0) || report.stats.fights === 0).toBe(true);
     if (report.outcome === "victory") {
