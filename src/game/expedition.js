@@ -21,7 +21,7 @@ import {
   moraleDamageBonus, rollBanter, rollFlavor, rollHazard, rollWeather, sneakChance,
 } from "./adventure";
 import {
-  buildBossEncounter, buildEndlessWave, buildLegendaryEncounter, buildStalkerEncounter, buildWildEncounter, describeSquad,
+  buildBossEncounter, buildEndlessWave, buildLegendaryEncounter, buildNemesisEncounter, buildStalkerEncounter, buildWildEncounter, describeSquad,
 } from "./encounters";
 import { ECOLOGIES } from "./ecology";
 import { awardPetXp, earnPetCrate } from "./pets";
@@ -31,6 +31,9 @@ import { bankLoot, createGearItem, normalizeHeroGear, randomCrystal, restockQuic
 import { legacyBonuses } from "./legacy";
 import { BOSS_RANK_SCALING, bossForRank, getRegion } from "./regions";
 import { simulateEncounter } from "./simulate";
+import {
+  NEMESIS, growNemesis, nemesisAppearChance, nemesisLevel, nemesisTraits, nemesisTriumphs, regionNemesis, riseNemesis, slayNemesis,
+} from "./nemesis";
 
 export const MAX_PARTY_SIZE = 4;
 // Heroes resting at the guild recover this fraction of max HP per second;
@@ -415,6 +418,14 @@ function runEvent(state, region, at, rng) {
       startStalking(state, region, at, progress, rng);
       return;
     }
+    // A nemesis hunting this region may find the party instead (once a trip).
+    const nemesis = region.wildlife && !run.nemesisMet ? regionNemesis(state, region.id) : null;
+    if (nemesis && rng() < nemesisAppearChance(nemesis, run.heroIds)) {
+      run.nemesisMet = true;
+      nemesis.met = (nemesis.met || 0) + 1;
+      startEncounter(state, region, at, buildNemesisEncounter(region, nemesis, nemesisLevel(nemesis, at), progress, rng), false);
+      return;
+    }
     startEncounter(state, region, at, buildWildEncounter(region, progress, rng), rng() < ambushChance(state, conditions, environment));
   } else if (kind === "rare") {
     rareEvent(state, region, hero, at, rng);
@@ -622,11 +633,11 @@ function startEncounter(state, region, at, wave, ambush) {
   const run = state.expedition;
   run.stats.encounters += 1;
   run.quietEvents = 0;
-  const legend = wave.enemies.find((enemy) => enemy.legendary);
+  const legend = wave.enemies.find((enemy) => enemy.legendary || enemy.nemesisId);
   const squad = legend
     ? `${legend.name} with ${describeSquad({ enemies: wave.enemies.filter((enemy) => enemy !== legend) })}`
     : describeSquad(wave);
-  const extra = legend ? { legendary: true } : {};
+  const extra = legend?.nemesisId ? { nemesisId: legend.nemesisId } : legend ? { legendary: true } : {};
   // A Trailwise hero may spot the ambush before it springs.
   const qualities = road(state);
   if (ambush && Math.random() < roadEffect(qualities, "spotAmbush")) {
@@ -638,7 +649,8 @@ function startEncounter(state, region, at, wave, ambush) {
     openPending(run, at, { kind: "ambush", wave, label: squad, ...extra, ...readFormation(state, wave) });
   } else {
     const chance = sneakChance(livingParty(state), wave, run.morale, region, conditionEffects(run.weather, run.night, run.scouted).sneak);
-    addFeed(run, at, legend
+    addFeed(run, at, legend?.nemesisId ? nemesisSighting(state, legend)
+      : legend
       ? `A legend walks these halls: ${legend.name}, a monster out of the old stories, with ${describeSquad({ enemies: wave.enemies.filter((enemy) => enemy !== legend) })}. Fortune favours the bold... or the quiet.`
       : `The party spots ${squad} ahead. They haven't noticed yet.`, "danger", !!legend);
     const formation = readFormation(state, wave);
@@ -648,6 +660,71 @@ function startEncounter(state, region, at, wave, ambush) {
     }
     openPending(run, at, { kind: "sighting", wave, label: squad, sneakChance: chance, ...extra, ...formation });
   }
+}
+
+// The feed line when a nemesis finds the party: who it is, how strong, and
+// whom it has beaten before (if any of them are here).
+function nemesisSighting(state, foe) {
+  const nemesis = state.nemeses.find((entry) => entry.id === foe.nemesisId);
+  const here = nemesis.victims.filter((victim) => state.expedition.heroIds.includes(victim.id)).map((victim) => victim.name);
+  const traits = nemesisTraits(foe.nemesisLevel).map((trait) => trait.name.toLowerCase());
+  const grudge = here.length ? ` It remembers ${here.join(" and ")}.` : "";
+  return `Your nemesis is back: ${foe.name}, the ${nemesis.typeName} (LV ${foe.nemesisLevel}${traits.length ? `, ${traits.join(", ")}` : ""}).${grudge}`;
+}
+
+// After a fight: a nemesis that was there grows, flees or falls, and a
+// creature that knocked a hero out may rise as a new one.
+function settleNemeses(state, region, party, { victory, downed, nemesisSlain, nemesisFled }, at) {
+  if (!region.wildlife || region.tier < NEMESIS.fromTier) return;
+  const run = state.expedition;
+  const byFoe = new Map();
+  for (const [index, foe] of Object.entries(downed || {})) {
+    const hero = party[index];
+    if (!foe || !hero || foe.boss || foe.summoned || !C.ENEMIES[foe.type]) continue;
+    const key = foe.nemesisId || foe.type;
+    const entry = byFoe.get(key) || { foe, heroes: [] };
+    entry.heroes.push({ id: heroId(hero), name: hero.identity.name });
+    byFoe.set(key, entry);
+  }
+  const nemesis = run.pending?.nemesisId ? state.nemeses?.find((entry) => entry.id === run.pending.nemesisId) : null;
+  if (nemesis) {
+    byFoe.delete(nemesis.id);
+    if (nemesisSlain === nemesis.id) {
+      const level = nemesisLevel(nemesis, at);
+      const gold = Math.round(NEMESIS.rewardGold * level * tierMult(region.tier));
+      const trophy = createGearItem({ slot: pick(GEAR_SLOTS, Math.random), rarity: level >= 6 ? "epic" : pick(["rare", "epic"], Math.random), tier: region.tier + 1 }, Math.random);
+      run.loot.gold += gold;
+      run.loot.items.push(trophy);
+      changeMorale(state, 20);
+      const avengers = nemesis.victims.filter((victim) => run.heroIds.includes(victim.id)).map((victim) => victim.name);
+      slayNemesis(state, nemesis, run.heroIds, at);
+      addFeed(run, at, `${nemesis.name} falls at last!${avengers.length ? ` ${avengers.join(" and ")} ${avengers.length > 1 ? "have" : "has"} their revenge.` : ""} Its hoard: ${gold} gold and a ${trophy.name}.`, "loot", true);
+    } else {
+      const triumph = downedBy(downed, nemesis.id, party);
+      if (triumph.length || !victory) {
+        const level = nemesisTriumphs(nemesis, triumph, !victory, at);
+        addFeed(run, at, `${nemesis.name} ${triumph.length ? `stands over ${triumph.map((hero) => hero.name).join(" and ")}` : "drives the party off"} and grows stronger (LV ${level}).`, "danger", true);
+      }
+      if (nemesisFled === nemesis.id) {
+        nemesis.fled = (nemesis.fled || 0) + 1;
+        const level = growNemesis(nemesis, 1, at);
+        addFeed(run, at, `${nemesis.name} escapes, bleeding and furious. It will be back (LV ${level}).`, "danger", true);
+      }
+    }
+  }
+  for (const { foe, heroes } of byFoe.values()) {
+    if (foe.nemesisId) continue;
+    const risen = riseNemesis(state, { type: foe.type, typeName: foe.name, regionId: region.id, heroes, wiped: !victory }, at);
+    if (risen) {
+      addFeed(run, at, `The ${foe.name} that downed ${heroes.map((hero) => hero.name).join(" and ")} lets out a howl and slinks away. It has a name now: ${risen.name}. It will remember this.`, "danger", true);
+      break;
+    }
+  }
+}
+
+function downedBy(downed, nemesisId, party) {
+  return Object.entries(downed || {}).filter(([, foe]) => foe?.nemesisId === nemesisId)
+    .map(([index]) => party[index]).filter(Boolean).map((hero) => ({ id: heroId(hero), name: hero.identity.name }));
 }
 
 // Reading an enemy formation. A guild that has met this ecology before, or a
@@ -902,6 +979,7 @@ function autoFight(state, region, at, rng, onStep) {
   applyFightResult(state, region, {
     victory: !!result?.victory, party: sim.heroes, xpGains: result?.xpGains?.heroes || {},
     gold: sim.gold, items: sim.vault, wavesCleared: result?.wavesCleared || 0,
+    downed: result?.downed || {}, nemesisSlain: result?.nemesisSlain || null, nemesisFled: result?.nemesisFled || null,
   }, at);
   // Left to themselves, a battered party doesn't push its luck.
   if (state.expedition && !state.expedition.pending && partyHpFraction(state) < AUTO_RETREAT_HP) {
@@ -921,11 +999,20 @@ export function resolveEncounter(state, outcome, now) {
   return { ok: true, state: next };
 }
 
-function applyFightResult(state, region, { victory, party, xpGains, gold, items, wavesCleared = 0 }, at) {
+function applyFightResult(state, region, { victory, party, xpGains, gold, items, wavesCleared = 0, ...outcome }, at) {
   // Wisdom (guild) and Fast Learner (hero) boost the XP the engine awarded.
   const xpBonus = legacyBonuses(state).xp;
   const boostedXp = Object.fromEntries(Object.entries(xpGains || {}).map(([index, xp]) =>
     [index, Math.round(Number(xp) * (1 + xpBonus + heroTraitEffects(party[index]).xpBonus))]));
+  // Heroes who avenge themselves on a nemesis learn the most from it.
+  const fought = state.expedition.pending?.nemesisId && state.nemeses?.find((entry) => entry.id === state.expedition.pending.nemesisId);
+  if (fought && victory && outcome.nemesisSlain === fought.id) {
+    for (const [index, hero] of party.entries()) {
+      if (fought.victims.some((victim) => victim.id === heroId(hero))) {
+        boostedXp[index] = (boostedXp[index] || 0) + NEMESIS.vengeanceXp * nemesisLevel(fought, at);
+      }
+    }
+  }
   const merged = mergeClasslessBattleResults(state, { heroIds: party.map(heroId), runtimeHeroes: party, xpGains: boostedXp });
   Object.assign(state, merged);
   const run = state.expedition;
@@ -960,6 +1047,7 @@ function applyFightResult(state, region, { victory, party, xpGains, gold, items,
   }
   const { pending } = run;
   run.stats.fights += 1;
+  if (pending.kind !== "rift") settleNemeses(state, region, party, { victory, ...outcome }, at);
 
   if (pending.kind === "rift") {
     const bounty = riftBounty(wavesCleared);

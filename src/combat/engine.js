@@ -207,6 +207,11 @@ export class Engine {
     this.floaters = [];
     this.effects = [];
     this.killed = 0;
+    // Gauntlet nemeses: which creature downed each hero (by hero index), and
+    // whether a nemesis in this fight fell or fled.
+    this.downed = {};
+    this.nemesisSlain = null;
+    this.nemesisFled = null;
     this.wavesCleared = 0;
     this.xpGains = { heroes: {}, towers: {} };
     this.sim.vault = Array.isArray(this.sim.vault) ? this.sim.vault : [];
@@ -1337,6 +1342,7 @@ export class Engine {
       xpGains: this.xpGains,
       killed: this.killed,
       wavesCleared: this.wavesCleared,
+      ...this._nemesisOutcome(),
     });
     return true;
   }
@@ -1652,7 +1658,8 @@ export class Engine {
   }
 
   _updateEnemy(e, dt) {
-    e.atkCd -= dt * (e.attackSlowUntil > this.time ? (e.attackSlowMultiplier || 1) : 1);
+    if (e.nemesisId && this._nemesisTick(e, dt)) return;
+    e.atkCd -= dt * (e.attackSlowUntil > this.time ? (e.attackSlowMultiplier || 1) : 1) * (e.attackSpeed || 1);
     if (e.stunUntil && e.stunUntil > this.time) return;
     // Boss special: a targeted, proximity-based napalm bottle.
     // It no longer damages every hero simultaneously. The target is the nearest
@@ -2340,6 +2347,7 @@ export class Engine {
     this.projectiles.push({
       kind: "napalm",
       sourceId: "E" + e.type,
+      source: e,
       x: e.x,
       y: e.y,
       tx: obj.x,
@@ -2384,6 +2392,7 @@ export class Engine {
         }
         dmg = h.classless ? this._classlessReducedDamage(h, dmg) : this._legacyInterposedDamage(h, dmg);
         dmg *= 1 - Math.min(0.9, h.d.gear?.blastWard || 0);
+        if (p.source) h.lastHitBy = p.source;
         if (h.ref.shield > 0) {
           const ab = Math.min(h.ref.shield, dmg);
           h.ref.shield -= ab;
@@ -2394,6 +2403,7 @@ export class Engine {
         this._float(h.x, h.y - 20, "-" + Math.round(dmg), p.color || "#FF6600");
         if (!h.classless && h.ref.hp <= 0 && h.alive) {
           h.alive = false;
+          this._heroDowned(h);
           this.sim.morale = clamp(this.sim.morale + C.MORALE.heroDefeat);
         }
       } else {
@@ -2556,6 +2566,7 @@ export class Engine {
     }
     if (hero.ref.hp <= 0 && hero.alive) {
       hero.alive = false;
+      this._heroDowned(hero);
       this.effects.push({ kind: "death", x: hero.x, y: hero.y, r: 12, life: 0.55, color: "#F02DCA" });
       this.sim.morale = clamp(this.sim.morale + C.MORALE.heroDefeat);
     }
@@ -2666,6 +2677,7 @@ export class Engine {
     this.projectiles.push({
       kind: "enemyBolt",
       sourceId: "E" + e.type,
+      source: e,
       x: e.x,
       y: e.y,
       launchX: e.x,
@@ -2706,6 +2718,7 @@ export class Engine {
         return;
       }
       let damage = h.classless ? this._classlessReducedDamage(h, p.dmg) : this._legacyInterposedDamage(h, p.dmg);
+      if (p.source) h.lastHitBy = p.source;
       if (h.ref.shield > 0) {
         const absorbed = Math.min(h.ref.shield, damage);
         h.ref.shield -= absorbed;
@@ -2717,6 +2730,7 @@ export class Engine {
       if (damage > 0) this._triggerHeroReaction(h, "ally");
       if (!h.classless && h.ref.hp <= 0 && h.alive) {
         h.alive = false;
+        this._heroDowned(h);
         this.sim.morale = clamp(this.sim.morale + C.MORALE.heroDefeat);
       }
     } else if (p.targetKind === "tower") {
@@ -2762,6 +2776,7 @@ export class Engine {
       const empowered = e.empoweredUntil > this.time ? 1.15 : 1;
       const raw = e.damage * predator * empowered;
       let dmg = h.classless ? this._classlessReducedDamage(h, raw) : this._legacyInterposedDamage(h, raw);
+      h.lastHitBy = e;
       if (h.ref.shield > 0) { const ab = Math.min(h.ref.shield, dmg); h.ref.shield -= ab; dmg -= ab; }
       if (h.classless) this._resolveClasslessHeroDamage(h, dmg);
       else h.ref.hp = Math.max(0, h.ref.hp - dmg);
@@ -2771,6 +2786,7 @@ export class Engine {
       this._float(h.x, h.y - 20, "-" + Math.round(dmg), "#FF3366");
       if (!h.classless && h.ref.hp <= 0 && h.alive) {
         h.alive = false;
+        this._heroDowned(h);
         this.sim.morale = clamp(this.sim.morale + C.MORALE.heroDefeat);
       }
     }
@@ -3118,9 +3134,34 @@ export class Engine {
       .slice(0, multiTarget - 1);
   }
 
+  _heroDowned(h) {
+    const foe = h.lastHitBy;
+    this.downed[h.i] = foe ? { type: foe.type, name: foe.name, nemesisId: foe.nemesisId || null, boss: !!foe.boss, summoned: !!(foe.summoned || foe.raised) } : null;
+  }
+
+  _nemesisOutcome() {
+    return { downed: this.downed, nemesisSlain: this.nemesisSlain, nemesisFled: this.nemesisFled };
+  }
+
+  // A nemesis regenerates, and once per fight, nearly dead, may flee the
+  // field (it leaves the wave; the party still wins if it clears the rest).
+  _nemesisTick(e, dt) {
+    if (e.regen > 0) e.hp = Math.min(e.maxHp, e.hp + e.maxHp * e.regen * dt);
+    if (e.fleeRolled || e.hp > e.maxHp * (e.fleeBelow || 0)) return false;
+    e.fleeRolled = true;
+    if (!(Math.random() < (e.fleeChance || 0))) return false;
+    this.nemesisFled = e.nemesisId;
+    this._float(e.x, e.y - 30, `${e.name.toUpperCase()} FLEES!`, "#F59E0B");
+    this.effects.push({ kind: "impact", x: e.x, y: e.y, r: 30, life: 0.5, color: "#F59E0B" });
+    e._dead = true;
+    e.hp = 0;
+    return true;
+  }
+
   _killEnemy(e, sourceId, silent) {
     if (e._dead) return;
     e._dead = true; e.hp = 0;
+    if (e.nemesisId) this.nemesisSlain = e.nemesisId;
     // Gauntlet: a sapper's bomb goes off when it falls (at half strength), and
     // necromancers can raise anyone else who falls.
     if (e.bomber && !e.detonated) this._detonate(e, 0.5);
@@ -3493,6 +3534,7 @@ export class Engine {
         xpGains: this.xpGains,
         killed: this.killed,
         wavesCleared: this.wavesCleared,
+        ...this._nemesisOutcome(),
       });
       return;
     }
@@ -3530,6 +3572,7 @@ export class Engine {
         xpGains: this.xpGains,
         killed: this.killed,
         wavesCleared: this.wavesCleared,
+        ...this._nemesisOutcome(),
       });
     }
   }
@@ -3560,6 +3603,18 @@ export class Engine {
       const r = e.boss ? 25 : e.tier === "elite" ? 16 : 11;
       this._drawEnemySprite(e);
       this._bar(e.x - r, e.y - r - 7, r * 2, 3, e.hp / e.maxHp, e.color);
+      if (e.nemesisId && e.hp > 0) {
+        ctx.save();
+        ctx.textAlign = "center"; ctx.font = "bold 10px JetBrains Mono, monospace";
+        ctx.fillStyle = "#F59E0B"; ctx.strokeStyle = "#F59E0B"; ctx.shadowBlur = 8; ctx.shadowColor = "#F59E0B";
+        // A gold ring marks it; its name stays on screen even at the arena's edge.
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(e.x, e.y, r + 6, 0, Math.PI * 2); ctx.stroke();
+        const label = `${e.name} · LV ${e.nemesisLevel}`;
+        const half = ctx.measureText(label).width / 2 + 4;
+        ctx.fillText(label, Math.min(W - half, Math.max(half, e.x)), e.y - r - 12);
+        ctx.restore();
+      }
       if (targetHighlights.has(e)) {
         ctx.save();
         ctx.strokeStyle = "#39FF14";

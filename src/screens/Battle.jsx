@@ -73,6 +73,9 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
     gold: result.gold,
     items: result.items,
     wavesCleared: result.wavesCleared || 0,
+    downed: result.downed || {},
+    nemesisSlain: result.nemesisSlain || null,
+    nemesisFled: result.nemesisFled || null,
   });
 
   return (

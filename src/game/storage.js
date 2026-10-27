@@ -1,3 +1,4 @@
+import * as C from "../combat/config";
 import { normalizeClasslessHero } from "../combat/heroModel";
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import { createGuild, rollCandidate, STATE_VERSION } from "./guild";
@@ -68,6 +69,9 @@ export function parseGuild(parsed) {
     crateBosses: (Array.isArray(parsed.crateBosses) ? parsed.crateBosses : []).filter((key) => typeof key === "string"),
     ecologySeen: Object.fromEntries(Object.entries(parsed.ecologySeen && typeof parsed.ecologySeen === "object" ? parsed.ecologySeen : {})
       .filter(([key, count]) => ECOLOGIES[key] && Number(count) > 0).map(([key, count]) => [key, Math.floor(Number(count))])),
+    nemeses: (Array.isArray(parsed.nemeses) ? parsed.nemeses : [])
+      .filter((nemesis) => C.ENEMIES[nemesis?.type] && typeof nemesis.name === "string" && typeof nemesis.regionId === "string"
+        && Array.isArray(nemesis.victims) && Number(nemesis.level) >= 1),
     petCrates: (Array.isArray(parsed.petCrates) ? parsed.petCrates : [])
       .filter((crate) => Array.isArray(crate?.options) && crate.options.length && crate.options.every((key) => PET_SPECIES[key])),
     legacy: { ...emptyLegacy(), ...(parsed.legacy && typeof parsed.legacy === "object" ? parsed.legacy : {}) },
