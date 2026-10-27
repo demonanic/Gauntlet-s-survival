@@ -65,8 +65,8 @@ export const REGIONS = Object.freeze([
     tier: 3,
     minLevel: 4,
     durationMinutes: 25,
-    hpScale: 2.52,
-    dmgScale: 1.92,
+    hpScale: 2.95,
+    dmgScale: 2.25,
     completionGold: 500,
     recoverySeconds: 180,
     // Hunters: everything here goes for whoever is weakest.

@@ -73,6 +73,25 @@ describe("weapons decide how a hero fights", () => {
     expect(boss.y).toBeGreaterThan(0);
   });
 
+  test("the Bandit Warlord tops his gang up to three, never past it", () => {
+    const engine = engineWith([heroWithWeapon("sword")]);
+    engine.spawnQueue = [];
+    const hero = engine.heroes[0];
+    const warlord = { ...enemyAt(hero.x, 200), type: "banditWarlord", boss: true, tier: "boss", hp: 50_000, maxHp: 50_000, abilityCd: 0 };
+    engine.active = [warlord];
+    const bandits = () => engine.active.filter((enemy) => enemy.type === "bandit" && enemy.hp > 0).length;
+    const call = () => { warlord.abilityCd = 0; engine._updateEnemy(warlord, 1 / 30); };
+    call();
+    expect(bandits()).toBe(2);
+    call();
+    expect(bandits()).toBe(3);
+    call();
+    expect(bandits()).toBe(3);
+    for (const bandit of engine.active.filter((enemy) => enemy.type === "bandit").slice(0, 2)) bandit.hp = 0;
+    call();
+    expect(bandits()).toBe(3);
+  });
+
   test("bosses lob bombs at heroes keeping their distance, not at those in melee", () => {
     const engine = engineWith([heroWithWeapon("sword"), heroWithWeapon("bow")]);
     const [sword, bow] = engine.heroes;
