@@ -419,6 +419,44 @@ while an Attack point added 2–4% damage, and all-defense parties won 50–77%.
 Defense now counts as 4 defense (about 2.5–3% survivability per point); gear defense is
 unchanged. All-defense and all-attack parties now land close together.
 
+## Combat pacing (Oct 2026)
+
+Fights used to be over in a few seconds, with long road gaps in between. Now the fights
+are the main event:
+
+- **Waves:** an ordinary encounter comes in 3 waves (`ENCOUNTER_WAVES`; the Gutter's
+  wildlife sets `waves: 2`) with a 3 s breather between them (`WAVE_BREAK_SECONDS`); the
+  battle header shows "Wave x/y". The first wave can use an ecology template; the others
+  are plain squads. Legendary monsters, stalkers and the tutorial fight are one wave.
+- **Tougher, slower-hitting enemies:** every enemy gets HP ×2.6 and damage ×0.45
+  (`COMBAT_PACING`), so abilities, perks and positioning have time to matter. A whole
+  encounter lasts about 45–90 s.
+- **Bosses** use their own pacing (HP ×1.1, damage ×0.45) and bring one guard wave of the
+  region's wildlife first (`wave.vanguard`). The Demon and the Imperial Necromancer only
+  summon up to 4 living minions (`BOSS_MINIONS`); uncapped, the Ashen Demon buried idle
+  parties (mixed party 38% → 100%). Boss fights run 70–120 s; the Bog Lich about 4 min.
+- **Arrows:** a bow spends one arrow every 4 shots (`ARROW_SHOTS`); longer fights would
+  otherwise eat 100+ arrows each.
+- **Trips:** 6 / 10 / 12 / 15 / 20 minutes (Gutter → Blightmire), events every 20–40 s,
+  encounter weight 36 and at most 2 quiet events in a row, camp on 10+ minute trips. A
+  trip has about 7 (Boneyard) to 17 (Blightmire) fights, so with the fights played out a
+  trip takes about as long as before. After each won fight the standing heroes heal 25%
+  (`AFTER_FIGHT_HEAL`) so each fight is its own challenge rather than one long bleed.
+
+Region multipliers were retuned for the ~70% baseline (40 trips per scenario):
+
+| Region | HP × | Damage × | mixed | swords | bows | staves | trio |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Boneyard Crypt | 2.48 | 1.67 | 68% | 93% | 100% | 100% | 10% |
+| Frostfang Pass | 2.95 | 1.59 | 78% | 95% | 88% | 73% | 0% |
+| Ashen Keep | 3.07 | 1.67 | 75% | 88% | 88% | 93% | 0% |
+| The Blightmire | 4.63 | 1.66 | 80% | 93% | 85% | 95% | 5% |
+
+Campaign (`npm run balance`, 6 playthroughs each): idle players finish the Blightmire
+111–266 minutes in, active players 116–168; boss rank 25–27 eight hours later. The
+mixed party is now the weakest four-hero make-up; trios rarely win (every guild gets a
+fourth hero in the tutorial). The table below is the previous pass, for comparison.
+
 ## Difficulty and weapon balance (Oct 2026, second pass)
 
 Target: a party of four at a region's minimum level, common gear one tier below the
