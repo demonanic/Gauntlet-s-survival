@@ -47,7 +47,7 @@ export const NEMESIS_TRAITS = Object.freeze([
 
 const FIRST = ["Grak", "Murza", "Skarn", "Vellik", "Ozzra", "Thrug", "Kesh", "Ruvok", "Brakka", "Ilsith", "Gorm", "Zaddok", "Nhal", "Urkka"];
 const EPITHETS = ["the Bonebreaker", "Gutripper", "the Grudge", "Skullsplitter", "the Unforgiving", "Hollowtooth",
-  "the Hunter", "Blackmaw", "the Scarred", "Ironhide", "the Widowmaker", "Rotfang", "the Patient", "Ashgrin"];
+  "the Hunter", "Blackmaw", "the Scarred", "Ironjaw", "the Widowmaker", "Rotfang", "the Patient", "Ashgrin"];
 
 const pick = (list, rng) => list[Math.floor(rng() * list.length)];
 

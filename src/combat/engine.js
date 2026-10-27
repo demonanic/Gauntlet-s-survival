@@ -3606,8 +3606,13 @@ export class Engine {
       if (e.nemesisId && e.hp > 0) {
         ctx.save();
         ctx.textAlign = "center"; ctx.font = "bold 10px JetBrains Mono, monospace";
-        ctx.fillStyle = "#F59E0B"; ctx.shadowBlur = 8; ctx.shadowColor = "#F59E0B";
-        ctx.fillText(`${e.name} · LV ${e.nemesisLevel}`, e.x, e.y - r - 12);
+        ctx.fillStyle = "#F59E0B"; ctx.strokeStyle = "#F59E0B"; ctx.shadowBlur = 8; ctx.shadowColor = "#F59E0B";
+        // A gold ring marks it; its name stays on screen even at the arena's edge.
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(e.x, e.y, r + 6, 0, Math.PI * 2); ctx.stroke();
+        const label = `${e.name} · LV ${e.nemesisLevel}`;
+        const half = ctx.measureText(label).width / 2 + 4;
+        ctx.fillText(label, Math.min(W - half, Math.max(half, e.x)), e.y - r - 12);
         ctx.restore();
       }
       if (targetHighlights.has(e)) {
