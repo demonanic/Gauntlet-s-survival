@@ -8,7 +8,7 @@ import { heroRoadEffects, heroTraitEffects, partyRoadEffects } from "../combat/t
 export const ADVENTURE = Object.freeze({
   // Seconds between feed events (random within the range). Kept short: the
   // road is the gap between fights, and the fights are the game.
-  eventEverySeconds: [12, 24],
+  eventEverySeconds: [20, 40],
   // Encounters are the backbone of a trip: over a third of all events.
   eventWeights: Object.freeze({ flavor: 28, find: 20, hazard: 10, encounter: 36, story: 6, rare: 3 }),
   // A run of this many events without a fight forces the next one to be an encounter.
