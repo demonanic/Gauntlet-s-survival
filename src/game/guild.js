@@ -86,6 +86,8 @@ export function createGuild() {
     expedition: null,
     clears: {},
     recruits: 0,
+    // Set once the free first recruit (see freeRecruitAvailable) is spent.
+    freeRecruitUsed: false,
     // Ashen Keep boss kills so far; picks the next boss and its difficulty.
     bossRank: 0,
     records: { riftBest: 0 },
@@ -136,8 +138,18 @@ export function heroStatus(state, hero, now) {
   return "ready";
 }
 
+// A guild's first recruit is free while its roster is short of a full party:
+// three heroes struggle past the Gutter, and new players shouldn't have to
+// work that out (or save up) on their own. The tutorial walks them through it.
+export const FULL_PARTY = 4;
+
+export function freeRecruitAvailable(state) {
+  return !state.freeRecruitUsed && state.heroes.length < FULL_PARTY;
+}
+
 // Cost grows with the size of the roster, so retiring heroes keeps recruiting affordable.
 export function recruitCost(state) {
+  if (freeRecruitAvailable(state)) return 0;
   return Math.round(BASE_RECRUIT_COST * RECRUIT_COST_GROWTH ** Math.max(0, state.heroes.length - STARTER_NAMES.length));
 }
 
@@ -147,6 +159,7 @@ export function recruitHero(state, { name, hueShift } = {}) {
   const cost = recruitCost(state);
   if (state.gold < cost) return { ok: false, reason: "insufficient_gold" };
   const next = serializeGameState(state);
+  if (freeRecruitAvailable(next)) next.freeRecruitUsed = true;
   const candidate = next.candidate || rollCandidate(next);
   const level = 1 + legacyBonuses(next).recruitLevels;
   next.heroes.push(newHero(cleanHeroName(name) || candidate.suggestedName,

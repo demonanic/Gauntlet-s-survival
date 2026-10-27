@@ -64,7 +64,7 @@ export default function RecruitDialog({ guild, onHire, onReroll, onClose }) {
             onClick={() => onHire({ name, hueShift })}
             data-testid="recruit-hire"
           >
-            Hire · {cost}g
+            Hire · {cost ? `${cost}g` : "FREE"}
           </NeonButton>
         </div>
         <NeonButton className="mt-2 w-full" color="#94A3B8" onClick={onClose}>Cancel</NeonButton>

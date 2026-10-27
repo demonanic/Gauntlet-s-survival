@@ -61,6 +61,9 @@ things stalking the party, **Keen-Eared** heroes blunt ambushes, **Night Eyes**,
 **Charismatic**, **Inspiring**, **Steadfast**, **Optimist**), and some are mixed blessings
 (**Reckless**, **Loud**, **Frail**, **Greedy**, **Paranoid**).
 
+**A full party is four.** You start with three heroes, and the tutorial has you recruit a
+fourth for free; three-hero parties have a hard time once the real fights start.
+
 **Stat points.** Each level gives a stat point to spend on Attack, Defense, Agility,
 Intelligence or **Luck**. Luck never adds damage or HP; it tilts the odds. Per point: +0.2%
 crit chance and +0.1% dodge (both inside their usual caps), better gear drops, better odds

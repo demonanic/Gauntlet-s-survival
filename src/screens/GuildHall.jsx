@@ -20,7 +20,7 @@ export default function GuildHall({
         <div className="mb-2 flex items-center justify-between">
           <h2 className="font-display text-base font-bold text-cyan-200">ROSTER</h2>
           <NeonButton color="#FFE600" disabled={guild.gold < cost} onClick={onRecruit} data-testid="recruit">
-            Recruit · {cost}g
+            Recruit · {cost ? `${cost}g` : "FREE"}
           </NeonButton>
         </div>
         <div className="space-y-2">
