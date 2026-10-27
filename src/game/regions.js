@@ -89,7 +89,7 @@ export const REGIONS = Object.freeze([
     minLevel: 6,
     durationMinutes: 15,
     hpScale: 3.07,
-    dmgScale: 1.71,
+    dmgScale: 1.67,
     completionGold: 800,
     recoverySeconds: 240,
     // Organized warfare: shields, snipers and sappers in formation.
