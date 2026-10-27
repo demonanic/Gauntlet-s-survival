@@ -1,4 +1,4 @@
-import { withPendingFight } from "../test/expeditionFixtures";
+import { withoutArmor, withPendingFight } from "../test/expeditionFixtures";
 import { Engine } from "../combat/engine";
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import { heroGearStats } from "../combat/gear";
@@ -39,7 +39,8 @@ describe("gear items", () => {
 
   test("equipping swaps the old piece into the vault and adds stats", () => {
     const state = createGuild();
-    state.heroes[0].traits = []; // no trait, so max HP is exactly base + gear
+    state.heroes[0].traits = []; // no trait and no armor, so max HP is exactly base + gear
+    withoutArmor(state.heroes[0]);
     const helm = createGearItem({ slot: "head", rarity: "rare", tier: 1 });
     const equipped = equipGear(withVaultItem(state, helm), heroId(state), helm.id);
     expect(equipped.ok).toBe(true);
@@ -59,7 +60,8 @@ describe("gear items", () => {
 
   test("unequipping HP gear clamps current HP to the new maximum", () => {
     const state = createGuild();
-    state.heroes[0].traits = []; // no trait, so max HP is exactly 300
+    state.heroes[0].traits = []; // no trait and no armor, so max HP is exactly 300
+    withoutArmor(state.heroes[0]);
     const amulet = createGearItem({ slot: "trinket", variant: "amulet", rarity: "epic", tier: 3 });
     const equipped = equipGear(withVaultItem(state, amulet), heroId(state), amulet.id).state;
     equipped.heroes[0].combat.hp = classlessMaxHp(equipped.heroes[0]);

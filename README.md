@@ -86,7 +86,8 @@ higher level). Retired heroes are remembered there.
 
 ### Gear and supplies
 
-Each hero has seven gear slots (head, chest, legs, arms, weapon, secondary, amulet/ring)
+Each hero starts with a weapon and a plain set of armor (helm, cuirass, greaves, bracers);
+secondaries and trinkets are found or bought. Each hero has seven gear slots (head, chest, legs, arms, weapon, secondary, amulet/ring)
 and two quick slots for stacks of bandages, health potions, whetstones or arrows. Heroes
 use their supplies on their own in battle, or you can tap them. Loaded quick slots refill
 from the stash every time a party sets out.
