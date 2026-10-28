@@ -72,6 +72,41 @@ const STALKER_STRIKE_HERO_HP = 0.35;
 const STALKER_STRIKE_PARTY_HP = 0.55;
 // Extra opening blow an unnoticed stalker lands on the weakest hero.
 const STALKER_POUNCE = 0.12;
+// Push deeper: when a trip is done (end boss beaten, or the timer out where
+// there is none) the party may press on for another leg. Each leg makes the
+// creatures stronger and the spoils richer; a wipe down there loses
+// everything found past the trip's end. Owner-approved numbers (Oct 2026).
+export const DEEPER = Object.freeze({
+  legMs: 3 * 60_000,
+  // Enemy HP and damage grow ×1.15 per leg, compounding (leg 3: +52%, leg 10:
+  // ×4), so even the strongest party meets a wall eventually.
+  danger: 0.15,
+  loot: 0.3, // extra gold per leg, on the gold found during that leg
+  // Left alone, the party presses on while this healthy and nobody is down;
+  // a Reckless or Berserker along lowers the bar.
+  autoPushHp: 0.6,
+  gamblerPushHp: 0.45,
+  gamblers: Object.freeze(["reckless", "berserker"]),
+  // An unattended party never goes further than this on its own.
+  autoMaxDepth: 3,
+});
+
+// How much stronger the creatures are `depth` legs past the trip's end.
+export function deeperDanger(depth = 0) {
+  return (1 + DEEPER.danger) ** depth;
+}
+
+// The region as it is `depth` legs past the end of the trip.
+export function deeperRegion(region, depth = 0) {
+  if (!depth) return region;
+  const danger = deeperDanger(depth);
+  return { ...region, hpScale: region.hpScale * danger, dmgScale: region.dmgScale * danger };
+}
+
+function tripRegion(run) {
+  return deeperRegion(getRegion(run.regionId), run.depth || 0);
+}
+
 // Share of max HP each hero recovers just before the end boss.
 const BOSS_BREATHER_HEAL = 0.3;
 // Share of max HP each standing hero gets back after winning a fight, so each
@@ -198,6 +233,8 @@ export function startExpedition(state, regionId, heroIds, now, rng = Math.random
     packed: [],
     revives: Math.max(0, Math.floor(revives)),
     tutorial: !!tutorial && !region.endless,
+    // The guided first trip ends where it ends: no pushing deeper.
+    guided: !!tutorial,
     outcome: null,
   };
   next.expedition = run;
@@ -295,7 +332,7 @@ function healParty(state, until) {
 function advanceExpedition(state, now, options) {
   for (let guard = 0; guard < 1000 && state.expedition; guard += 1) {
     const run = state.expedition;
-    const region = getRegion(run.regionId);
+    const region = tripRegion(run);
     if (run.pending) {
       if (!shouldDecideAlone(run.pending, now, options.interactive)) return;
       decideAlone(state, region, options);
@@ -349,9 +386,75 @@ function reachEnd(state, region, at) {
     openPending(run, at, { kind: "boss", wave, label: boss.name });
     return;
   }
-  run.loot.gold += region.completionGold;
-  state.clears[region.id] = (state.clears[region.id] || 0) + 1;
-  addFeed(run, at, `${region.name} explored! +${region.completionGold} gold bounty.`, "good");
+  if (!run.explored) {
+    run.explored = true;
+    run.loot.gold += region.completionGold;
+    state.clears[region.id] = (state.clears[region.id] || 0) + 1;
+    addFeed(run, at, `${region.name} explored! +${region.completionGold} gold bounty.`, "good");
+  } else if (run.depth) {
+    finishLeg(state, region, at);
+  }
+  offerDeeper(state, at);
+}
+
+// The trip is done: head home, or push deeper for another leg.
+function offerDeeper(state, at) {
+  const run = state.expedition;
+  if (run.guided || !livingParty(state).length) {
+    completeExpedition(state, "victory", at);
+    return;
+  }
+  const depth = (run.depth || 0) + 1;
+  const atStake = run.depth ? run.loot.gold - run.banked.gold : 0;
+  const text = `Push deeper (leg ${depth}: creatures +${Math.round((deeperDanger(depth) - 1) * 100)}%, spoils +${Math.round(DEEPER.loot * depth * 100)}%) or head home?`;
+  addFeed(run, at, run.depth
+    ? `Leg ${run.depth} survived. The dark goes on. ${atStake} gold found down here so far, and all of it lost if the party falls.`
+    : "The way home is clear. But the path goes on, deeper, and the deeper it goes the richer it gets.", "story", true);
+  openPending(run, at, { kind: "deeper", depth, atStake, text });
+}
+
+function pushDeeper(state, at, rng) {
+  const run = state.expedition;
+  // What the trip itself found is safe(ish); everything after is at stake.
+  if (!run.depth) run.banked = { gold: run.loot.gold, items: run.loot.items.length };
+  run.depth = (run.depth || 0) + 1;
+  run.legStartGold = run.loot.gold;
+  run.pending = null;
+  run.endsAt = at + DEEPER.legMs;
+  run.nextEventAt = at + nextEventGap(rng);
+  run.healedAt = at;
+  const deepest = (state.records ||= { riftBest: 0 }).deepest ||= {};
+  deepest[run.regionId] = Math.max(deepest[run.regionId] || 0, run.depth);
+  addFeed(run, at, `The party pushes deeper (leg ${run.depth}). The creatures here are bigger, and so are their hoards.`, "danger");
+}
+
+// A leg survived: its gold grows by the leg's spoils bonus, and a cache turns up.
+function finishLeg(state, region, at) {
+  const run = state.expedition;
+  const found = Math.max(0, run.loot.gold - (run.legStartGold ?? run.loot.gold));
+  const bonus = Math.round(found * DEEPER.loot * run.depth);
+  const rarities = run.depth >= 4 ? ["epic", "epic", "legendary"] : run.depth >= 2 ? ["rare", "epic"] : ["uncommon", "rare"];
+  const cache = createGearItem({ slot: pick(GEAR_SLOTS, Math.random), rarity: pick(rarities, Math.random), tier: region.tier + 1 }, Math.random);
+  run.loot.gold += bonus;
+  run.loot.items.push(cache);
+  addFeed(run, at, `Deep spoils from leg ${run.depth}: +${bonus} gold and a ${cache.name}.`, "loot", true);
+}
+
+// Left alone at the end of a trip: press on only while healthy and whole.
+function decideDeeper(state, at, rng) {
+  const run = state.expedition;
+  const party = run.heroIds.map((id) => findHero(state, id)).filter(Boolean);
+  const gambler = party.some((hero) => hero.combat.hp > 0 && (hero.traits || []).some((trait) => DEEPER.gamblers.includes(trait)));
+  const whole = party.every((hero) => hero.combat.hp > 0);
+  if ((run.depth || 0) < DEEPER.autoMaxDepth && whole
+    && partyHpFraction(state) >= (gambler ? DEEPER.gamblerPushHp : DEEPER.autoPushHp)) pushDeeper(state, at, rng);
+  else headHome(state, at);
+}
+
+function headHome(state, at) {
+  const run = state.expedition;
+  addFeed(run, at, run.depth ? `The party climbs back out of the depths with its spoils.` : "The party heads home.", "good");
+  run.pending = null;
   completeExpedition(state, "victory", at);
 }
 
@@ -783,13 +886,16 @@ export function choosePending(state, choice, now, { rng = Math.random } = {}) {
   const pending = state.expedition?.pending;
   if (!pending || pending.engagedAt != null) return { ok: false, reason: "no_choice" };
   const next = serializeGameState(state);
-  const region = getRegion(next.expedition.regionId);
+  const region = tripRegion(next.expedition);
   if (pending.kind === "sighting" && choice === "sneak") {
     attemptSneak(next, now, rng);
   } else if ((pending.kind === "boss" || pending.kind === "rift") && choice === "leave") {
     leaveFight(next, region, now);
   } else if (pending.kind === "story" && STORIES[pending.story].options.some((option) => option.id === choice)) {
     resolveStory(next, region, choice, now, rng);
+  } else if (pending.kind === "deeper" && (choice === "push" || choice === "home")) {
+    if (choice === "push") pushDeeper(next, now, rng);
+    else headHome(next, now);
   } else if (pending.kind === "merchant" && (choice === "buy" || choice === "decline")) {
     if (choice === "buy" && next.gold < pending.price) return { ok: false, reason: "insufficient_gold" };
     tradeWithMerchant(next, choice === "buy", now);
@@ -951,7 +1057,9 @@ function decideAlone(state, region, { rng, onStep }) {
   const run = state.expedition;
   const pending = run.pending;
   const at = pending.engagedAt ?? pending.promptAt;
-  if (pending.kind === "story") {
+  if (pending.kind === "deeper") {
+    decideDeeper(state, at, rng);
+  } else if (pending.kind === "story") {
     resolveStory(state, region, STORIES[pending.story].auto({ partyHp: partyHpFraction(state), greedy: roadEffect(road(state), "greedy") > 0 }), at, rng);
   } else if (pending.kind === "merchant") {
     // Spending the guild's gold is the player's call, never the party's.
@@ -996,7 +1104,7 @@ export function resolveEncounter(state, outcome, now) {
   const pending = state.expedition?.pending;
   if (!pending || !FIGHT_KINDS.has(pending.kind)) return { ok: false, reason: "no_encounter_ready" };
   const next = serializeGameState(state);
-  applyFightResult(next, getRegion(next.expedition.regionId), outcome, now);
+  applyFightResult(next, tripRegion(next.expedition), outcome, now);
   return { ok: true, state: next };
 }
 
@@ -1125,7 +1233,8 @@ function applyFightResult(state, region, { victory, party, xpGains, gold, items,
       addFeed(run, at, `Among ${boss.name}'s hoard: a weird crate with breathing holes. Something inside is scratching.`, "loot", true);
     }
     run.pending = null;
-    completeExpedition(state, "victory", at);
+    run.explored = true;
+    offerDeeper(state, at);
     return;
   }
   closePending(run, at);
@@ -1188,6 +1297,11 @@ function secondChance(state, at) {
 }
 
 function halveLoot(run) {
+  // Falling past the trip's end loses everything found down there first.
+  if (run.depth && run.banked) {
+    run.loot.gold = Math.min(run.loot.gold, run.banked.gold);
+    run.loot.items = run.loot.items.slice(0, run.banked.items);
+  }
   run.loot.gold = Math.floor(run.loot.gold * RETREAT_LOOT_SHARE);
   run.loot.items = run.loot.items.slice(0, Math.floor(run.loot.items.length * RETREAT_LOOT_SHARE));
 }
@@ -1221,7 +1335,7 @@ function completeExpedition(state, outcome, at) {
   state.gold += loot.gold;
   bankLoot(state, loot.items);
   state.lastReport = {
-    regionId, outcome, loot, stats: run.stats, morale: run.morale, wavesCleared: run.wavesCleared, endedAt: at,
+    regionId, outcome, loot, stats: run.stats, morale: run.morale, wavesCleared: run.wavesCleared, depth: run.depth || 0, endedAt: at,
     log: run.feed.map((entry) => entry.text),
   };
   state.expedition = null;

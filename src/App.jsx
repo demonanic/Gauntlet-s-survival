@@ -250,7 +250,9 @@ export default function App() {
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/75 p-4">
           <Panel className="w-full max-w-sm">
             <h2 className="font-display text-lg font-bold text-cyan-200">{OUTCOME_TITLE[report.outcome]}</h2>
-            <p className="font-mono-g text-[11px] text-slate-400">{getRegion(report.regionId)?.name}</p>
+            <p className="font-mono-g text-[11px] text-slate-400">
+              {getRegion(report.regionId)?.name}{report.depth > 0 && ` · pushed ${report.depth} leg${report.depth > 1 ? "s" : ""} deeper`}
+            </p>
             <p className="my-2 font-mono-g text-sm text-yellow-300">+{report.loot.gold}g · {report.loot.items.length} items</p>
             {report.stats && (
               <p className="mb-2 font-mono-g text-[10px] text-slate-400">

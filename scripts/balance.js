@@ -158,8 +158,8 @@ function runExpedition(state, clock, region, party, active) {
   const started = startExpedition(state, region.id, party, clock);
   if (!started.ok) throw new Error(`could not start ${region.id}: ${started.reason}`);
   state = started.state;
-  // Detours (treasure maps) can run past the planned length, so allow an hour extra.
-  const until = region.endless ? clock : clock + expeditionDurationMs(state, region) + 60 * 60_000;
+  // Detours (treasure maps) and pushing deeper run past the planned length.
+  const until = region.endless ? clock : clock + expeditionDurationMs(state, region) + 4 * 60 * 60_000;
   const before = TRACE === region.id ? party.map((id) => {
     const hero = state.heroes.find((entry) => entry.identity.id === id);
     const gear = Object.values(hero.equipment || {});
@@ -177,7 +177,10 @@ function runExpedition(state, clock, region, party, active) {
     state,
     clock: report.endedAt + report.stats.autoFightSeconds * 1000,
     reached: region.endless ? report.wavesCleared || 0 : report.stats.fights,
-    outcome: report.outcome,
+    // A trip counts as won once it's done, even if pushing deeper went badly.
+    outcome: report.depth > 0 ? "victory" : report.outcome,
+    depth: report.depth || 0,
+    deepFall: report.depth > 0 && report.outcome === "retreat",
     gold: report.loot.gold,
   };
 }
@@ -205,7 +208,7 @@ function playthrough(active) {
     if (run_.outcome === "victory" && firstClear[region.id] == null) {
       firstClear[region.id] = { minutes: clock / 60000, attempts: attempts[region.id], level: Math.max(...state.heroes.map((hero) => hero.progression.level)) };
     }
-    log.push({ region: region.id, outcome: run_.outcome, reached: run_.reached });
+    log.push({ region: region.id, outcome: run_.outcome, reached: run_.reached, depth: run_.depth, deepFall: run_.deepFall });
     if (UNTIL === region.id) return { firstClear, attempts, log, state, minutes: clock / 60000, rarities: [], endgame: { boss: [], rift: [], rankAt: {} } };
   }
 
@@ -248,7 +251,8 @@ function summarize(label, results) {
     const wins = runs.filter((entry) => entry.outcome === "victory").length;
     console.log(`${region.name.padEnd(15)} first clear in ${clears.length}/${results.length} · ` +
       `at ${fmt(clears.map((clear) => clear.minutes))} min · attempt ${fmt(clears.map((clear) => clear.attempts))} · ` +
-      `top level ${fmt(clears.map((clear) => clear.level))} · win rate ${runs.length ? Math.round(100 * wins / runs.length) : 0}% of ${runs.length} runs`);
+      `top level ${fmt(clears.map((clear) => clear.level))} · win rate ${runs.length ? Math.round(100 * wins / runs.length) : 0}% of ${runs.length} runs` +
+      ` · pushed deeper ${runs.filter((entry) => entry.depth > 0).length}× (avg ${runs.length ? Math.round(10 * runs.reduce((sum, entry) => sum + (entry.depth || 0), 0) / Math.max(1, runs.filter((entry) => entry.depth > 0).length)) / 10 : 0} legs, ${runs.filter((entry) => entry.deepFall).length} fell)`);
   }
   const boss = results.flatMap((result) => result.endgame.boss);
   const rift = results.flatMap((result) => result.endgame.rift);

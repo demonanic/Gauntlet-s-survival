@@ -43,6 +43,12 @@ function plainGuild() {
   return state;
 }
 
+// Leave a trip alone until the party is home (it may push deeper on its own).
+function playOut(state, rng) {
+  for (let step = 1; step <= 200 && state.expedition; step += 1) state = tick(state, T0 + step * 20 * MINUTE, { rng });
+  return state;
+}
+
 function gutterRun(rng = sightingRng, heroCount = 3) {
   const state = plainGuild();
   return startExpedition(state, "gutter", ids(state).slice(0, heroCount), T0, rng).state;
@@ -60,7 +66,7 @@ describe("timed expeditions", () => {
 
   test("left alone, a party plays the whole trip and comes home with a report", () => {
     let state = gutterRun(seeded(3));
-    state = tick(state, T0 + 20 * MINUTE, { rng: seeded(4) }); // room for a treasure map detour
+    state = playOut(state, seeded(4));
     expect(state.expedition).toBeNull();
     const report = state.lastReport;
     expect(["victory", "retreat"]).toContain(report.outcome);
@@ -165,7 +171,9 @@ describe("timed expeditions", () => {
 
     run = engagePending(run, T0 + 2000).state;
     const party = structuredClone(currentEncounterParty(run));
-    const won = resolveEncounter(run, { victory: true, party, xpGains: {}, gold: 0, items: [] }, T0 + 60_000).state;
+    let won = resolveEncounter(run, { victory: true, party, xpGains: {}, gold: 0, items: [] }, T0 + 60_000).state;
+    expect(won.expedition.pending).toMatchObject({ kind: "deeper", depth: 1 });
+    won = choosePending(won, "home", T0 + 61_000).state;
     expect(won.lastReport).toMatchObject({ outcome: "victory", loot: { gold: 300 } });
     expect(won.clears.boneyard).toBe(1);
   });
@@ -173,7 +181,9 @@ describe("timed expeditions", () => {
   test("regions without a boss just end when the timer runs out", () => {
     const run = gutterRun();
     run.expedition.endsAt = T0 + 1000;
-    const home = tick(run, T0 + 1000, { interactive: true });
+    const end = tick(run, T0 + 1000, { interactive: true });
+    expect(end.expedition.pending).toMatchObject({ kind: "deeper", depth: 1 });
+    const home = choosePending(end, "home", T0 + 2000).state;
     expect(home.expedition).toBeNull();
     expect(home.lastReport.outcome).toBe("victory");
     expect(home.clears.gutter).toBe(1);
@@ -214,7 +224,7 @@ describe("timed expeditions", () => {
 
   test("flavor lines don't repeat back to back", () => {
     let state = gutterRun(seeded(11));
-    state = tick(state, T0 + 20 * MINUTE, { rng: seeded(12), interactive: false });
+    state = playOut(state, seeded(12));
     const flavor = state.lastReport.log.filter((line) => !/Victory|spots|Ambush|explored|sets out|gold|Slipped|Picked up|out of arrows/.test(line));
     for (let index = 1; index < flavor.length; index += 1) expect(flavor[index]).not.toBe(flavor[index - 1]);
   });
