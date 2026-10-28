@@ -68,10 +68,18 @@ fourth for free; three-hero parties have a hard time once the real fights start.
 
 **Stat points.** Each level gives a stat point to spend on Attack, Defense, Agility,
 Intelligence or **Luck**. Luck never adds damage or HP; it tilts the odds. Per point: +0.2%
-crit chance and +0.1% dodge (both inside their usual caps), better gear drops, better odds
+crit chance, +0.5% Clutch Ultra Crit chance and +0.1% dodge (inside their usual caps), better gear drops, better odds
 on road gambles, a few more finds and rare encounters, and 1% off wandering merchants (up to
 25%). Points past 20 count half. In a fight a hero uses their own Luck; on the road the
 party uses its average. The Perks screen lists exactly what a hero's Luck is doing.
+
+**Clutch** (Fortune perk, level 5, 2 AP, after Lucky Edge): once per fight, when the next
+hit would bring a hero down, the battle slows to a crawl and you get 5 seconds to choose.
+**Drink** heals for sure (the hero's best potion or bandage, or a 30% second wind without
+one), but the fight goes on. **Ultra Crit** is a long shot (15%, plus Luck) that kills the
+hero's target outright (a boss loses a quarter of its HP); a miss changes nothing. If you
+don't choose, the hero's nature does: Reckless and Berserker heroes swing, everyone else
+drinks. Fights you aren't watching decide the same way, and the feed tells the story.
 
 Veterans develop more qualities from how they actually fought and travelled: at level 10
 and 16 the game looks back over the hero's career and they may become a **Marksman**,

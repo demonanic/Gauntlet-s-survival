@@ -980,6 +980,7 @@ function autoFight(state, region, at, rng, onStep) {
     victory: !!result?.victory, party: sim.heroes, xpGains: result?.xpGains?.heroes || {},
     gold: sim.gold, items: sim.vault, wavesCleared: result?.wavesCleared || 0,
     downed: result?.downed || {}, nemesisSlain: result?.nemesisSlain || null, nemesisFled: result?.nemesisFled || null,
+    clutches: result?.clutches || [],
   }, at);
   // Left to themselves, a battered party doesn't push its luck.
   if (state.expedition && !state.expedition.pending && partyHpFraction(state) < AUTO_RETREAT_HP) {
@@ -1048,6 +1049,13 @@ function applyFightResult(state, region, { victory, party, xpGains, gold, items,
   const { pending } = run;
   run.stats.fights += 1;
   if (pending.kind !== "rift") settleNemeses(state, region, party, { victory, ...outcome }, at);
+  for (const { hero, choice, landed } of outcome.clutches || []) {
+    const name = party[hero]?.identity?.name;
+    if (!name) continue;
+    addFeed(run, at, choice === "crit"
+      ? (landed ? `CLUTCH! One hit from falling, ${name} lands an Ultra Crit!` : `One hit from falling, ${name} swings for an Ultra Crit... and misses.`)
+      : `One hit from falling, ${name} grits their teeth and drinks.`, choice === "crit" && landed ? "good" : "flavor", choice === "crit" && landed);
+  }
 
   if (pending.kind === "rift") {
     const bounty = riftBounty(wavesCleared);

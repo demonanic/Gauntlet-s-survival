@@ -43,6 +43,7 @@ const EFFECT_LABELS = {
   C2: "First ability hit every 10 seconds marks for 4 seconds; next allied hit adds 20% of this hero's attack (active)",
   H1: "2% direct-hit lifesteal (active)",
   F1: "+15 percentage points critical damage (active)",
+  F2a: "Once per fight at death's door: Drink or Ultra Crit, chosen in slow motion (active)",
   N1: "1% maximum HP regeneration every 3s after 5s without damage (active)",
   I1: "8% evasion at full HP (active)",
   I2: "15% chance to create a one-hit decoy (active)",
