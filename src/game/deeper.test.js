@@ -53,9 +53,10 @@ describe("pushing deeper", () => {
     state.expedition.nextEventAt = T0 + 9000;
     state = tick(state, T0 + 3000, { interactive: true });
     const run = state.expedition;
-    expect(run.loot.gold).toBe(180 + 50 + Math.round(50 * DEEPER.loot));
+    const spoils = Math.round(50 * DEEPER.loot + getRegion("gutter").completionGold * DEEPER.bountyShare);
+    expect(run.loot.gold).toBe(180 + 50 + spoils);
     expect(run.loot.items).toHaveLength(1);
-    expect(run.pending).toMatchObject({ kind: "deeper", depth: 2, atStake: 50 + Math.round(50 * DEEPER.loot) });
+    expect(run.pending).toMatchObject({ kind: "deeper", depth: 2, atStake: 50 + spoils });
     expect(state.clears.gutter).toBe(1);
     const home = choosePending(state, "home", T0 + 4000).state;
     expect(home.lastReport).toMatchObject({ outcome: "victory", depth: 1 });

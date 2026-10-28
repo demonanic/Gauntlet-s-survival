@@ -428,7 +428,9 @@ press-your-luck question comes back every few minutes.
   depth)`: HP and damage ×1.15^depth (`deeperDanger`; legs 1–3 +15/32/52%, leg 10 ×4),
   for every encounter, boss-free. `tripRegion(run)` feeds it everywhere a trip builds
   enemies. Surviving a leg (`finishLeg`) adds 30% × depth of the gold found during that
-  leg and a cache of gear one tier up (uncommon/rare at leg 1, rare/epic from 2,
+  leg, plus 20% × depth of the bounty the trip paid (`bountyShare`, `run.bounty`, so a
+  leg pays about as well per minute as a new trip; without it idle guilds pushing 3 legs
+  fell from boss rank 24–27 to 16–18 eight hours after the campaign), and a cache of gear one tier up (uncommon/rare at leg 1, rare/epic from 2,
   epic/legendary from 4), then the prompt comes back.
 - **Stakes:** the first push banks the trip's loot (`run.banked`). A wipe resets the loot
   to the banked amount before the usual halving (`halveLoot`); a recall keeps everything.

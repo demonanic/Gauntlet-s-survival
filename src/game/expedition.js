@@ -82,6 +82,9 @@ export const DEEPER = Object.freeze({
   // ×4), so even the strongest party meets a wall eventually.
   danger: 0.15,
   loot: 0.3, // extra gold per leg, on the gold found during that leg
+  // Each leg survived also pays this share × depth of the bounty the trip
+  // earned, so a leg pays about as well per minute as starting a new trip.
+  bountyShare: 0.2,
   // Left alone, the party presses on while this healthy and nobody is down;
   // a Reckless or Berserker along lowers the bar.
   autoPushHp: 0.6,
@@ -389,6 +392,7 @@ function reachEnd(state, region, at) {
   if (!run.explored) {
     run.explored = true;
     run.loot.gold += region.completionGold;
+    run.bounty = region.completionGold;
     state.clears[region.id] = (state.clears[region.id] || 0) + 1;
     addFeed(run, at, `${region.name} explored! +${region.completionGold} gold bounty.`, "good");
   } else if (run.depth) {
@@ -432,7 +436,7 @@ function pushDeeper(state, at, rng) {
 function finishLeg(state, region, at) {
   const run = state.expedition;
   const found = Math.max(0, run.loot.gold - (run.legStartGold ?? run.loot.gold));
-  const bonus = Math.round(found * DEEPER.loot * run.depth);
+  const bonus = Math.round(found * DEEPER.loot * run.depth + (run.bounty || 0) * DEEPER.bountyShare * run.depth);
   const rarities = run.depth >= 4 ? ["epic", "epic", "legendary"] : run.depth >= 2 ? ["rare", "epic"] : ["uncommon", "rare"];
   const cache = createGearItem({ slot: pick(GEAR_SLOTS, Math.random), rarity: pick(rarities, Math.random), tier: region.tier + 1 }, Math.random);
   run.loot.gold += bonus;
@@ -1222,6 +1226,7 @@ function applyFightResult(state, region, { victory, party, xpGains, gold, items,
       addFeed(run, at, `${C.ENEMIES[bossForRank(rank)].name} slain! Next on the throne: ${C.ENEMIES[bossForRank(rank + 1)].name} (rank ${rank + 2}).`, "good");
     }
     run.loot.gold += bounty;
+    run.bounty = bounty;
     state.clears[region.id] = (state.clears[region.id] || 0) + 1;
     // Every end boss leaves a Flawless crystal behind.
     const crystal = randomCrystal(2);
