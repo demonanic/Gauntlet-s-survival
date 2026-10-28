@@ -436,6 +436,11 @@ press-your-luck question comes back every few minutes.
   to the banked amount before the usual halving (`halveLoot`); a recall keeps everything.
 - **Unattended** (`decideDeeper`): pushes while the party is whole and at 60%+ HP (45% with
   a Reckless or Berserker along), at most 3 legs (`autoMaxDepth`); the player has no cap.
+- **Measured** (`npm run balance`, 6 idle and 6 active playthroughs): the campaign ends
+  112–182 minutes in as before; unattended parties push on most trips (avg 2.6–3 legs) and
+  rarely fall. Eight hours after the campaign, idle guilds earn ~195 gold/min (170 before
+  push deeper) but reach boss rank 16–18 instead of 24–27: time spent deeper isn't spent
+  on boss fights. Owner's call: keep it; depth is a second way to progress.
 - **Records:** `state.records.deepest[regionId]`; reports carry `depth`. The balance and
   scenario scripts count a finished trip as won even if the depths went badly.
 
