@@ -12,7 +12,7 @@ const BRANCHES = [
   ["Tactics", [["T1", 1], ["T2", 2], ["T2a", 2], ["T3", 3], ["T3a", 3]]],
   ["Conjuration", [["C1", 1], ["C2", 2], ["C2a", 2], ["C3", 3], ["C3a", 3]]],
   ["Hemomancy", [["H1", 1], ["H2", 2], ["H3", 3]]],
-  ["Fortune", [["F1", 1], ["F2", 2], ["F3", 3]]],
+  ["Fortune", [["F1", 1], ["F2", 2], ["F2a", 2], ["F3", 3]]],
   ["Wilds", [["N1", 1], ["N2", 2], ["N3", 3]]],
   ["Illusion", [["I1", 1], ["I2", 2], ["I3", 3]]],
 ];
@@ -56,6 +56,7 @@ const NODE_PRESENTATION = {
   H3: ["Crimson Covenant", "Active · 30s cooldown · for 6 seconds double lifesteal and cannot drop below 1 HP; survival clause once per 60 seconds."],
   F1: ["Lucky Edge", "+15 percentage points critical damage."],
   F2: ["Loaded Dice", "Each direct hit has 10% chance for 150% damage and 10% chance for 75% damage."],
+  F2a: ["Clutch", "Once per fight, when the next hit would kill you, time slows: drink (a healing item, or a 30% second wind) or gamble on an Ultra Crit (15% + Luck) that kills the target outright (25% of a boss's HP)."],
   F3: ["Jackpot", "Active · 35s cooldown · next 3 direct hits are guaranteed critical hits."],
   N1: ["Verdant Vigor", "Regenerate 1% maximum HP every 3 seconds after 5 seconds without taking damage."],
   N2: ["Ensnaring Roots", "Every 12 seconds, your next direct hit roots the target for 1.5 seconds (bosses: 0.5s)."],

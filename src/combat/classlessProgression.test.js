@@ -5,15 +5,16 @@ const CANONICAL_IDS = [
   "V1", "V2", "V2a", "V3", "V3a", "W1", "W2", "W2a", "W3", "W3a",
   "P1", "P2", "P2a", "P3", "P3a", "S1", "S2", "S2a", "S3", "S3a",
   "A1", "A2", "A2a", "A3", "A3a", "T1", "T2", "T2a", "T3", "T3a",
-  "C1", "C2", "C2a", "C3", "C3a", "H1", "H2", "H3", "F1", "F2", "F3",
+  "C1", "C2", "C2a", "C3", "C3a", "H1", "H2", "H3", "F1", "F2", "F2a", "F3",
   "N1", "N2", "N3", "I1", "I2", "I3",
 ];
 
 describe("classless progression catalog", () => {
-  test("contains the 47 permanent bible IDs exactly once", () => {
+  // 47 bible IDs plus Gauntlet's Clutch (F2a).
+  test("contains the 47 permanent bible IDs and Clutch exactly once", () => {
     const ids = CANONICAL_NODES.map(({ id }) => id);
-    expect(ids).toHaveLength(47);
-    expect(new Set(ids).size).toBe(47);
+    expect(ids).toHaveLength(48);
+    expect(new Set(ids).size).toBe(48);
     expect(ids).toEqual(CANONICAL_IDS);
   });
 
@@ -26,8 +27,8 @@ describe("classless progression catalog", () => {
   });
 
   test("maps all four expansion branches to their bible-defined Tier III node", () => {
-    for (const [nodeId, prerequisite] of [["H3", "H2"], ["F3", "F2"], ["N3", "N2"], ["I3", "I2"]]) {
-      expect(getCanonicalNode(nodeId)).toMatchObject({ tier: 3, apCost: 3, minLevel: 10, prerequisites: [prerequisite] });
+    for (const [nodeId, prerequisites] of [["H3", ["H2"]], ["F3", ["F2", "F2a"]], ["N3", ["N2"]], ["I3", ["I2"]]]) {
+      expect(getCanonicalNode(nodeId)).toMatchObject({ tier: 3, apCost: 3, minLevel: 10, prerequisites });
     }
   });
 });

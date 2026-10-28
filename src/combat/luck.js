@@ -12,6 +12,7 @@ export const LUCK = Object.freeze({
   softCap: 20,
   perPoint: Object.freeze({
     critChance: 0.002, // +0.2% crit chance (inside the 50% cap)
+    clutchChance: 0.005, // +0.5% chance a Clutch Ultra Crit lands
     dodge: 0.001, // +0.1% dodge (inside agility's 35% dodge cap)
     rareLoot: 0.02, // +2% weight on uncommon-or-better gear drops
     gambleLuck: 0.005, // +0.5% chance a gamble on the road goes your way
@@ -49,6 +50,7 @@ export function describeLuck(luck) {
   const pct = (value) => `${Math.round(value * 1000) / 10}%`;
   return [
     `+${pct(effects.critChance)} crit chance`,
+    `+${pct(effects.clutchChance)} Clutch Ultra Crit chance`,
     `+${pct(effects.dodge)} dodge`,
     `+${pct(effects.rareLoot)} better gear drops`,
     `+${pct(effects.gambleLuck)} on road gambles`,

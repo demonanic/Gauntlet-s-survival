@@ -20,6 +20,9 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
   const [selected, setSelected] = useState(null);
   const [speed, setSpeed] = useState(1);
   const [result, setResult] = useState(null);
+  // A Clutch moment (Fortune perk): which hero, the odds, and when it started.
+  const [clutch, setClutch] = useState(null);
+  const [clutchLeft, setClutchLeft] = useState(0);
   const region = getRegion(expedition.regionId);
   const endless = !!region.endless;
 
@@ -34,6 +37,7 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
         if (t - hudThrottle.current > HUD_THROTTLE_MS) { hudThrottle.current = t; setHud(next); }
       },
       onEnd: (outcome) => setResult({ ...outcome, gold: sim.gold, items: [...sim.vault] }),
+      onClutch: (info) => setClutch(info ? { ...info, startedAt: performance.now() } : null),
       onError: (error) => setResult({ victory: false, reason: "error", error: String(error?.message || error), gold: 0, items: [] }),
     });
     engineRef.current = engine;
@@ -49,6 +53,15 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
     // The engine owns the fight for this mount; party/expedition are fixed per encounter.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Count the Clutch timer down on screen; the engine decides on timeout.
+  useEffect(() => {
+    if (!clutch) return undefined;
+    const tick = () => setClutchLeft(Math.max(0, clutch.remaining - (performance.now() - clutch.startedAt) / 1000));
+    tick();
+    const interval = setInterval(tick, 100);
+    return () => clearInterval(interval);
+  }, [clutch]);
 
   const engine = engineRef.current;
   const toggleSpeed = () => {
@@ -76,6 +89,7 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
     downed: result.downed || {},
     nemesisSlain: result.nemesisSlain || null,
     nemesisFled: result.nemesisFled || null,
+    clutches: result.clutches || [],
   });
 
   return (
@@ -112,6 +126,23 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
         {countdown > 0 && !result && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <span className="font-display text-6xl font-black text-glow-cyan">{countdown}</span>
+          </div>
+        )}
+        {clutch && !result && (
+          <div className="absolute inset-x-2 bottom-4 rounded-lg border border-yellow-300/60 bg-black/85 p-3 text-center" data-testid="clutch-prompt">
+            <h2 className="font-display text-xl font-black text-yellow-300">CLUTCH · {clutchLeft.toFixed(1)}s</h2>
+            <p className="font-mono-g text-[11px] text-slate-200">{clutch.name} is one hit from falling.</p>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <NeonButton color="#39FF14" onClick={() => engine?.resolveClutch("drink")} data-testid="clutch-drink">
+                Drink · {clutch.drink}
+              </NeonButton>
+              <NeonButton color="#FFE600" onClick={() => engine?.resolveClutch("crit")} data-testid="clutch-crit">
+                Ultra Crit · {Math.round(clutch.critChance * 100)}%
+              </NeonButton>
+            </div>
+            <p className="mt-1 font-mono-g text-[10px] text-slate-400">
+              Too slow and {clutch.name} {clutch.auto === "crit" ? "goes for the crit" : "drinks"}.
+            </p>
           </div>
         )}
         {result && (

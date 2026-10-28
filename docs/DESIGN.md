@@ -415,13 +415,37 @@ bonuses are stamped onto every hero as `hero.guildBonus` so the engine can read 
   at any time to keep everything plus 10 gold per wave; a wipe keeps half. Best wave is
   recorded.
 
+## Clutch (Fortune perk F2a, `CLUTCH` in engine.js)
+
+A Gauntlet addition to the Bible's Fortune branch: tier 2 (level 5, 2 AP, after F1); F3
+Jackpot now follows F2 or F2a. Owner-approved design (Oct 2026):
+
+- **Trigger** (`_resolveClasslessHeroDamage`): a hit leaves the hero alive with HP no more
+  than that hit's damage (the same hit again would kill). Once per hero per fight
+  (`hero.clutchUsed`), one moment at a time.
+- **Live battle:** the engine calls `onClutch(info)` and runs at 20% speed
+  (`CLUTCH.slowMotion`) for 5 real seconds (`CLUTCH.seconds`, measured before the speed
+  setting); the Battle screen shows the prompt and calls `resolveClutch("drink" | "crit")`.
+  On timeout, or if the hero falls meanwhile, the moment ends.
+- **Drink:** the quick slot with the strongest healing item (heal bonuses and environment
+  cuts apply), else a 30% max-HP second wind (`CLUTCH.secondWind`). Not limited by the
+  quick-item cooldown or the sustain cap.
+- **Ultra Crit:** on the hero's current target (else the first enemy alive), chance 15% +
+  Luck × 0.5% (`clutchCritChance`). A landed hit kills a non-boss outright (nemeses and
+  legends included) and takes 25% of a boss's max HP (`CLUTCH.bossDamage`); credited to
+  the hero. A miss does nothing more.
+- **Who decides without the player:** `clutchDefault`: heroes with Reckless or Berserker
+  (`CLUTCH.gamblers`) swing, everyone else drinks. Headless fights (unattended trips,
+  simulations) resolve at once. Outcomes (`engine.clutches`) reach the expedition feed.
+
 ## Luck (`src/combat/luck.js`)
 
 A fifth stat bought with SP (heroes start at 0; old saves get 0). It never adds damage or
 HP. Per point (`LUCK.perPoint`), with points past 20 counting half: +0.2% crit chance
 (inside the 50% cap), +0.1% dodge (inside agility's 35% dodge cap), +2% weight on
 uncommon-or-better gear drops (`rollLoot` `luck`), +0.5% road gamble odds (`gambleLuck`),
-+1% finds (`findChance`), +2% rare encounters (`rareChance`) and 1% off wandering
++1% finds (`findChance`), +2% rare encounters (`rareChance`), +0.5% Clutch Ultra Crit
+(`clutchChance`) and 1% off wandering
 merchants (`merchantDiscount`, max 25%). Battle effects use the hero's own Luck
 (`classlessHeroDerived`); road effects, loot and merchants use the party's average
 (`partyRoadEffects`, `createEncounterSim`). The Perks screen lists a hero's Luck effects.
