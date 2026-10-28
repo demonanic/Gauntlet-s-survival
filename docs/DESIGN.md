@@ -415,6 +415,35 @@ bonuses are stamped onto every hero as `hero.guildBonus` so the engine can read 
   at any time to keep everything plus 10 gold per wave; a wipe keeps half. Best wave is
   recorded.
 
+## Push deeper (`DEEPER` in expedition.js)
+
+Owner-approved design (Oct 2026): set-length legs, not an open-ended run, so the
+press-your-luck question comes back every few minutes.
+
+- **When:** where a trip used to end in victory (`reachEnd` without a boss, or after the
+  end boss falls), `offerDeeper` opens a `deeper` prompt: `push` or `home`. The guided
+  tutorial trip (`run.guided`) just ends. The region bounty and clear count once
+  (`run.explored`).
+- **A leg:** 3 minutes (`legMs`) of ordinary road. Creatures use `deeperRegion(region,
+  depth)`: HP and damage ×1.15^depth (`deeperDanger`; legs 1–3 +15/32/52%, leg 10 ×4),
+  for every encounter, boss-free. `tripRegion(run)` feeds it everywhere a trip builds
+  enemies. Surviving a leg (`finishLeg`) adds 30% × depth of the gold found during that
+  leg, plus 20% × depth of the bounty the trip paid (`bountyShare`, `run.bounty`, so a
+  leg pays about as well per minute as a new trip; without it idle guilds pushing 3 legs
+  fell from boss rank 24–27 to 16–18 eight hours after the campaign), and a cache of gear one tier up (uncommon/rare at leg 1, rare/epic from 2,
+  epic/legendary from 4), then the prompt comes back.
+- **Stakes:** the first push banks the trip's loot (`run.banked`). A wipe resets the loot
+  to the banked amount before the usual halving (`halveLoot`); a recall keeps everything.
+- **Unattended** (`decideDeeper`): pushes while the party is whole and at 60%+ HP (45% with
+  a Reckless or Berserker along), at most 3 legs (`autoMaxDepth`); the player has no cap.
+- **Measured** (`npm run balance`, 6 idle and 6 active playthroughs): the campaign ends
+  112–182 minutes in as before; unattended parties push on most trips (avg 2.6–3 legs) and
+  rarely fall. Eight hours after the campaign, idle guilds earn ~195 gold/min (170 before
+  push deeper) but reach boss rank 16–18 instead of 24–27: time spent deeper isn't spent
+  on boss fights. Owner's call: keep it; depth is a second way to progress.
+- **Records:** `state.records.deepest[regionId]`; reports carry `depth`. The balance and
+  scenario scripts count a finished trip as won even if the depths went badly.
+
 ## Clutch (Fortune perk F2a, `CLUTCH` in engine.js)
 
 A Gauntlet addition to the Bible's Fortune branch: tier 2 (level 5, 2 AP, after F1); F3

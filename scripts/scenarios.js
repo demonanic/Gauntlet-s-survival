@@ -118,7 +118,8 @@ function playTrips(region, scenario) {
       const arrows = state.heroes.map((hero) => hero.quickSlots.map((slot) => (slot ? `${slot.key}${slot.qty}` : "-")).join("/")).join(" ");
       console.log(`  ${scenario.name} [${arrows}]: ${report.log.slice(-2).join(" | ").slice(0, 160)}`);
     }
-    totals.wins += report.outcome === "victory" ? 1 : 0;
+    // Winning means finishing the trip; pushing deeper afterwards is extra.
+    totals.wins += report.outcome === "victory" || report.depth > 0 ? 1 : 0;
     totals.fights += report.stats.fights;
     totals.sneaks += report.stats.sneaks;
     totals.ambushes += report.stats.ambushes;

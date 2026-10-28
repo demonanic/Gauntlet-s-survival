@@ -5,7 +5,7 @@ import { PET_SPECIES, PET_SPECIES_KEYS, PET_XP, petStats } from "../combat/pets"
 import { heroGearMarks } from "../combat/heroLook";
 import { heroRoadEffects, partyRoadEffects } from "../combat/traits";
 import { buildWildEncounter, createEncounterSim } from "./encounters";
-import { createGuild, resolveEncounter, startExpedition } from "./guild";
+import { choosePending, createGuild, resolveEncounter, startExpedition } from "./guild";
 import { withPendingFight } from "../test/expeditionFixtures";
 import {
   CRYSTAL_PRICE, EXTRACT_COST, buyCrystal, createGearItem, extractCrystal, fuseCrystals, infuseCrystal, setSupplyStyle,
@@ -157,7 +157,8 @@ describe("familiars", () => {
       state = startExpedition(state, "ashen", ids, 0).state;
       withPendingFight(state, 1000, "boss");
       const party = structuredClone(state.heroes.slice(0, 2));
-      return resolveEncounter(state, { victory: true, party, xpGains: {}, gold: 0, items: [] }, 2000).state;
+      const won = resolveEncounter(state, { victory: true, party, xpGains: {}, gold: 0, items: [] }, 2000).state;
+      return choosePending(won, "home", 3000).state;
     };
     const found = beatBoss(10);
     expect(found.petCrates).toHaveLength(1);

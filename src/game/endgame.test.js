@@ -3,7 +3,7 @@ import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import { COMBAT_PACING, buildBossEncounter, buildEndlessWave, createEncounterSim, endlessWaveSource } from "./encounters";
 import { withPendingFight } from "../test/expeditionFixtures";
 import {
-  createGuild, currentEncounterWave, engagePending, resolveEncounter, riftBounty, startExpedition, treatInjury, treatmentCost,
+  choosePending, createGuild, currentEncounterWave, engagePending, resolveEncounter, riftBounty, startExpedition, treatInjury, treatmentCost,
 } from "./guild";
 import { createGearItem, equipGear, upgradeCost, upgradeGear } from "./items";
 import { BOSS_ROTATION, getRegion } from "./regions";
@@ -124,7 +124,8 @@ describe("boss rotation", () => {
       state = startExpedition(state, "ashen", [heroId(state)], T0).state;
       withPendingFight(state, T0 + 1000, "boss");
       const party = structuredClone(state.heroes.slice(0, 1));
-      return resolveEncounter(state, { victory: true, party, xpGains: {}, gold: 0, items: [] }, T0 + 2000).state;
+      const won = resolveEncounter(state, { victory: true, party, xpGains: {}, gold: 0, items: [] }, T0 + 2000).state;
+      return choosePending(won, "home", T0 + 3000).state;
     };
     const first = clearAshen(0);
     expect(first.bossRank).toBe(1);

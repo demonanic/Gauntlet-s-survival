@@ -51,6 +51,13 @@ quick slots, low arrows, a newly opened region, a hero ready to retire.
    merchants, treasure and the party coming home while the game is in the background.
 8. **End boss:** Boneyard Crypt and Ashen Keep end with their boss. Win for the region
    bounty, or head home without it. A wiped party comes home with half the loot.
+9. **Push deeper:** when a trip is done (boss beaten, or the timer out in the Gutter),
+   head home, or press on for another 3-minute leg. Each leg the creatures grow stronger
+   (×1.15 per leg, compounding) and the spoils richer: +30% gold per leg on what's found,
+   20% of the trip's bounty per leg of depth, and a cache of gear that improves with depth. Fall down there and everything found
+   past the trip's end is lost, and half the rest as usual. Ask again after every leg, as
+   deep as you dare; left alone, a healthy party with nobody down pushes up to 3 legs
+   (a Reckless or Berserker along makes it bolder). Your deepest push per region is kept.
 
 ### Heroes
 

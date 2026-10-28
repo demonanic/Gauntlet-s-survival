@@ -7,7 +7,7 @@ import { TRAITS, TRAIT_KEYS, heroQuality, heroTraitEffects } from "../combat/tra
 import { needsSaveChoice, summarizeSave } from "../cloud/cloudSave";
 import { buildWildEncounter, createEncounterSim } from "./encounters";
 import {
-  CANDIDATE_REROLL_COST, cleanHeroName, createGuild, recruitCost, recruitHero, renameHero, rerollCandidate,
+  CANDIDATE_REROLL_COST, choosePending, cleanHeroName, createGuild, recruitCost, recruitHero, renameHero, rerollCandidate,
   resolveEncounter, startExpedition, tick,
 } from "./guild";
 import { buyLegacyUpgrade, legacyBonuses, retireHero, syncGuildBonuses } from "./legacy";
@@ -192,7 +192,7 @@ describe("prestige", () => {
     run.expedition.loot.gold = 100;
     run.expedition.endsAt = T0 + 5;
     run.expedition.nextEventAt = T0 + 10;
-    const home = tick(run, T0 + 5);
+    const home = choosePending(tick(run, T0 + 5, { interactive: true }), "home", T0 + 6).state;
     expect(home.lastReport.loot.gold).toBe(198);
     expect(home.gold).toBe(run.gold + 198);
   });

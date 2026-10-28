@@ -4,6 +4,7 @@ import { ECOLOGIES, squadRoles } from "../game/ecology";
 import { ADVENTURE, STORIES, WEATHER, moraleLabel } from "../game/adventure";
 import { RARITIES, formatGearStats } from "../game/items";
 import { getEnvironment } from "../game/environment";
+import { DEEPER } from "../game/expedition";
 import { nemesisTraits } from "../game/nemesis";
 import { getRegion } from "../game/regions";
 import { Bar, NeonButton, Panel, formatSeconds } from "./ui";
@@ -51,6 +52,12 @@ function PendingPrompt({ pending, now, gold, onAttack, onChoose }) {
       button("Attack", "#FF0055", onAttack, "prompt-attack"),
       button("Head home", "#94A3B8", () => onChoose("leave"), "prompt-leave"),
     ];
+  } else if (pending.kind === "deeper") {
+    title = pending.text;
+    actions = [
+      button(`Push deeper · leg ${pending.depth}`, "#F59E0B", () => onChoose("push"), "prompt-push"),
+      button("Head home", "#39FF14", () => onChoose("home"), "prompt-home"),
+    ];
   } else if (pending.kind === "rift") {
     title = "The Rift is open";
     actions = [
@@ -83,6 +90,13 @@ function PendingPrompt({ pending, now, gold, onAttack, onChoose }) {
         <p className="font-mono-g text-[10px] font-bold text-amber-400" data-testid="prompt-nemesis">
           Nemesis: {nemesis.name} · LV {nemesis.nemesisLevel}
           {nemesisTraits(nemesis.nemesisLevel).map((trait) => ` · ${trait.name}`).join("")}
+        </p>
+      )}
+      {pending.kind === "deeper" && (
+        <p className="font-mono-g text-[10px] text-slate-400" data-testid="prompt-deeper">
+          {pending.atStake > 0
+            ? `At stake: ${pending.atStake} gold found down here, all lost if the party falls (and half the rest, as always).`
+            : "Fall down there and everything found past this point is lost, and half the rest, as always."}
         </p>
       )}
       {formation && (
@@ -119,12 +133,18 @@ export default function ExpeditionPanel({ guild, now, onAttack, onChoose, onReca
   return (
     <Panel className="border-cyan-400/40" data-testid="expedition-panel">
       <div className="flex items-baseline justify-between gap-2">
-        <h2 className="font-display text-sm font-bold" style={{ color: region.color }}>{region.name}</h2>
+        <h2 className="font-display text-sm font-bold" style={{ color: region.color }}>
+          {region.name}
+          {run.depth > 0 && <span className="ml-2 text-amber-400" data-testid="expedition-depth">Depth {run.depth}</span>}
+        </h2>
         <span className="font-mono-g text-[11px] text-slate-300" data-testid="expedition-timer">
           {remaining == null ? "Endless" : pending ? `Paused · ${clock(remaining)} left` : `${clock(remaining)} left`}
         </span>
       </div>
-      {run.durationMs && <Bar value={Math.max(0, run.durationMs - remaining)} max={run.durationMs} color={region.color} className="my-1.5" />}
+      {run.durationMs && (() => {
+        const length = run.depth ? DEEPER.legMs : run.durationMs;
+        return <Bar value={Math.max(0, length - remaining)} max={length} color={run.depth ? "#F59E0B" : region.color} className="my-1.5" />;
+      })()}
       {run.weather && (
         <p className="mb-1 font-mono-g text-[10px] text-slate-400" data-testid="expedition-conditions">
           {run.night ? "Night" : "Day"} · {WEATHER[run.weather]?.name}{getEnvironment(region) ? ` · ${getEnvironment(region).name}` : ""}
