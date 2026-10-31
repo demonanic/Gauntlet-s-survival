@@ -3,6 +3,7 @@ import { Bar, formatSeconds } from "./ui";
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import { PET_SPECIES } from "../combat/pets";
 import { heroQualities } from "../combat/traits";
+import { BOND_NAMES, heroBonds } from "../game/bonds";
 
 const STATUS_STYLE = {
   ready: { label: "READY", color: "#39FF14" },
@@ -10,7 +11,12 @@ const STATUS_STYLE = {
   injured: { label: "INJURED", color: "#FF2A5F" },
 };
 
-export default function HeroRow({ hero, status, injuredUntil, now, selected, onSelect, actions, leader }) {
+export default function HeroRow({ hero, guild, status, injuredUntil, now, selected, onSelect, actions, leader }) {
+  // Bonds with guildmates (Acquainted or better), strongest first, and memories of the retired.
+  const bonds = guild ? heroBonds(guild, hero.identity.id)
+    .map((bond) => ({ ...bond, name: guild.heroes.find((other) => other.identity.id === bond.partnerId)?.identity.name }))
+    .filter((bond) => bond.name) : [];
+  const memorials = hero.memorials || [];
   const maxHp = classlessMaxHp(hero);
   const style = STATUS_STYLE[status];
   const { level, ap, sp } = hero.progression;
@@ -56,6 +62,19 @@ export default function HeroRow({ hero, status, injuredUntil, now, selected, onS
             <span className="font-mono-g text-[10px] text-yellow-300">{ap} AP · {sp} SP</span>
           )}
         </div>
+        {(bonds.length > 0 || memorials.length > 0) && (
+          <div className="flex flex-wrap gap-x-2 font-mono-g text-[10px]" data-testid="hero-bonds">
+            {bonds.map((bond) => (
+              <span key={bond.partnerId} className={bond.level === "sworn" ? "text-sky-300" : bond.level === "comrades" ? "text-sky-200/80" : "text-slate-500"}
+                title={`${bond.wins} wins side by side`}>
+                {BOND_NAMES[bond.level]}: {bond.name}
+              </span>
+            ))}
+            {memorials.map((memory, index) => (
+              <span key={`${memory.name}-${index}`} className="text-fuchsia-300/80" title="+3% damage">In memory of {memory.name}</span>
+            ))}
+          </div>
+        )}
         <Bar value={hero.combat.hp} max={maxHp} className="my-1" />
         <div className="flex justify-between font-mono-g text-[10px]">
           <span className="text-slate-400">{Math.round(hero.combat.hp)} / {maxHp} HP</span>

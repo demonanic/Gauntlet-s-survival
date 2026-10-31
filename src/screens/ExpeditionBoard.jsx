@@ -125,6 +125,7 @@ export default function ExpeditionBoard({ guild, now, onLaunch }) {
             <HeroRow
               key={hero.identity.id}
               hero={hero}
+              guild={guild}
               now={now}
               status="ready"
               selected={selected.includes(hero.identity.id)}

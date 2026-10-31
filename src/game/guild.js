@@ -89,6 +89,8 @@ export function createGuild() {
     ecologySeen: {},
     // Named enemies that beat the guild's heroes (nemesis.js), alive and slain.
     nemeses: [],
+    // Bonds between heroes who fight side by side (bonds.js), by pair.
+    bonds: {},
     stash: { ...STARTING_STASH },
     expedition: null,
     clears: {},

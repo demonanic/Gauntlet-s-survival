@@ -6,6 +6,7 @@
 // accumulates XP gains, returned to the UI at wave end.
 import { drawGearMarks, heroGearMarks } from "./heroLook";
 import { heroLuck, luckEffects } from "./luck";
+import { BONDS, memorialDamage } from "../game/bonds";
 import * as C from "./config";
 import { heroDerived, makeSingleEnemy } from "./logic";
 import { rollEquipmentDrop } from "./equipment";
@@ -2561,6 +2562,7 @@ export class Engine {
       state.lastDamageAt = this.time;
       state.nextRegenAt = this.time + 5;
     }
+    if (remaining > 0) this._swornGuard(hero);
     if (remaining > 0 && hero.ref.hp > 0 && hero.ref.hp <= remaining && hero.d.classlessEffects?.clutch && !hero.clutchUsed && !this.clutch && !this.ended) {
       this._startClutch(hero);
     }
@@ -2972,6 +2974,7 @@ export class Engine {
     const traits = hero.d.traits;
     if (traits) damage *= 1 + traits.damage + (hero.ref.hp < hero.d.maxHp * 0.5 ? traits.berserk : 0);
     damage *= 1 + (hero.d.gear?.damageBonus || 0);
+    damage *= 1 + this._bondDamage(hero);
     // Evolved qualities: Bladesworn (melee) and Giantslayer (elites and bosses).
     if (p.damageCategory === "weapon" && hero.d.rangeMode === "melee") damage *= 1 + (traits?.meleeDamage || 0);
     if (target.boss || target.tier === "elite") damage *= 1 + (traits?.eliteDamage || 0);
@@ -3152,7 +3155,52 @@ export class Engine {
       .slice(0, multiTarget - 1);
   }
 
+  // ---- Bonds (game/bonds.js) ----
+  _bondPartner(h, partnerId) {
+    return this.heroes.find((other) => other !== h && other.model?.identity?.id === partnerId) || null;
+  }
+
+  // Comrades fighting together, Vengeance or Shaken, and memories of the retired.
+  _bondDamage(h) {
+    let bonus = memorialDamage(h.model);
+    if ((h.model?.bonds || []).some((bond) => this._bondPartner(h, bond.partnerId)?.alive)) bonus += BONDS.comradesDamage;
+    if (h.vengeanceUntil > this.time) bonus += BONDS.vengeanceDamage;
+    if (h.shaken) bonus += BONDS.shakenDamage;
+    return bonus;
+  }
+
+  // A bonded partner fell: fury, or for calm natures, shaken resolve.
+  _bondsReactToFall(fallen) {
+    const id = fallen.model?.identity?.id;
+    for (const h of this.heroes) {
+      if (h === fallen || !h.alive || !(h.model?.bonds || []).some((bond) => bond.partnerId === id)) continue;
+      if ((h.model?.traits || []).some((trait) => BONDS.calm.includes(trait))) {
+        h.shaken = true;
+        this._float(h.x, h.y - 24, "SHAKEN", "#94A3B8");
+      } else {
+        h.vengeanceUntil = this.time + BONDS.vengeanceSeconds;
+        this._float(h.x, h.y - 24, "VENGEANCE", "#F43F5E");
+        this.effects.push({ kind: "guard", x: h.x, y: h.y, r: 24, life: 0.6, color: "#F43F5E" });
+      }
+    }
+  }
+
+  // Sworn: a partner dropping low gets shielded by the other, once a fight.
+  _swornGuard(hero) {
+    if (!hero.alive || hero.ref.hp >= hero.d.maxHp * BONDS.guardBelow) return;
+    const bond = (hero.model?.bonds || []).find((entry) => entry.level === "sworn");
+    const guard = bond && this._bondPartner(hero, bond.partnerId);
+    if (!guard?.alive || guard.swornGuardUsed) return;
+    guard.swornGuardUsed = true;
+    hero.ref.shield = (hero.ref.shield || 0) + hero.d.maxHp * BONDS.guardShield;
+    guard.x = hero.x + (guard.x < hero.x ? -18 : 18);
+    guard.y = hero.y;
+    this._float(hero.x, hero.y - 30, `${(guard.model?.identity?.name || "SWORN").toUpperCase()} GUARDS!`, "#38BDF8");
+    this.effects.push({ kind: "shield", x: hero.x, y: hero.y, r: 26, life: 0.7, color: "#38BDF8" });
+  }
+
   _heroDowned(h) {
+    this._bondsReactToFall(h);
     const foe = h.lastHitBy;
     this.downed[h.i] = foe ? { type: foe.type, name: foe.name, nemesisId: foe.nemesisId || null, boss: !!foe.boss, summoned: !!(foe.summoned || foe.raised) } : null;
   }
