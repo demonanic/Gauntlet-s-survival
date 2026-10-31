@@ -694,7 +694,7 @@ Measured (`npm run scenarios -- --group party`, mixed party of four):
 | --- | --- | --- | --- | --- |
 | Arrival (min level, Common, tier −1) | 75–88% | 71% | 71% | 67% |
 | Rare gear, +3 levels, +1 tier: wins / HP left | – | 100% / 60% | – | 94% / 82% |
-| Same party before (no threat) | 100% / 61% | 100% / 80% | 100% / 95% | 100% / 95% |
+| Same party, enemies closing only the measured gap (power 1) | 100% / 58% | 100% / 79% | 100% / 88% | 100% / 95% |
 
 `npm run balance` (6 idle + 6 active guilds): first Blightmire clear 1.8–5 h in (main:
 1.8–3 h). Endgame 8 h on: idle Ashen boss runs won 61–64% (main 100%), boss rank 9–14
