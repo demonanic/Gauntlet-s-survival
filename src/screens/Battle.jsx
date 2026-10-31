@@ -3,6 +3,7 @@ import { Engine, LAYOUT } from "../combat/engine";
 import { Bar, NeonButton } from "../components/ui";
 import { heroWeaponProfile } from "../combat/gear";
 import { createEncounterSim, endlessWaveSource } from "../game/encounters";
+import { buildFightOutcome } from "../game/fightOutcome";
 import { getRegion } from "../game/regions";
 
 const COUNTDOWN_SECONDS = 3;
@@ -13,13 +14,14 @@ const HUD_THROTTLE_MS = 90;
 export default function Battle({ expedition, party, createWave, onComplete, speeds = [1, 2] }) {
   const canvasRef = useRef(null);
   const engineRef = useRef(null);
-  const simRef = useRef(null);
   const hudThrottle = useRef(0);
   const [hud, setHud] = useState(null);
   const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
   const [selected, setSelected] = useState(null);
   const [speed, setSpeed] = useState(1);
+  // The canonical fight result (game/fightOutcome.js), once the fight ends.
   const [result, setResult] = useState(null);
+  const [engineError, setEngineError] = useState(null);
   // A Clutch moment (Fortune perk): which hero, the odds, and when it started.
   const [clutch, setClutch] = useState(null);
   const [clutchLeft, setClutchLeft] = useState(0);
@@ -29,16 +31,18 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
   useEffect(() => {
     const wave = createWave();
     const sim = createEncounterSim(party, region.tier, wave);
-    simRef.current = sim;
     const engine = new Engine(canvasRef.current, sim, wave, {
       ...(endless ? { nextWave: endlessWaveSource(sim) } : {}),
       onHud: (next) => {
         const t = performance.now();
         if (t - hudThrottle.current > HUD_THROTTLE_MS) { hudThrottle.current = t; setHud(next); }
       },
-      onEnd: (outcome) => setResult({ ...outcome, gold: sim.gold, items: [...sim.vault] }),
+      onEnd: (outcome) => setResult(buildFightOutcome(outcome, sim)),
       onClutch: (info) => setClutch(info ? { ...info, startedAt: performance.now() } : null),
-      onError: (error) => setResult({ victory: false, reason: "error", error: String(error?.message || error), gold: 0, items: [] }),
+      onError: (error) => {
+        setEngineError(String(error?.message || error));
+        setResult(buildFightOutcome({ victory: false, reason: "error" }, sim));
+      },
     });
     engineRef.current = engine;
     engine.render();
@@ -79,19 +83,7 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
     engine.commandHeroMoveTo(selected, x, y);
   };
 
-  const finish = () => onComplete({
-    victory: !!result.victory,
-    party: simRef.current.heroes,
-    xpGains: result.xpGains?.heroes || {},
-    gold: result.gold,
-    items: result.items,
-    wavesCleared: result.wavesCleared || 0,
-    downed: result.downed || {},
-    nemesisSlain: result.nemesisSlain || null,
-    nemesisFled: result.nemesisFled || null,
-    clutches: result.clutches || [],
-    spellCasts: result.spellCasts || {},
-  });
+  const finish = () => onComplete(result);
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-[var(--bg)]" data-testid="battle">
@@ -153,15 +145,15 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
                 {result.reason === "returned" ? "RETURNING" : result.victory ? "VICTORY" : "ROUTED"}
               </h2>
               {endless && (
-                <p className="mt-1 font-mono-g text-[11px] text-cyan-200">{result.wavesCleared || 0} waves cleared</p>
+                <p className="mt-1 font-mono-g text-[11px] text-cyan-200">{result.wavesCleared} waves cleared</p>
               )}
               <p className="mt-2 font-mono-g text-[11px] text-slate-300">
-                {result.killed ?? 0} slain · +{result.gold}g · {result.items.length} items
+                {result.killed} slain · +{result.gold}g · {result.items.length} items
               </p>
               {!result.victory && (
                 <p className="mt-1 font-mono-g text-[11px] text-red-300">The party retreats home injured and drops half the loot.</p>
               )}
-              {result.error && <p className="mt-1 font-mono-g text-[10px] text-red-300">Engine error: {result.error}</p>}
+              {engineError && <p className="mt-1 font-mono-g text-[10px] text-red-300">Engine error: {engineError}</p>}
               <NeonButton className="mt-3 w-full" color={result.victory ? "#39FF14" : "#FF2A5F"} onClick={finish} data-testid="battle-continue">
                 Continue
               </NeonButton>

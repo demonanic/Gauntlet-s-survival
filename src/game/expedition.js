@@ -31,6 +31,7 @@ import { bankLoot, createGearItem, normalizeHeroGear, randomCrystal, restockQuic
 import { legacyBonuses } from "./legacy";
 import { BOSS_RANK_SCALING, CHAMPIONS, bossForRank, championFor, getRegion } from "./regions";
 import { simulateEncounter } from "./simulate";
+import { buildFightOutcome } from "./fightOutcome";
 import { BOND_NAMES, combatBonds, recordSharedWin, separation } from "./bonds";
 import { partyThreat } from "./threat";
 import { ELEMENTS, ROMAN, SPELLS, recordCasts } from "../combat/spells";
@@ -1109,12 +1110,7 @@ function autoFight(state, region, at, rng, onStep) {
     },
   });
   state.expedition.stats.autoFightSeconds += Math.round(elapsed);
-  applyFightResult(state, region, {
-    victory: !!result?.victory, party: sim.heroes, xpGains: result?.xpGains?.heroes || {},
-    gold: sim.gold, items: sim.vault, wavesCleared: result?.wavesCleared || 0,
-    downed: result?.downed || {}, nemesisSlain: result?.nemesisSlain || null, nemesisFled: result?.nemesisFled || null,
-    clutches: result?.clutches || [], spellCasts: result?.spellCasts || {},
-  }, at);
+  applyFightResult(state, region, buildFightOutcome(result, sim), at);
   // Left to themselves, a battered party doesn't push its luck.
   if (state.expedition && !state.expedition.pending && partyHpFraction(state) < AUTO_RETREAT_HP) {
     addFeed(state.expedition, at, "Too battered to go on, the party limps home with its loot.", "danger");
@@ -1123,8 +1119,9 @@ function autoFight(state, region, at, rng, onStep) {
 }
 
 // A live battle the player fought on the Battle screen has finished.
-// `party` is the hero list the engine fought with, in the same order as its
-// xpGains indices.
+// `outcome` is the canonical fight result (buildFightOutcome in
+// fightOutcome.js); its `party` is the hero list the engine fought with, in
+// the same order as its xpGains indices.
 export function resolveEncounter(state, outcome, now) {
   const pending = state.expedition?.pending;
   if (!pending || !FIGHT_KINDS.has(pending.kind)) return { ok: false, reason: "no_encounter_ready" };
