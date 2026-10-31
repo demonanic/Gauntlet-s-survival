@@ -44,7 +44,7 @@ These were judged to work well. A PR that weakens one needs an explicit reason t
 | 1 | Versioned save upgrades; an unreadable save is never silently overwritten | F4 | Done (#28, merged `30731da`) |
 | 2 | Enemy-definition coverage tests | F3 (first step) | Done (#29, merged `57f9143`) |
 | 3 | One fight-outcome builder for watched and unattended fights | F5 | Done (#30, merged `c6a07c7`) |
-| 4 | Injectable, seedable randomness | F7 | Done, in review |
+| 4 | Injectable, seedable randomness | F7 | Done, in review (#31) |
 | 5 | Legacy reachability investigation (no edits) | F2, F9 | Not started |
 | 6 | Remove only verified legacy code, in small PRs | F2, F9 | Not started |
 | 7 | Move fight results and rewards out of `expedition.js` | F6 | Not started |
@@ -243,4 +243,4 @@ None right now. New questions for Sam are listed here until answered.
 | 2026-10-31 | Phase 2 merged | #29 | Merged `57f9143`; 411 tests pass on `main` |
 | 2026-10-31 | Phase 3 one fight-outcome builder | #30 | 434 tests pass, build passes, watched and unattended fights checked in the browser |
 | 2026-10-31 | Phase 3 merged | #30 | Merged `c6a07c7`; 434 tests pass on `main`; live site redeployed |
-| 2026-10-31 | Phase 4 seedable randomness | Pending | 447 tests pass, build passes; unseeded play byte-identical to `c6a07c7`; seeded scripts repeat exactly |
+| 2026-10-31 | Phase 4 seedable randomness | #31 | 447 tests pass, build passes; unseeded play byte-identical to `c6a07c7`; seeded scripts repeat exactly |
