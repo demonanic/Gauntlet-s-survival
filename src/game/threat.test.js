@@ -5,7 +5,7 @@ import { createGuild, startExpedition } from "./guild";
 import { debugSetLevels } from "./debug";
 import { createGearItem } from "./items";
 import { getRegion } from "./regions";
-import { THREAT, heroPower, partyThreat, referencePower, regionReference } from "./threat";
+import { THREAT, partyPower, partyThreat, referencePower, regionReference } from "./threat";
 
 function geared(level, rarity, tier) {
   const state = debugSetLevels(createGuild(), level).state;
@@ -28,17 +28,18 @@ describe("enemies that keep up with the party", () => {
     expect(referencePower(10, 4)).toBe(referencePower(10, 4));
   });
 
-  test("a stronger party meets enemies grown to close most of the gap, capped", () => {
+  test("a stronger party meets stronger enemies, capped", () => {
     const region = getRegion("frostfang");
     const strong = geared(20, "epic", 8).heroes;
     const threat = partyThreat(strong, region);
-    const party = heroPower(strong[0]);
+    const party = partyPower(strong);
     const { level, tier } = regionReference(region);
     const reference = referencePower(level, tier);
     expect(threat.hp).toBeGreaterThan(1);
     expect(threat.dmg).toBeGreaterThan(1);
     expect(threat.hp).toBeLessThanOrEqual(THREAT.max);
-    expect(threat.hp).toBeLessThan(party.offense / reference.offense);
+    expect(threat.dmg).toBeLessThanOrEqual(THREAT.max);
+    expect(threat.hp).toBeCloseTo(Math.min(THREAT.max, (party.offense / reference.offense / THREAT.slack) ** THREAT.close), 1);
   });
 
   test("the trip remembers the threat, and the Rift carries it to every wave", () => {

@@ -13,12 +13,16 @@ import * as C from "../combat/config";
 import { createGearItem, heroCombatSummary } from "./items";
 
 export const THREAT = Object.freeze({
-  // Share of the gap closed: enemies scale by (party / reference) ^ CLOSE.
-  close: Number(globalThis.process?.env?.THREAT_CLOSE) || 0.75,
+  // Enemies scale by (party / reference / SLACK) ^ CLOSE. Steeper than 1: the
+  // measure counts attack, crit, HP, defense and dodge, not affixes or how
+  // much less a party is hit when it kills faster. Measured (Oct 2026): a
+  // party in Rare gear, 3 levels and a tier up, wins ~80% at about half HP
+  // with 1.5; with 1 it won every trip at 80-95% HP, with 2 it lost most.
+  close: Number(globalThis.process?.env?.THREAT_CLOSE) || 1.5,
   // Enemies start growing only past this much stronger than the reference
   // (the reference has no perks; real heroes at that level do).
   slack: Number(globalThis.process?.env?.THREAT_SLACK) || 1.2,
-  max: Number(globalThis.process?.env?.THREAT_MAX) || 4,
+  max: Number(globalThis.process?.env?.THREAT_MAX) || 8,
   // The reference hero's stat points, in this order.
   spOrder: Object.freeze(["attack", "defense", "attack"]),
   rarity: "common",
