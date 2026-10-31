@@ -195,17 +195,16 @@ turns all of that off: it stays exactly where you put it.
 
 ### Difficulty
 
-The game is meant to be beatable, not won every time. Each region has a recommended
-level (Boneyard 5, Frostfang 7, Ashen Keep 10, Blightmire 13). A party of four at that
-level in Rare gear of the region's tier wins roughly 70% of trips if you leave it alone;
-good play (abilities, moving heroes, picking fights) pushes that up. Smaller parties have
-a much harder time.
+The game is meant to be beatable, not won every time. A full party of four arriving at a
+region's minimum level in plain gear a tier below the region wins roughly 70% of trips if
+you leave it alone; good play (abilities, moving heroes, picking fights) pushes that up.
+Smaller parties have a much harder time.
 
-Enemies keep up with you: a party stronger than that meets enemies grown to close about
-half the gap (their HP follows your damage, their damage your toughness). Better gear
-and levels still help, they just don't turn a region into a walk. Weaker parties meet
-the region as it is. The Rift's waves start at your party's strength too. Rarity is
-also flatter than it used to be (Legendary ×2.1 instead of ×4.2 over Common).
+Enemies keep up with you: a party stronger than that meets enemies grown to close most
+of the gap (their HP follows your damage, their damage your toughness). Better gear and
+levels still help, they just don't turn a region into a walk. The Rift's waves start at
+your party's strength too. Rarity is also flatter than it used to be (Legendary ×2.1
+instead of ×4.2 over Common).
 
 ### Enemies
 

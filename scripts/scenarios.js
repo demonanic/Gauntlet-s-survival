@@ -31,6 +31,7 @@ import { simulateEncounter } from "../src/game/simulate";
 import { composeStats, createGearItem } from "../src/game/items";
 import { createPet } from "../src/game/pets";
 import { getRegion } from "../src/game/regions";
+import { regionReference } from "../src/game/threat";
 import { activePlayer, developHeroes } from "./simKit";
 
 // Tuning: TUNE="boneyard:1.3:1.3,frostfang:1:1.2" npm run scenarios ... multiplies
@@ -46,14 +47,21 @@ const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : nul
 const GROUP = flag("--group") || "all";
 const TRIPS = Number(flag("--trips")) || 16;
 const ACTIVE = args.includes("--active");
-// Gear rarity for every slot. The baseline is the party each region is tuned
-// for (threat.js): its recommended level, Rare gear of its tier. Before Oct
-// 2026 it was the weakest party allowed in (minimum level, Common gear a tier
-// below), and real, better-geared parties were never in danger.
-const GEAR = flag("--gear") || "rare";
+// Gear rarity for every slot: common keeps the baseline party near the edge,
+// where differences between scenarios show.
+const GEAR = flag("--gear") || "common";
 
-const SETUPS = Object.fromEntries(["boneyard", "frostfang", "ashen", "blightmire"]
-  .map((id) => [id, { level: getRegion(id).level, tier: getRegion(id).tier }]));
+// The bar is set low on purpose (the lowest level allowed in, gear a tier
+// below the region's), so the baseline isn't a sure win and differences show.
+// Regions are tuned for this party (threat.js `regionReference`); stronger
+// parties meet stronger enemies. `--levels N` / `--tiers N` add levels and gear
+// tiers, e.g. `--gear rare --levels 3 --tiers 1` for a well-geared party.
+const LEVELS = Number(flag("--levels")) || 0;
+const TIERS = Number(flag("--tiers")) || 0;
+const SETUPS = Object.fromEntries(["boneyard", "frostfang", "ashen", "blightmire"].map((id) => {
+  const { level, tier } = regionReference(getRegion(id));
+  return [id, { level: level + LEVELS, tier: tier + TIERS }];
+}));
 const REGIONS = (flag("--regions") || (GROUP === "qualities" ? "frostfang" : Object.keys(SETUPS).join(","))).split(",");
 
 const MIXED = ["sword", "bow", "staff", "sword"];

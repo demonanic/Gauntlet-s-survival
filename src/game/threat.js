@@ -1,9 +1,11 @@
-// Enemies that keep up with the party. A region is tuned for a reference party
-// (heroes at its recommended level in Rare gear of its tier). A party stronger
-// than that meets enemies grown to close about half the gap: enemy HP follows
-// the party's offense, enemy damage its toughness. Weaker parties meet the
-// region as tuned. Owner-approved (Oct 2026): before this, a party in Rare gear
-// came home from the Blightmire at 99% HP.
+// Enemies that keep up with the party. A region is tuned for the party players
+// really arrive with: its minimum level, Common gear a tier below it (about 70%
+// of idle trips won; `npm run scenarios`). A party stronger than that meets
+// enemies grown to close most of the gap: enemy HP follows the party's offense,
+// enemy damage its toughness. Weaker parties meet the region as tuned.
+// Owner-approved (Oct 2026): before this, a party in Rare gear came home from
+// the Blightmire at 99% HP. A first try tuned regions for Rare gear at a higher
+// level instead; real parties never had that gear yet and hit a wall.
 import { awardClasslessXp, allocateClasslessStat } from "../combat/classlessProgression";
 import { GEAR_SLOTS } from "../combat/gear";
 import { createHeroModel } from "../combat/heroModel";
@@ -12,11 +14,11 @@ import { createGearItem, heroCombatSummary } from "./items";
 
 export const THREAT = Object.freeze({
   // Share of the gap closed: enemies scale by (party / reference) ^ CLOSE.
-  close: 0.5,
+  close: 0.75,
   max: 4,
   // The reference hero's stat points, in this order.
   spOrder: Object.freeze(["attack", "defense", "attack"]),
-  rarity: "rare",
+  rarity: "common",
 });
 
 // Offense: attack, with crits. Toughness: HP through defense and dodge.
@@ -36,7 +38,12 @@ export function partyPower(heroes) {
 
 const references = new Map();
 
-// The reference hero a region is tuned for.
+// The party a region is tuned for: { level, tier }.
+export function regionReference(region) {
+  return { level: Math.max(1, region.minLevel || 1), tier: Math.max(1, (region.tier || 1) - 1) };
+}
+
+// A reference hero: `level`, every slot in THREAT.rarity gear of `tier`.
 export function referencePower(level, tier) {
   const key = `${level}:${tier}`;
   if (references.has(key)) return references.get(key);
@@ -60,9 +67,10 @@ export function referencePower(level, tier) {
 
 // Enemy HP and damage multipliers for `heroes` setting out to `region`.
 export function partyThreat(heroes, region) {
-  if (!heroes.length || !region?.level) return { hp: 1, dmg: 1 };
+  if (!heroes.length || !region) return { hp: 1, dmg: 1 };
   const party = partyPower(heroes);
-  const reference = referencePower(region.level, region.tier);
+  const { level, tier } = regionReference(region);
+  const reference = referencePower(level, tier);
   const grow = (ratio) => Math.min(THREAT.max, Math.max(1, ratio) ** THREAT.close);
   return {
     hp: Math.round(grow(party.offense / reference.offense) * 100) / 100,
