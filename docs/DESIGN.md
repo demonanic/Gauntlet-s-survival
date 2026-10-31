@@ -101,7 +101,8 @@ A deliberately small model (not Demonanic's 11 slots), defined in `src/combat/ge
 
 - **Gear slots:** head, chest, legs, arms, weapon, secondary, amulet/ring. Gear adds flat
   attack, defense, max HP, agility (dodge) and crit chance.
-- **Rarity × tier:** Common ×1, Uncommon ×1.5, Rare ×2.2, Epic ×3.2, Legendary ×4.2, multiplied by the
+- **Rarity × tier:** Common ×1, Uncommon ×1.25, Rare ×1.5, Epic ×1.8, Legendary ×2.1 (flattened Oct 2026
+  from ×1.5 / 2.2 / 3.2 / 4.2; older saves are rescaled once, `rescaleItemRarity`), multiplied by the
   tier: ×1 / ×1.6 / ×2.4 for tiers 1–3 (The Gutter / Boneyard Crypt / Frostfang Pass), then
   +0.8 per tier up to tier 10 (ranked bosses, deep Rift waves, the shop's Masterwork).
 - **Weapons:** sword (attack), bow (attack + crit, needs arrows), staff (attack + HP). Every hero starts
