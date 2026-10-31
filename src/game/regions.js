@@ -10,7 +10,7 @@
 // (gear eventually tops out, so every guild meets a ceiling); the bounty grows
 // linearly.
 export const BOSS_ROTATION = Object.freeze(["demon", "imperialNecromancer", "nuclearBehemoth"]);
-export const BOSS_RANK_SCALING = Object.freeze({ hpGrowth: 1.15, dmgGrowth: 1.09, bounty: 0.15 });
+export const BOSS_RANK_SCALING = Object.freeze({ hpGrowth: 1.08, dmgGrowth: 1.24, bounty: 0.15 });
 
 // Every 5th boss rank (5, 10, 15...) is a Champion with one extra mechanic,
 // in this order; it pays double bounty and an extra crystal.
