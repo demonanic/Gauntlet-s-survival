@@ -71,7 +71,12 @@ export function parseGuild(parsed) {
       .filter(([key, count]) => ECOLOGIES[key] && Number(count) > 0).map(([key, count]) => [key, Math.floor(Number(count))])),
     bonds: Object.fromEntries(Object.entries(parsed.bonds && typeof parsed.bonds === "object" ? parsed.bonds : {})
       .filter(([key, bond]) => key.split("|").length === 2 && Number(bond?.wins) > 0)
-      .map(([key, bond]) => [key, { wins: Math.floor(Number(bond.wins)), ...(bond.sworn ? { sworn: true } : {}) }])),
+      .map(([key, bond]) => [key, {
+        wins: Math.floor(Number(bond.wins)),
+        ...(bond.comrades || bond.sworn ? { comrades: true } : {}),
+        ...(bond.sworn ? { sworn: true } : {}),
+        ...(Number(bond.askAt) > 0 ? { askAt: Math.floor(Number(bond.askAt)) } : {}),
+      }])),
     nemeses: (Array.isArray(parsed.nemeses) ? parsed.nemeses : [])
       .filter((nemesis) => C.ENEMIES[nemesis?.type] && typeof nemesis.name === "string" && typeof nemesis.regionId === "string"
         && Array.isArray(nemesis.victims) && Number(nemesis.level) >= 1),

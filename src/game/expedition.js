@@ -31,7 +31,7 @@ import { bankLoot, createGearItem, normalizeHeroGear, randomCrystal, restockQuic
 import { legacyBonuses } from "./legacy";
 import { BOSS_RANK_SCALING, bossForRank, getRegion } from "./regions";
 import { simulateEncounter } from "./simulate";
-import { BOND_NAMES, combatBonds, recordSharedWin } from "./bonds";
+import { BOND_NAMES, combatBonds, recordSharedWin, separation } from "./bonds";
 import {
   NEMESIS, growNemesis, nemesisAppearChance, nemesisLevel, nemesisTraits, nemesisTriumphs, regionNemesis, riseNemesis, slayNemesis,
 } from "./nemesis";
@@ -244,6 +244,13 @@ export function startExpedition(state, regionId, heroIds, now, rng = Math.random
   next.expedition = run;
   if (run.tutorial) run.nextEventAt = now + TUTORIAL_FIRST_EVENT_MS;
   addFeed(run, now, `The party sets out for ${region.name}.`, "good");
+  // Bonded heroes miss partners left at home.
+  const apart = separation(next, ids);
+  if (apart.morale > 0) {
+    run.morale = clampMorale(run.morale - apart.morale);
+    const name = (id) => findHero(next, id)?.identity.name;
+    addFeed(run, now, apart.missed.map(({ hero, partner }) => `${name(hero)} misses ${name(partner)}.`).join(" "), "flavor");
+  }
   const unarmed = restockQuickSlots(next, ids);
   for (const name of unarmed) addFeed(run, now, `${name} has no arrows and can't use their bow! Buy some in the Market.`, "danger");
   packProvisions(next, region, now);
@@ -1203,11 +1210,13 @@ function applyFightResult(state, region, { victory, party, xpGains, gold, items,
   const qualities = road(state);
   changeMorale(state, 8 + roadEffect(qualities, "moraleOnWin"));
   // Heroes who came through it standing grow closer.
-  for (const { a, b, level } of recordSharedWin(state, party.filter((hero) => hero.combat.hp > 0).map(heroId))) {
+  for (const { a, b, level, offer } of recordSharedWin(state, party.filter((hero) => hero.combat.hp > 0).map(heroId))) {
     const [first, second] = [a, b].map((id) => findHero(state, id)?.identity.name);
-    addFeed(run, at, level === "sworn"
-      ? `${first} and ${second} swear to fight as one. They are Sworn.`
-      : `${first} and ${second} are ${BOND_NAMES[level]} now.`, "good", level !== "acquainted");
+    addFeed(run, at, offer === "sworn"
+      ? `${first} and ${second} would trust each other with their lives. They could swear to fight as one (decide at the Guild Hall).`
+      : offer === "comrades"
+        ? `${first} and ${second} have grown close. They could become Comrades (decide at the Guild Hall).`
+        : `${first} and ${second} are ${BOND_NAMES[level]} now.`, "good", !!offer);
   }
   for (const hero of livingParty(state)) heal(hero, AFTER_FIGHT_HEAL);
   afterVictory(state, qualities, at);

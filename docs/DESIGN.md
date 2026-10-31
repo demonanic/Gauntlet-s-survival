@@ -419,11 +419,17 @@ bonuses are stamped onto every hero as `hero.guildBonus` so the engine can read 
 
 Owner-approved design (Oct 2026).
 
-- **Growth:** `state.bonds[bondKey(a, b)] = { wins, sworn? }`. After every won fight, each
-  pair of heroes still standing gains a win (`recordSharedWin`, in `applyFightResult`);
-  the feed marks each new level. Levels (`bondLevel`): Acquainted 10, Comrades 30, Sworn
-  75. A pair turns Sworn only if neither hero already has a Sworn partner
-  (`swornPartner`); otherwise it stays Comrades.
+- **Growth:** `state.bonds[bondKey(a, b)] = { wins, comrades?, sworn?, askAt? }`. After
+  every won fight, each pair of heroes still standing gains a win (`recordSharedWin`, in
+  `applyFightResult`). Acquainted (10 wins) is automatic. Comrades (30) and Sworn (75) are
+  the player's choice (owner's call): the feed says the pair could bond, and
+  `bondOffers` lists it on the Guild Hall's Bonds card (`BondOffers`), which explains the
+  bond and asks; `answerBond` accepts, or on "Not now" sets `askAt` 10 wins later. Sworn is
+  offered only while neither hero has a Sworn partner (`swornPartner`), so accepting one
+  pact withdraws the hero's other Sworn offers. Unattended play never decides.
+- **Separation** (`separation`, in `startExpedition`): each Comrade (2) or Sworn (4)
+  partner left at home costs the party morale on departure ("Kestra misses Brann").
+- **Progress:** the roster shows wins toward the next step ("Comrades: Odo · 34/75").
 - **Into battle:** `currentEncounterParty` gives each hero `bonds` (`combatBonds`: Comrades
   or Sworn partners in this fight). The engine's `_bondDamage` adds +5% while any such
   partner is standing, +25% for 10 s of Vengeance after one falls (`_bondsReactToFall`,

@@ -16,6 +16,7 @@ import {
   recruitHero, renameHero, rerollCandidate, resolveEncounter, startExpedition, tick, treatInjury, updateHero,
 } from "./game/guild";
 import { buyLegacyUpgrade, renownForRetiring, retireHero } from "./game/legacy";
+import { answerBond } from "./game/bonds";
 import {
   buyConsumable, buyCrystal, equipGear, extractCrystal, fletchArrows, fuseCrystals, infuseCrystal, loadQuickSlot, reforgeGear,
   salvageGear, sellGear, setSupplyStyle, unequipGear, unloadQuickSlot, upgradeGear,
@@ -155,6 +156,7 @@ export default function App() {
             apply((current) => retireHero(current, heroId, Date.now()));
           }}
           onBuyLegacy={(key) => apply((current) => buyLegacyUpgrade(current, key))}
+          onAnswerBond={(a, b, accept) => apply((current) => answerBond(current, a, b, accept))}
         />
       )}
       {tab === "market" && (
