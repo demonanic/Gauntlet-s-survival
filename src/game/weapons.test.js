@@ -135,7 +135,7 @@ describe("weapons decide how a hero fights", () => {
     bow.manual = true;
     bow.x = 300; bow.y = 400;
     const start = { x: bow.x, y: bow.y };
-    engine.active = [enemyAt(sword.x, sword.y - 30), enemyAt(bow.x, bow.y - 30)];
+    engine.active = [enemyAt(sword.x, sword.y - 40), enemyAt(bow.x, bow.y - 40)];
     for (let step = 0; step < 10; step += 1) engine.update(1 / 30);
     expect({ x: bow.x, y: bow.y }).toEqual(start);
     expect(engine._kite(bow, 1 / 30)).toBe(true);
@@ -160,5 +160,25 @@ describe("weapons decide how a hero fights", () => {
     for (let step = 0; step < 30; step += 1) engine.update(1 / 30);
     roll.mockRestore();
     expect(hero.ref.hp).toBeLessThan(hp);
+  });
+
+  test("a crowded scrum spreads out: no two bodies overlap, and swords still reach", () => {
+    const engine = engineWith(["sword", "sword", "bow", "staff"].map(heroWithWeapon));
+    engine.spawnQueue = [];
+    engine.active = Array.from({ length: 5 }, (_, index) => ({ ...enemyAt(300, 300), id: index }));
+    for (const hero of engine.heroes) { hero.x = 300; hero.y = 300; }
+    engine._resolveUnitCollisions();
+    engine._resolveUnitCollisions();
+    const units = [...engine.heroes.map((hero) => ({ ...hero, r: 20 })), ...engine.active.map((enemy) => ({ ...enemy, r: 18 }))];
+    let closest = Infinity;
+    for (let i = 0; i < units.length; i += 1) {
+      for (let j = i + 1; j < units.length; j += 1) {
+        closest = Math.min(closest, Math.hypot(units[i].x - units[j].x, units[i].y - units[j].y) / (units[i].r + units[j].r));
+      }
+    }
+    expect(closest).toBeGreaterThan(0.85);
+    // A sword hero touching an enemy is within its reach.
+    const [sword] = engine.heroes;
+    expect(engine._meleeReach(sword, engine.active[0])).toBeGreaterThanOrEqual(20 + 18);
   });
 });

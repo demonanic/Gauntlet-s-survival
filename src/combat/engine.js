@@ -187,7 +187,13 @@ const DODGE_WARNING = 0.8;
 const DODGE_CLEARANCE = 8;
 // Sappers sheltering behind a Bulwark break cover inside this range.
 const SAPPER_SPRINT_RANGE = 110;
-const ENEMY_BODY_RADIUS = (e) => (e.boss ? 29 : e.tier === "elite" ? 20 : 14);
+// Body radii for collisions, sized to the drawn art so units don't pile on top
+// of each other. They grew by 4-5 px (Oct 2026); every melee reach grew by
+// BODY_PAD, the extra distance between two touching bodies, so who can hit
+// whom from contact is unchanged.
+const HERO_BODY_RADIUS = 20;
+const ENEMY_BODY_RADIUS = (e) => (e.boss ? 33 : e.tier === "elite" ? 24 : 18);
+const BODY_PAD = 9;
 // Heroes this close to a boss are in melee with it: it won't lob bombs at them.
 const BOSS_MELEE_REACH = 90;
 function laneX(i) { return (W / LANES) * (i + 0.5); }
@@ -1799,7 +1805,7 @@ export class Engine {
       // Dark Elves are ranged tower hunters; Warlocks cast ranged bolts while
       // retaining their separate Mage-Hunter drain ability above.
       const ranged = e.type === "darkElf" || e.type === "warlock";
-      const attackRange = e.type === "darkElf" ? 245 : e.type === "warlock" ? 225 : e.type === "reaper" ? 34 : 30;
+      const attackRange = e.type === "darkElf" ? 245 : e.type === "warlock" ? 225 : e.type === "reaper" ? 34 + BODY_PAD : 30 + BODY_PAD;
       if (ranged && dist <= attackRange) {
         if (e.atkCd <= 0) {
           this._throwEnemyBolt(e, tactical, e.type === "darkElf" ? e.damage * 1.15 : e.damage, e.type === "darkElf" ? "#F43F5E" : "#C026D3", e.type === "warlock");
@@ -1832,7 +1838,7 @@ export class Engine {
     // Existing wave objectives still matter when an enemy reaches a defender.
     let blocker = null;
     if (e.objective === "towers") blocker = this._nearestTower(e.x, e.y, 46);
-    if (!blocker) blocker = this._nearestHeroEntity(e.x, e.y, 30);
+    if (!blocker) blocker = this._nearestHeroEntity(e.x, e.y, 30 + BODY_PAD);
     if (blocker) {
       if (e.atkCd <= 0) {
         this._enemyAttack(e, blocker);
@@ -1876,7 +1882,7 @@ export class Engine {
         if (this.time >= e.fuseAt) this._detonate(e, 1);
         return true;
       }
-      if (distTo(nearest) <= 30) {
+      if (distTo(nearest) <= 30 + BODY_PAD) {
         e.fuseAt = this.time + 0.7;
         this._float(e.x, e.y - 20, "FUSE LIT!", "#FB923C");
         return true;
@@ -1899,7 +1905,7 @@ export class Engine {
       // Anchor: fights whoever reaches it; otherwise plants itself between its
       // most threatened ward (a support or control ally) and the hero closest
       // to that ward. With no wards left it advances like any frontliner.
-      if (distTo(nearest) <= 32) {
+      if (distTo(nearest) <= 32 + BODY_PAD) {
         if (e.atkCd <= 0) {
           this._enemyAttack(e, { kind: "hero", obj: nearest });
           e.atkCd = 1.25;
@@ -1932,7 +1938,7 @@ export class Engine {
         move(prey, e.speed, true);
         return true;
       }
-      if (distTo(prey) <= 30) {
+      if (distTo(prey) <= 30 + BODY_PAD) {
         if (e.atkCd <= 0) {
           const base = e.damage;
           if (e.type === "stalker" && !e.struck) e.damage *= 1.5;
@@ -2014,7 +2020,7 @@ export class Engine {
       const prey = living.reduce((best, h) => (h.ref.hp / h.d.maxHp < best.ref.hp / best.d.maxHp ? h : best));
       const dist = distTo(prey);
       e.blitzCd = (e.blitzCd ?? 1.5) - dt;
-      if (dist <= (e.boss ? 40 : 30)) {
+      if (dist <= (e.boss ? 40 : 30) + BODY_PAD) {
         if (e.atkCd <= 0) {
           const base = e.damage;
           if (e.blitzStrike) e.damage *= 1.6;
@@ -3576,27 +3582,27 @@ export class Engine {
     const tactical = this._selectEnemyTacticalTarget(enemy);
     if (tactical) return tactical.kind === "hero" && tactical.obj === hero;
     if (enemy.boss) return this._nearestDefender(enemy.x, enemy.y, enemy.attackRange || 420)?.obj === hero;
-    return this._nearestHeroEntity(enemy.x, enemy.y, 30) === hero;
+    return this._nearestHeroEntity(enemy.x, enemy.y, 30 + BODY_PAD) === hero;
   }
 
   // How close a melee hero must be to strike: weapon range, measured from the
   // edge of the target's body (collisions keep heroes outside it), so big
   // bosses and elites can be hit too.
   _meleeReach(h, target) {
-    return h.d.range - 6 + Math.max(0, ENEMY_BODY_RADIUS(target) - ENEMY_BODY_RADIUS({}));
+    return h.d.range - 6 + BODY_PAD + Math.max(0, ENEMY_BODY_RADIUS(target) - ENEMY_BODY_RADIUS({}));
   }
 
   _resolveUnitCollisions() {
     // These are gameplay body radii, not the full glow/weapon-art bounds.
     // Bosses and elites need more room than basic units.
-    const heroRadius = 15;
+    const heroRadius = HERO_BODY_RADIUS;
     const enemyRadius = ENEMY_BODY_RADIUS;
     const livingHeroes = this.heroes.filter((h) => h.alive);
     const livingEnemies = this.active.filter((e) => e.hp > 0);
 
     // A few short passes handle crowded groups without making collision
     // resolution expensive or changing the existing attack/target rules.
-    for (let pass = 0; pass < 3; pass++) {
+    for (let pass = 0; pass < 4; pass++) {
       const separate = (a, b, minDist, aWeight = 0.5, bWeight = 0.5) => {
         let dx = b.x - a.x;
         let dy = b.y - a.y;
@@ -4175,7 +4181,12 @@ export class Engine {
     // legacy weapons are preserved as compatible visual overlays.
     ctx.rotate(facing);
     const image = getHeroSpriteImage();
-    if (image?.complete && image.naturalWidth > 0 && image.naturalHeight > 0) {
+    const hasArt = image?.complete && image.naturalWidth > 0 && image.naturalHeight > 0;
+    // The body art sits 20 px ahead of the hero's position; shift it back so
+    // the picture is centred on the body (otherwise a hero facing an enemy
+    // pokes into it even when their bodies don't touch).
+    if (hasArt) ctx.translate(0, 20);
+    if (hasArt) {
       // Gauntlet: each hero's own neon shade, plus a soft glow in that color.
       ctx.filter = heroSpriteFilter(h.model?.appearance);
       ctx.shadowBlur = 7;
