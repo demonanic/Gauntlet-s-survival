@@ -87,7 +87,7 @@ How to change the save format later: bump `STATE_VERSION` in `src/game/guild.js`
 
 - [x] Identified the real set of active enemies: the 22 keys of `C.ENEMIES` (17 regular, 5 bosses). Spawn sources: region wildlife pools, region boss squads, elite rolls (lieutenant), the boss rotation, the Endless Rift pools and elites, ecology templates, the plain fodder and frontline lists, the stalker, and boss summons (`sim.makeMinion`).
 - [x] Read the existing ecology and qualities tests first. They already check that ecology template slots name real enemies, and the squad limits; nothing checked the tables as a whole.
-- [x] Every active enemy has a valid stat block (tier, boss flag, stats, color, affinities, ranges, shield), declared families and roles (or the documented boss default), and spawns, acts and draws in a real fight. Tests: `src/game/enemies.test.js` (53).
+- [x] Every active enemy has a valid stat block (tier, boss flag, stats, color, affinities, ranges, shield), declared families and roles (or the documented boss default), and, in a short real fight, spawns through the real encounter builder, takes part in engine updates without errors, renders without errors, and only produces real enemies as summons during the 20 seconds observed. Tests: `src/game/enemies.test.js` (53). This does not prove that each enemy's own attack, ability or special behavior runs; that is out of scope for Phase 2 (see Phase 8B).
 - [x] Pools and templates only name real enemies, and every enemy can appear in a fight. Orphaned references are reported below.
 - [x] Report below separates missing data, intentional defaults, legacy, unreachable and uncertain entries.
 - [x] No registry redesign. The only production change exports three existing lists so the tests can read them: `ENDLESS_POOLS` (`encounters.js`), `FODDER` and `FRONTLINE` (`ecology.js`). They are now frozen; nothing modifies them.
@@ -206,3 +206,4 @@ None right now. New questions for Sam are listed here until answered.
 | 2026-10-31 | Phase 0 baseline (no edits) | (none) | 341 tests pass, build passes, scenario baselines recorded |
 | 2026-10-31 | Phase 1 safe save upgrades | #28 | 358 tests pass, build passes, browser-checked; merged `30731da`, live |
 | 2026-10-31 | Phase 2 enemy coverage tests | #29 | 411 tests pass, build passes, tests shown to catch three kinds of mistakes |
+| 2026-10-31 | Phase 2 review | #29 | Review passed (Sam). Test and roadmap wording corrected: the fight test shows engine participation, rendering and observed summons, not enemy-specific behavior. No gameplay change; 411 tests pass, build passes |

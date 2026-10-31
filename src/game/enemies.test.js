@@ -8,6 +8,11 @@
 //   (C.ENEMY_ROLES); rolesOf() reads them as "frontline".
 // - Enemies without a special handler use the engine's generic enemy update,
 //   and the generic body shape is the sprite fallback.
+//
+// Not covered here: whether an enemy's own attack, ability or special behavior
+// runs. The fight test only shows that each enemy takes part in engine updates
+// without errors. A misspelt type string in the engine's per-type behavior
+// code would not be caught until behavior handlers exist (roadmap Phase 8B).
 import * as C from "../combat/config";
 import { Engine } from "../combat/engine";
 import { ECOLOGIES, FODDER, FRONTLINE, SQUAD_LIMITS, rolesOf } from "./ecology";
@@ -131,6 +136,10 @@ describe("spawn sources", () => {
   });
 });
 
+// Each enemy in a short real fight. This proves the enemy is built by the real
+// encounter code, takes part in engine updates and renders without errors, and
+// that any summons seen during the 20 seconds are real enemies. It does not
+// prove that an enemy-specific attack or special behavior ran.
 describe("every enemy in a real fight", () => {
   // A stub 2D context: every drawing call is accepted, every property can be set.
   function stubCanvas() {
@@ -142,7 +151,7 @@ describe("every enemy in a real fight", () => {
     return { width: 420, height: 760, getContext: () => ctx };
   }
 
-  test.each(ENEMY_KEYS)("%s spawns through the encounter builder, acts, summons only real enemies and draws", (key) => {
+  test.each(ENEMY_KEYS)("%s spawns through the encounter builder, takes part in engine updates, renders, and only summons real enemies while observed", (key) => {
     // A one-enemy region: the real encounter code builds the squad. Squads are
     // never only support (ecology.js), so a support-only enemy gets a second
     // slot, which the squad limits fill with a plain fighter.
@@ -160,17 +169,19 @@ describe("every enemy in a real fight", () => {
     const errors = [];
     const engine = new Engine(stubCanvas(), sim, structuredClone(wave), { onError: (error) => errors.push(error) });
 
-    let acted = false;
+    // Movement is the signal that the enemy is being updated by the engine; it
+    // says nothing about which of its behaviors ran.
+    let moved = false;
     for (let step = 0; step < 20 / STEP && !engine.ended; step += 1) {
       const before = engine.active.map((enemy) => `${enemy.x},${enemy.y}`).join();
       engine.update(STEP);
-      if (engine.active.map((enemy) => `${enemy.x},${enemy.y}`).join() !== before) acted = true;
+      if (engine.active.map((enemy) => `${enemy.x},${enemy.y}`).join() !== before) moved = true;
       if (step % 60 === 0) engine.render();
     }
     engine.stop();
 
     expect(errors).toEqual([]);
-    expect(acted).toBe(true);
+    expect(moved).toBe(true);
     for (const type of summoned) expect(C.ENEMIES, `${key} summoned ${type}`).toHaveProperty(type);
   });
 });
