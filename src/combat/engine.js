@@ -6,6 +6,7 @@
 // accumulates XP gains, returned to the UI at wave end.
 import { drawGearMarks, heroGearMarks } from "./heroLook";
 import { heroLuck, luckEffects } from "./luck";
+import { ELEMENTS, MAGIC, castSuccessChance, knownSpells, maxMana as spellMaxMana, spellPower, spellRadius } from "./spells";
 import { BONDS, memorialDamage } from "../game/bonds";
 import * as C from "./config";
 import { heroDerived, makeSingleEnemy } from "./logic";
@@ -236,6 +237,9 @@ export class Engine {
     // Clutch: the moment being decided (if any) and how each one went.
     this.clutch = null;
     this.clutches = [];
+    // Spells (spells.js): successful casts per hero index, and meteors in the air.
+    this.spellSuccesses = {};
+    this.meteors = [];
     this.nemesisSlain = null;
     this.nemesisFled = null;
     this.wavesCleared = 0;
@@ -291,8 +295,9 @@ export class Engine {
         quickCd: 0,
         ammoShots: 0,
         ammoBonus: 0,
-        maxMana: classless ? 0 : Math.round(70 + (h.level || 1) * 5 + (d.intelligence || 10) * 1.5),
-        mana: classless ? 0 : Math.round(70 + (h.level || 1) * 5 + (d.intelligence || 10) * 1.5),
+        maxMana: classless ? spellMaxMana(h) : Math.round(70 + (h.level || 1) * 5 + (d.intelligence || 10) * 1.5),
+        mana: classless ? spellMaxMana(h) : Math.round(70 + (h.level || 1) * 5 + (d.intelligence || 10) * 1.5),
+        castCd: 0,
         currentTarget: null,
         speedRushUntil: 0,
         classlessCombatState: classless ? { lastDamageAt: 0, sustainSecond: -1, sustainRestored: 0,
@@ -544,6 +549,7 @@ export class Engine {
 
   getHeroSpellStatus(index) {
     const h = this.heroes[index];
+    if (h?.classless) return this._classlessSpellStatus(h);
     if (!h || h.ref.cls !== "mage") return [];
     const level = Math.max(1, Number(h.ref.level) || 1);
     const intelligence = Math.max(0, Number(h.d.intelligence) || 0);
@@ -1432,6 +1438,7 @@ export class Engine {
     }
     for (const e of this.active) {
       this._tickDots(e, dt);
+      this._landMeteors(e);
       if (e.hp > 0) this._updateEnemy(e, dt);
     }
     this.active = this.active.filter((e) => e.hp > 0);
@@ -1451,6 +1458,8 @@ export class Engine {
       this._tickGearAndEnvironment(h, dt);
       if (!h.alive) continue;
       this._tickQuickItems(h, dt);
+      h.castCd = Math.max(0, (h.castCd || 0) - dt);
+      if (h.classless && !h.manual && h.maxMana > 0) this._autoCast(h);
       for (const id of Object.keys(h.spellCooldowns)) h.spellCooldowns[id] = Math.max(0, h.spellCooldowns[id] - dt);
       h.mana = Math.min(h.maxMana, h.mana + (2 + Math.max(0, h.d.intelligence || 0) * 0.04) * dt);
       const cfg = h.ref.attackConfig || "";
@@ -3222,7 +3231,139 @@ export class Engine {
   }
 
   _nemesisOutcome() {
-    return { downed: this.downed, nemesisSlain: this.nemesisSlain, nemesisFled: this.nemesisFled, clutches: this.clutches };
+    return { downed: this.downed, nemesisSlain: this.nemesisSlain, nemesisFled: this.nemesisFled, clutches: this.clutches,
+      spellCasts: this.spellSuccesses };
+  }
+
+  // ---- Spells (spells.js) ----
+  _classlessSpellStatus(h) {
+    if (!h.maxMana) return [];
+    return knownSpells(h.model).map((spell) => {
+      const cooldown = Math.max(0, h.spellCooldowns[spell.id] || 0);
+      return { ...spell, color: ELEMENTS[spell.element].color, cost: spell.mana, cooldownSeconds: spell.cooldown, cooldown,
+        mana: Math.round(h.mana), maxMana: h.maxMana, success: castSuccessChance(h.model, spell.element),
+        available: h.alive && cooldown <= 0 && h.mana >= spell.mana && !this.ended };
+    });
+  }
+
+  // Cast a spell now (the player's tap, or the hero on auto). Mana and the
+  // cooldown are spent whether it works or fizzles. Returns true if cast.
+  castHeroSpell(index, spellId, target = null) {
+    const h = this.heroes[index];
+    const spell = h?.classless && this._classlessSpellStatus(h).find((entry) => entry.id === spellId);
+    if (!spell?.available) return false;
+    const foe = (target && target.hp > 0 ? target : null)
+      || [h.manualTarget, h.currentTarget].find((enemy) => enemy?.hp > 0 && Math.hypot(enemy.x - h.x, enemy.y - h.y) <= spell.range)
+      || this._nearestEnemy(h.x, h.y, spell.range);
+    if (!foe) return false;
+    h.mana -= spell.cost;
+    h.spellCooldowns[spellId] = spell.cooldownSeconds * h.d.cooldownMultiplier;
+    h.castCd = 0.8;
+    h.visualActionKind = "attack";
+    h.visualActionStartedAt = this.time;
+    h.visualActionUntil = this.time + 0.3;
+    if (!(Math.random() < spell.success)) {
+      this._float(h.x, h.y - 26, "FIZZLE", "#94A3B8");
+      return true;
+    }
+    (this.spellSuccesses[h.i] ||= {})[spellId] = ((this.spellSuccesses[h.i] || {})[spellId] || 0) + 1;
+    const staff = getEquippedHeroWeaponType(h.model) === "staff";
+    const damage = (h.d.attack || 0) * spellPower(h.model, spellId, { staff });
+    const sourceId = "H" + h.i;
+    this.effects.push({ kind: "spell_area", x: foe.x, y: foe.y, r: 18, life: 0.4, color: spell.color, vfxSize: 40 });
+    if (spell.shape === "meteor") {
+      this.meteors.push({ x: foe.x, y: foe.y, at: this.time + spell.delay, damage, radius: spellRadius(h.model, spellId),
+        max: spell.maxTargets, color: spell.color, sourceId });
+      this.effects.push({ kind: "spell_area", x: foe.x, y: foe.y, r: spellRadius(h.model, spellId), life: spell.delay, color: spell.color, vfxSize: 52 });
+      this._float(foe.x, foe.y - 30, "METEOR!", spell.color);
+      return true;
+    }
+    if (spell.shape === "area") {
+      const radius = spellRadius(h.model, spellId);
+      const victims = this.active.filter((enemy) => enemy.hp > 0 && Math.hypot(enemy.x - foe.x, enemy.y - foe.y) <= radius);
+      for (const victim of victims) this._spellHit(h, victim, damage, spell.element, sourceId, false);
+      this.effects.push({ kind: "spell_area", x: foe.x, y: foe.y, r: radius, life: 0.6, color: spell.color, vfxSize: 52 });
+    } else if (spell.shape === "linger") {
+      if (this._spellImmune(foe)) return true;
+      this._applyDot(foe, damage * 2, spell.seconds, spell.color, sourceId);
+      this._spellElement(h, foe, damage, spell.element, sourceId, true);
+      this._float(foe.x, foe.y - 18, spell.name.toUpperCase(), spell.color);
+    } else {
+      this._spellHit(h, foe, damage, spell.element, sourceId, true);
+      // Chain Spark: elemental bolts jump to more foes.
+      if (spell.element !== "arcane" && h.d.classlessEffects?.chainSpark) {
+        let from = foe;
+        const hit = new Set([foe]);
+        for (let jump = 0; jump < MAGIC.chainJumps; jump += 1) {
+          const next = this.active.filter((enemy) => enemy.hp > 0 && !hit.has(enemy))
+            .sort((a, b) => Math.hypot(a.x - from.x, a.y - from.y) - Math.hypot(b.x - from.x, b.y - from.y))[0];
+          if (!next || Math.hypot(next.x - from.x, next.y - from.y) > 140) break;
+          hit.add(next);
+          this._spellHit(h, next, damage * MAGIC.chainShare, spell.element, sourceId, false);
+          from = next;
+        }
+      }
+    }
+    return true;
+  }
+
+  _spellImmune(enemy) {
+    if (!enemy.magicImmune) return false;
+    this._float(enemy.x, enemy.y - 4, "IMMUNE", "#39FF14");
+    return true;
+  }
+
+  _spellHit(h, enemy, damage, element, sourceId, showName) {
+    if (this._spellImmune(enemy)) return;
+    this._bonusDamage(enemy, damage, sourceId, ELEMENTS[element].color);
+    this._tally(h, "damage", damage);
+    if (enemy.hp > 0) this._spellElement(h, enemy, damage, element, sourceId, false);
+    if (showName) this.effects.push({ kind: "hit", x: enemy.x, y: enemy.y, r: 16, life: 0.4, color: ELEMENTS[element].color, crit: false });
+  }
+
+  // What each element does besides damage; lingering spells hit harder.
+  _spellElement(h, enemy, damage, element, sourceId, strong) {
+    const scale = strong ? 1.5 : 1;
+    if (element === "fire") this._applyDot(enemy, damage * 0.3 * scale, 3, ELEMENTS.fire.color, sourceId);
+    else if (element === "poison") this._applyDot(enemy, damage * 0.4 * scale, 5, ELEMENTS.poison.color, sourceId);
+    else if (element === "ice") this._slowEnemy(enemy, 0.3 * scale, 2.5);
+    else if (element === "mind") enemy.stunUntil = Math.max(enemy.stunUntil || 0, this.time + (enemy.boss ? 0.2 : 0.6) * scale);
+    else if (element === "electric") {
+      const arc = this.active.find((other) => other !== enemy && other.hp > 0 && Math.hypot(other.x - enemy.x, other.y - enemy.y) <= 120);
+      if (arc && !arc.magicImmune) this._bonusDamage(arc, damage * 0.5 * scale, sourceId, ELEMENTS.electric.color);
+    }
+  }
+
+  // Meteors land after their delay, on up to `max` foes in the circle.
+  _landMeteors(e) {
+    if (!this.meteors.length || e !== this.active[0]) return;
+    const landing = this.meteors.filter((meteor) => this.time >= meteor.at);
+    if (!landing.length) return;
+    this.meteors = this.meteors.filter((meteor) => this.time < meteor.at);
+    for (const meteor of landing) {
+      const victims = this.active.filter((enemy) => enemy.hp > 0 && !enemy.magicImmune && Math.hypot(enemy.x - meteor.x, enemy.y - meteor.y) <= meteor.radius)
+        .slice(0, meteor.max);
+      for (const victim of victims) this._bonusDamage(victim, meteor.damage, meteor.sourceId, meteor.color);
+      this.effects.push({ kind: "impact", x: meteor.x, y: meteor.y, r: meteor.radius, life: 0.6, color: meteor.color });
+    }
+  }
+
+  // On auto, a caster uses its best ready spell: the big ones first, an area
+  // spell on a crowd, a curse on a fresh target, else a bolt.
+  _autoCast(h) {
+    if (h.castCd > 0 || !this.active.some((enemy) => enemy.hp > 0)) return;
+    const ready = this._classlessSpellStatus(h).filter((spell) => spell.available);
+    if (!ready.length) return;
+    const target = [h.currentTarget].find((enemy) => enemy?.hp > 0) || this._nearestEnemy(h.x, h.y, 340);
+    if (!target) return;
+    const inRange = ready.filter((spell) => Math.hypot(target.x - h.x, target.y - h.y) <= spell.range);
+    const crowd = (radius) => this.active.filter((enemy) => enemy.hp > 0 && Math.hypot(enemy.x - target.x, enemy.y - target.y) <= radius).length;
+    const pick = inRange.find((spell) => spell.id === "meteor" && crowd(spell.radius || 90) >= 2)
+      || inRange.find((spell) => spell.id === "arcane_channel")
+      || inRange.find((spell) => spell.shape === "area" && crowd(spellRadius(h.model, spell.id)) >= 2)
+      || inRange.find((spell) => spell.shape === "linger" && !(target.dots || []).some((dot) => dot.sourceId === "H" + h.i))
+      || inRange.find((spell) => spell.shape === "bolt" && spell.id !== "arcane_channel");
+    if (pick) this.castHeroSpell(h.i, pick.id, target);
   }
 
   // ---- Clutch ----
@@ -3725,6 +3866,7 @@ export class Engine {
       waveCount: this.cb.nextWave ? null : this.waveCount,
       heroes: this.heroes.map((h) => ({ name: h.ref.name, hp: h.ref.hp, maxHp: h.d.maxHp, alive: h.alive, shield: h.ref.shield || 0 })),
       heroAbilities: this.heroes.map((h) => this.getHeroAbilityStatus(h.i)),
+      heroSpells: this.heroes.map((h) => (h.classless ? this._classlessSpellStatus(h) : [])),
       heroSpells: this.heroes.map((h) => this.getHeroSpellStatus(h.i)),
       heroQuickSlots: this.heroes.map((h) => this.getHeroQuickSlots(h.i)),
       boss: (() => { const b = this.active.find((e) => e.boss); return b ? { name: b.name, hp: b.hp, maxHp: b.maxHp } : null; })(),

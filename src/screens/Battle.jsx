@@ -90,6 +90,7 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
     nemesisSlain: result.nemesisSlain || null,
     nemesisFled: result.nemesisFled || null,
     clutches: result.clutches || [],
+    spellCasts: result.spellCasts || {},
   });
 
   return (
@@ -173,6 +174,8 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
         {party.map((hero, index) => {
           const status = hud?.heroes?.[index];
           const abilities = hud?.heroAbilities?.[index] || [];
+          const spells = hud?.heroSpells?.[index] || [];
+          const mana = spells[0];
           const quickSlots = (hud?.heroQuickSlots?.[index] || []).filter((slot) => !slot.empty);
           const isSelected = selected === index;
           return (
@@ -201,6 +204,27 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
                     {ability.name}{ability.cooldown > 0 ? ` ${Math.ceil(ability.cooldown)}s` : ""}
                   </button>
                 ))}
+                {spells.length > 0 && (
+                  <>
+                    <Bar value={mana.mana} max={mana.maxMana} color="#A855F7" data-testid={`battle-mana-${index}`} />
+                    <div className="flex flex-col gap-1">
+                      {spells.map((spell) => (
+                        <button
+                          key={spell.id}
+                          type="button"
+                          disabled={!spell.available || !!result}
+                          onClick={(event) => { event.stopPropagation(); engine?.castHeroSpell(index, spell.id); }}
+                          className="truncate rounded border px-1 py-1 font-mono-g text-[9px] disabled:opacity-35"
+                          style={{ borderColor: `${spell.color}88`, color: spell.color }}
+                          title={`${spell.name} · ${spell.cost} mana · ${Math.round(spell.success * 100)}% to land`}
+                          data-testid={`battle-spell-${index}-${spell.id}`}
+                        >
+                          {spell.name}{spell.cooldown > 0 ? ` ${Math.ceil(spell.cooldown)}s` : ""}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
                 {quickSlots.length > 0 && (
                   <div className="flex gap-1">
                     {quickSlots.map((slot) => (
