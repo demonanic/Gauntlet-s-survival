@@ -1390,7 +1390,7 @@ export class Engine {
       xpGains: this.xpGains,
       killed: this.killed,
       wavesCleared: this.wavesCleared,
-      ...this._nemesisOutcome(),
+      ...this._fightSummary(),
     });
     return true;
   }
@@ -3252,7 +3252,10 @@ export class Engine {
     this.downed[h.i] = foe ? { type: foe.type, name: foe.name, nemesisId: foe.nemesisId || null, boss: !!foe.boss, summoned: !!(foe.summoned || foe.raised) } : null;
   }
 
-  _nemesisOutcome() {
+  // The per-fight record every onEnd carries, beside victory and reason:
+  // who downed each hero, nemesis results, Clutch moments and successful
+  // casts. game/fightOutcome.js turns it into the canonical fight result.
+  _fightSummary() {
     return { downed: this.downed, nemesisSlain: this.nemesisSlain, nemesisFled: this.nemesisFled, clutches: this.clutches,
       spellCasts: this.spellSuccesses };
   }
@@ -3911,7 +3914,7 @@ export class Engine {
         xpGains: this.xpGains,
         killed: this.killed,
         wavesCleared: this.wavesCleared,
-        ...this._nemesisOutcome(),
+        ...this._fightSummary(),
       });
       return;
     }
@@ -3949,7 +3952,7 @@ export class Engine {
         xpGains: this.xpGains,
         killed: this.killed,
         wavesCleared: this.wavesCleared,
-        ...this._nemesisOutcome(),
+        ...this._fightSummary(),
       });
     }
   }
