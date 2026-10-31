@@ -31,6 +31,7 @@ import { simulateEncounter } from "../src/game/simulate";
 import { composeStats, createGearItem } from "../src/game/items";
 import { createPet } from "../src/game/pets";
 import { getRegion } from "../src/game/regions";
+import { regionReference } from "../src/game/threat";
 import { activePlayer, developHeroes } from "./simKit";
 
 // Tuning: TUNE="boneyard:1.3:1.3,frostfang:1:1.2" npm run scenarios ... multiplies
@@ -52,12 +53,15 @@ const GEAR = flag("--gear") || "common";
 
 // The bar is set low on purpose (the lowest level allowed in, gear a tier
 // below the region's), so the baseline isn't a sure win and differences show.
-const SETUPS = {
-  boneyard: { level: 3, tier: 1 },
-  frostfang: { level: 4, tier: 2 },
-  ashen: { level: 6, tier: 3 },
-  blightmire: { level: 10, tier: 4 },
-};
+// Regions are tuned for this party (threat.js `regionReference`); stronger
+// parties meet stronger enemies. `--levels N` / `--tiers N` add levels and gear
+// tiers, e.g. `--gear rare --levels 3 --tiers 1` for a well-geared party.
+const LEVELS = Number(flag("--levels")) || 0;
+const TIERS = Number(flag("--tiers")) || 0;
+const SETUPS = Object.fromEntries(["boneyard", "frostfang", "ashen", "blightmire"].map((id) => {
+  const { level, tier } = regionReference(getRegion(id));
+  return [id, { level: level + LEVELS, tier: tier + TIERS }];
+}));
 const REGIONS = (flag("--regions") || (GROUP === "qualities" ? "frostfang" : Object.keys(SETUPS).join(","))).split(",");
 
 const MIXED = ["sword", "bow", "staff", "sword"];

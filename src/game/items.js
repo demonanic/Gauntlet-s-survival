@@ -13,11 +13,16 @@ import { heroTraitEffects } from "../combat/traits";
 
 export const RARITIES = Object.freeze({
   common: { key: "common", name: "Common", word: "Scrap", color: "#94A3B8", mult: 1, sell: 6 },
-  uncommon: { key: "uncommon", name: "Uncommon", word: "Neon", color: "#39FF14", mult: 1.5, sell: 15 },
-  rare: { key: "rare", name: "Rare", word: "Void", color: "#00F3FF", mult: 2.2, sell: 40 },
-  epic: { key: "epic", name: "Epic", word: "Demon", color: "#A855F7", mult: 3.2, sell: 100 },
-  legendary: { key: "legendary", name: "Legendary", word: "Legendary", color: "#FF9F1C", mult: 4.2, sell: 250 },
+  uncommon: { key: "uncommon", name: "Uncommon", word: "Neon", color: "#39FF14", mult: 1.25, sell: 15 },
+  rare: { key: "rare", name: "Rare", word: "Void", color: "#00F3FF", mult: 1.5, sell: 40 },
+  epic: { key: "epic", name: "Epic", word: "Demon", color: "#A855F7", mult: 1.8, sell: 100 },
+  legendary: { key: "legendary", name: "Legendary", word: "Legendary", color: "#FF9F1C", mult: 2.1, sell: 250 },
 });
+// Rarity used to multiply base stats far harder (Rare ×2.2, Epic ×3.2): a Rare
+// party couldn't be hurt anywhere. Items saved before then are rescaled once
+// on load (`gearVersion`). Rarity still adds more random affixes.
+const OLD_RARITY_MULT = Object.freeze({ common: 1, uncommon: 1.5, rare: 2.2, epic: 3.2, legendary: 4.2 });
+export const GEAR_VERSION = 2;
 export const RARITY_ORDER = Object.freeze(["common", "uncommon", "rare", "epic", "legendary"]);
 // Random affixes per rarity (legendary items have fixed powers instead).
 const AFFIX_COUNT = { common: 0, uncommon: 1, rare: 2, epic: 3, legendary: 0 };
@@ -193,9 +198,19 @@ export function createGearItem({ slot, variant, rarity = "common", tier = 1, set
     ...(unique ? { legendary } : {}),
     stats: {},
     value: Math.round(info.sell * tierMult(tier) * (setInfo ? 1.5 : 1)),
+    gearVersion: GEAR_VERSION,
   };
   item.stats = composeStats(item);
   return item;
+}
+
+// A saved item from before the rarity rescale gets today's base stats.
+export function rescaleItemRarity(item) {
+  if (item?.kind !== "gear" || (item.gearVersion || 1) >= GEAR_VERSION) return item;
+  const ratio = (RARITIES[item.rarity]?.mult || 1) / (OLD_RARITY_MULT[item.rarity] || 1);
+  const next = { ...item, baseStats: scaleStats(item.baseStats || item.stats || {}, ratio), gearVersion: GEAR_VERSION };
+  next.stats = composeStats(next);
+  return next;
 }
 
 // "Vampiric Sword of Warmth": first prefix and first suffix. Plain items keep the rarity word.
@@ -456,7 +471,7 @@ const LEGACY_RARITIES = { E1: "common", E2: "uncommon", E3: "rare", E4: "epic", 
 
 export function migrateVaultItem(item) {
   if (!item || typeof item !== "object") return null;
-  if (item.kind === "gear" && GEAR_TEMPLATES[item.slot] && item.stats) return item;
+  if (item.kind === "gear" && GEAR_TEMPLATES[item.slot] && item.stats) return rescaleItemRarity(item);
   const slot = LEGACY_SLOTS[item.slot];
   if (!slot) return null;
   return createGearItem({ slot, rarity: LEGACY_RARITIES[item.rarity] || "common", tier: 1 });
@@ -467,7 +482,7 @@ export function normalizeHeroGear(hero) {
   const equipment = {};
   const saved = hero.equipment && typeof hero.equipment === "object" && !Array.isArray(hero.equipment) ? hero.equipment : {};
   for (const slot of GEAR_SLOTS) {
-    if (saved[slot]?.kind === "gear" && saved[slot].slot === slot) equipment[slot] = saved[slot];
+    if (saved[slot]?.kind === "gear" && saved[slot].slot === slot) equipment[slot] = rescaleItemRarity(saved[slot]);
   }
   const quick = Array.isArray(hero.quickSlots) ? hero.quickSlots : [];
   const quickSlots = Array.from({ length: QUICK_SLOT_COUNT }, (_, index) => {

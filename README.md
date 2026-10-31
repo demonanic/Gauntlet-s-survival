@@ -197,8 +197,14 @@ turns all of that off: it stays exactly where you put it.
 
 The game is meant to be beatable, not won every time. A full party of four arriving at a
 region's minimum level in plain gear a tier below the region wins roughly 70% of trips if
-you leave it alone; good play (abilities, moving heroes, picking fights) and better gear
-push that up. Smaller parties have a much harder time.
+you leave it alone; good play (abilities, moving heroes, picking fights) pushes that up.
+Smaller parties have a much harder time.
+
+Enemies keep up with you: a party stronger than that meets enemies grown to close most
+of the gap (their HP follows your damage, their damage your toughness). Better gear and
+levels still help, they just don't turn a region into a walk. The Rift's waves start at
+your party's strength too. Rarity is also flatter than it used to be (Legendary ×2.1
+instead of ×4.2 over Common).
 
 ### Enemies
 

@@ -32,6 +32,7 @@ import { legacyBonuses } from "./legacy";
 import { BOSS_RANK_SCALING, CHAMPIONS, bossForRank, championFor, getRegion } from "./regions";
 import { simulateEncounter } from "./simulate";
 import { BOND_NAMES, combatBonds, recordSharedWin, separation } from "./bonds";
+import { partyThreat } from "./threat";
 import { ELEMENTS, ROMAN, SPELLS, recordCasts } from "../combat/spells";
 import {
   NEMESIS, growNemesis, nemesisAppearChance, nemesisLevel, nemesisTraits, nemesisTriumphs, regionNemesis, riseNemesis, slayNemesis,
@@ -108,8 +109,13 @@ export function deeperRegion(region, depth = 0) {
   return { ...region, hpScale: region.hpScale * danger, dmgScale: region.dmgScale * danger };
 }
 
+// The region as this trip meets it: deeper legs, and grown to the party's
+// strength when it outclasses the region (threat.js, fixed at departure).
 function tripRegion(run) {
-  return deeperRegion(getRegion(run.regionId), run.depth || 0);
+  const region = deeperRegion(getRegion(run.regionId), run.depth || 0);
+  const threat = run.threat || { hp: 1, dmg: 1 };
+  return threat.hp === 1 && threat.dmg === 1 ? region
+    : { ...region, hpScale: region.hpScale * threat.hp, dmgScale: region.dmgScale * threat.dmg };
 }
 
 // Share of max HP each hero recovers just before the end boss.
@@ -240,6 +246,8 @@ export function startExpedition(state, regionId, heroIds, now, rng = Math.random
     tutorial: !!tutorial && !region.endless,
     // The guided first trip ends where it ends: no pushing deeper.
     guided: !!tutorial,
+    // How much the party outclasses the region (enemy HP and damage multipliers).
+    threat: tutorial ? { hp: 1, dmg: 1 } : partyThreat(ids.map((id) => findHero(next, id)).filter(Boolean), region),
     outcome: null,
   };
   next.expedition = run;
@@ -260,7 +268,7 @@ export function startExpedition(state, regionId, heroIds, now, rng = Math.random
   }
   if (region.endless) {
     addFeed(run, now, "The Rift tears open before them. Something stirs on the other side.", "danger");
-    openPending(run, now, { kind: "rift", wave: buildEndlessWave(1, rng) });
+    openPending(run, now, { kind: "rift", wave: buildEndlessWave(1, rng, run.threat) });
   }
   return { ok: true, state: next };
 }

@@ -169,7 +169,9 @@ export function buildStalkerEncounter(region, progress = 0, rng = Math.random) {
 
 // One Endless Rift wave. Squads grow, then tougher enemy types join; every 5th
 // wave adds a lieutenant and every 10th wave brings a boss from the rotation.
-export function buildEndlessWave(waveNumber, rng = Math.random) {
+// `threat`: how much the party outclasses the Rift (threat.js); every wave of
+// the run carries it on.
+export function buildEndlessWave(waveNumber, rng = Math.random, threat = { hp: 1, dmg: 1 }) {
   const n = Math.max(1, Math.floor(waveNumber));
   const pool = ENDLESS_POOLS.filter((entry) => n >= entry.fromWave).flatMap((entry) => entry.enemies);
   const size = Math.min(ENDLESS.maxSquad, 3 + Math.floor(n / 2));
@@ -181,10 +183,10 @@ export function buildEndlessWave(waveNumber, rng = Math.random) {
     squad[0] = "lieutenant";
   }
   const scale = {
-    hp: ENDLESS.hpBase * ENDLESS.hpGrowth ** (n - 1),
-    dmg: ENDLESS.dmgBase * ENDLESS.dmgGrowth ** (n - 1),
+    hp: ENDLESS.hpBase * ENDLESS.hpGrowth ** (n - 1) * threat.hp,
+    dmg: ENDLESS.dmgBase * ENDLESS.dmgGrowth ** (n - 1) * threat.dmg,
   };
-  return { ...assembleWave(squad, scale, 1 + Math.floor((n - 1) / ENDLESS.wavesPerLootTier)), waveNumber: n };
+  return { ...assembleWave(squad, scale, 1 + Math.floor((n - 1) / ENDLESS.wavesPerLootTier)), waveNumber: n, threat };
 }
 
 function assembleWave(squad, scale, lootTier) {
@@ -228,6 +230,7 @@ export function createEncounterSim(party, regionTier, wave = null) {
     vault: [],
     kills: { total: 0, byType: {} },
     lootTier: wave?.lootTier ?? regionTier,
+    threat: wave?.threat ?? { hp: 1, dmg: 1 },
     minionScale: wave?.scale ?? { hp: 1, dmg: 1 },
     set: wave?.set ?? null,
   };
@@ -242,7 +245,7 @@ export function createEncounterSim(party, regionTier, wave = null) {
 // and moves the sim's loot tier and minion scale along with it.
 export function endlessWaveSource(sim, rng = Math.random) {
   return (wavesCleared) => {
-    const wave = buildEndlessWave(wavesCleared + 1, rng);
+    const wave = buildEndlessWave(wavesCleared + 1, rng, sim.threat);
     sim.lootTier = wave.lootTier;
     sim.minionScale = wave.scale;
     return wave;

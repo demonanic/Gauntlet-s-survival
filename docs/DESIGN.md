@@ -101,7 +101,8 @@ A deliberately small model (not Demonanic's 11 slots), defined in `src/combat/ge
 
 - **Gear slots:** head, chest, legs, arms, weapon, secondary, amulet/ring. Gear adds flat
   attack, defense, max HP, agility (dodge) and crit chance.
-- **Rarity × tier:** Common ×1, Uncommon ×1.5, Rare ×2.2, Epic ×3.2, Legendary ×4.2, multiplied by the
+- **Rarity × tier:** Common ×1, Uncommon ×1.25, Rare ×1.5, Epic ×1.8, Legendary ×2.1 (flattened Oct 2026
+  from ×1.5 / 2.2 / 3.2 / 4.2; older saves are rescaled once, `rescaleItemRarity`), multiplied by the
   tier: ×1 / ×1.6 / ×2.4 for tiers 1–3 (The Gutter / Boneyard Crypt / Frostfang Pass), then
   +0.8 per tier up to tier 10 (ranked bosses, deep Rift waves, the shop's Masterwork).
 - **Weapons:** sword (attack), bow (attack + crit, needs arrows), staff (attack + HP). Every hero starts
@@ -669,6 +670,36 @@ active 15 of 15.
 
 Known gaps: three-hero parties (the starting roster) rarely win past the Boneyard; the
 best single-weapon party differs by region (ranged in the Boneyard, swords elsewhere).
+
+## Enemies that keep up (Oct 2026, `src/game/threat.js`)
+
+Owner report: in Rare gear, parties came home from the Blightmire at 99% HP and won every
+ranked Ashen boss. Owner-approved fix: flatter rarity, and enemies that adapt to the party.
+
+- **Rarity:** Common ×1, Uncommon ×1.25, Rare ×1.5, Epic ×1.8, Legendary ×2.1 (was up to ×4.2).
+  Saves are rescaled once (`GEAR_VERSION` 2, `rescaleItemRarity`).
+- **Threat:** at departure the party's offense (attack with crits) and toughness (HP through
+  defense and dodge) are compared with a reference hero: the region's minimum level, Common
+  gear a tier below (`regionReference`), the party each region is tuned for. Enemy HP ×
+  `(offense ratio / 1.2) ^ 1.5`, enemy damage × the same for toughness, each capped at ×3,
+  fixed for the trip (`run.threat`). The 1.2 slack is for perks the reference lacks; the
+  1.5 power because the measure misses affixes and kill speed. The Rift's waves carry the
+  same threat from wave 1.
+- **First try, reverted:** tuning regions for Rare gear at a higher level. Real parties
+  arrive in mostly Common gear, so Boneyard, Frostfang and Ashen won 0% of hundreds of trips.
+
+Measured (`npm run scenarios -- --group party`, mixed party of four):
+
+| Party | Boneyard | Frostfang | Ashen | Blightmire |
+| --- | --- | --- | --- | --- |
+| Arrival (min level, Common, tier −1) | 75–88% | 71% | 71% | 67% |
+| Rare gear, +3 levels, +1 tier: wins / HP left | – | 100% / 60% | – | 94% / 82% |
+| Same party, enemies closing only the measured gap (power 1) | 100% / 58% | 100% / 79% | 100% / 88% | 100% / 95% |
+
+`npm run balance` (6 idle + 6 active guilds): first Blightmire clear 1.8–5 h in (main:
+1.8–3 h). Endgame 8 h on: idle Ashen boss runs won 61–64% (main 100%), boss rank 9–14
+(main 16–20), Rift median 29–31 waves. Tuning knobs for scripts: `THREAT_CLOSE`,
+`THREAT_SLACK`, `THREAT_MAX` env vars; `--levels N --tiers N` on scenarios.
 
 ## Balance (Oct 2026, `npm run balance`)
 
