@@ -18,11 +18,13 @@ export const THREAT = Object.freeze({
   // much less a party is hit when it kills faster. Measured (Oct 2026): a
   // party in Rare gear, 3 levels and a tier up, wins ~80% at about half HP
   // with 1.5; with 1 it won every trip at 80-95% HP, with 2 it lost most.
+  // MAX keeps the endgame (ranked bosses already grow every rank) near the
+  // approved ~70% wall: cap 8 left idle Ashen boss runs at 30% won, 3 at ~62%.
   close: Number(globalThis.process?.env?.THREAT_CLOSE) || 1.5,
   // Enemies start growing only past this much stronger than the reference
   // (the reference has no perks; real heroes at that level do).
   slack: Number(globalThis.process?.env?.THREAT_SLACK) || 1.2,
-  max: Number(globalThis.process?.env?.THREAT_MAX) || 8,
+  max: Number(globalThis.process?.env?.THREAT_MAX) || 3,
   // The reference hero's stat points, in this order.
   spOrder: Object.freeze(["attack", "defense", "attack"]),
   rarity: "common",
