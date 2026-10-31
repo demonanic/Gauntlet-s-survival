@@ -30,7 +30,7 @@ import { getRegion } from "./game/regions";
 import {
   advanceTutorial, currentStep, nextTutorialStep, restartTutorial, skipTutorial, tutorialActive,
 } from "./game/tutorial";
-import { clearGuild, loadGuild, saveGuild } from "./game/storage";
+import { clearGuild, loadSave, saveGuild } from "./game/storage";
 import Battle from "./screens/Battle";
 import ExpeditionBoard from "./screens/ExpeditionBoard";
 import GuildHall from "./screens/GuildHall";
@@ -44,9 +44,24 @@ const OUTCOME_TITLE = {
 };
 const TABS = [["hall", "Guild Hall"], ["market", "Market"], ["board", "Expeditions"]];
 
+// What to tell the player when this browser's save could not be used.
+function saveNoticeText(boot) {
+  if (!boot.replaced) return null;
+  const why = boot.status === "future"
+    ? "was made by a newer version of Gauntlet than this one"
+    : "could not be read";
+  return boot.preserved
+    ? `Your saved guild ${why}. It has been kept as a backup in this browser, and a new guild was started.`
+    : `Your saved guild ${why}, and it could not be backed up. A new guild was started, but it will not be saved in this browser until you reload, so the old save stays untouched.`;
+}
+
 export default function App() {
   // Prompts wait for the player only while the page is visible; otherwise the party decides alone.
-  const [guild, setGuild] = useState(() => tick(loadGuild(), Date.now(), { interactive: true }));
+  // Loaded once per mount. An unreadable save is backed up before a fresh guild
+  // replaces it; if it could not be backed up, local autosave stays off.
+  const [boot] = useState(() => loadSave());
+  const [saveNotice, setSaveNotice] = useState(() => saveNoticeText(boot));
+  const [guild, setGuild] = useState(() => tick(boot.state, Date.now(), { interactive: true }));
   const [now, setNow] = useState(Date.now());
   const [tab, setTab] = useState("hall");
   const [inBattle, setInBattle] = useState(false);
@@ -75,7 +90,9 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => { saveGuild(guild); }, [guild]);
+  useEffect(() => {
+    if (boot.preserved) saveGuild(guild);
+  }, [guild, boot.preserved]);
 
   // Mutators that may be rejected return { ok, state }; keep the current state on failure.
   const apply = (mutate) => setGuild((current) => {
@@ -97,10 +114,17 @@ export default function App() {
       <header className="mb-3 flex items-center justify-between">
         <h1 className="font-display text-2xl font-black tracking-wider text-cyan-200 text-glow-cyan">GAUNTLET</h1>
         <div className="flex items-center gap-2">
-          <CloudSync guild={guild} onLoadSave={(state) => setGuild(tick(state, Date.now()))} />
+          <CloudSync guild={guild} localReplaced={boot.replaced} onLoadSave={(state) => setGuild(tick(state, Date.now()))} />
           <span className="font-mono-g text-sm font-bold text-yellow-300" data-testid="gold">{guild.gold}g</span>
         </div>
       </header>
+
+      {saveNotice && (
+        <div className="mb-3 rounded border border-yellow-400/50 bg-yellow-400/10 p-2 font-mono-g text-[11px] text-yellow-200" role="alert" data-testid="save-notice">
+          <p>{saveNotice}</p>
+          <button type="button" className="mt-1 text-[10px] text-yellow-300 underline" onClick={() => setSaveNotice(null)}>Dismiss</button>
+        </div>
+      )}
 
       {guild.expedition && (
         <div className="mb-3">
@@ -197,7 +221,7 @@ export default function App() {
           onClick={() => {
             if (!window.confirm("Erase this guild and start over?")) return;
             clearGuild();
-            setGuild(tick(loadGuild(), Date.now()));
+            setGuild(tick(loadSave().state, Date.now()));
           }}
         >
           Reset save
