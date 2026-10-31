@@ -18,7 +18,7 @@ export const THREAT = Object.freeze({
   // Enemies start growing only past this much stronger than the reference
   // (the reference has no perks; real heroes at that level do).
   slack: Number(globalThis.process?.env?.THREAT_SLACK) || 1.2,
-  max: 4,
+  max: Number(globalThis.process?.env?.THREAT_MAX) || 4,
   // The reference hero's stat points, in this order.
   spOrder: Object.freeze(["attack", "defense", "attack"]),
   rarity: "common",
