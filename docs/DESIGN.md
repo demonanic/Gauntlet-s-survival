@@ -402,8 +402,14 @@ bonuses are stamped onto every hero as `hero.guildBonus` so the engine can read 
 
 - **Boss rotation:** after the first Ashen Keep clear its final boss cycles Three-Headed
   Demon → Imperial Necromancer → Abomination → Demon… Each kill raises the guild's boss
-  rank: enemy HP ×1.15 and damage ×1.09 per rank (compounding), bounty +15% per rank, and
-  loot one tier better every two ranks.
+  rank: bounty +15% per rank, loot one tier better every two ranks, and the boss grows
+  (`bossRankScale`, compounding): HP ×1.08 and damage ×1.24 per rank up to rank 20, then
+  HP ×1.06 and damage ×1.14. (Before Oct 2026 it was HP ×1.15 / damage ×1.09: guilds won
+  100% of boss runs, and high ranks only got longer, with 6+ minute fights at rank 25.)
+  Measured (`npm run balance -- --hours 24`, idle): rank 17–19 eight hours after the
+  campaign, 25–29 at twelve, 29–38 at twenty-four; 69–74% of boss runs won. Steeper all
+  the way (×1.24) stopped guilds dead around rank 27; gentler after 20 (×1.04/×1.06) let
+  them win 82–92% and pass rank 50. `npm run ranks` measures a maxed party rank by rank.
   - *Demon:* napalm bottles and two skeletons every 6s.
   - *Imperial Necromancer:* long-range soul bombs; raises two skeletons and a ghost every 8s.
   - *Abomination:* no minions; a toxic slam on every hero within reach, faster once it
