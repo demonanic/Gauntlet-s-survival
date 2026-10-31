@@ -13,7 +13,7 @@ export const BOSS_ROTATION = Object.freeze(["demon", "imperialNecromancer", "nuc
 // Boss ranks grow steeply up to `steepUntil`, then gently, so a guild meets a
 // wall around there but can keep inching past it as its heroes improve.
 export const BOSS_RANK_SCALING = Object.freeze({
-  hpGrowth: 1.08, dmgGrowth: 1.24, steepUntil: 20, gentleHpGrowth: 1.04, gentleDmgGrowth: 1.06, bounty: 0.15,
+  hpGrowth: 1.08, dmgGrowth: 1.24, steepUntil: 20, gentleHpGrowth: 1.05, gentleDmgGrowth: 1.10, bounty: 0.15,
 });
 
 // HP and damage multipliers for the boss at `rank` (0-based).

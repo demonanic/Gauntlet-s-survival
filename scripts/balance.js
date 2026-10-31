@@ -173,9 +173,13 @@ function runExpedition(state, clock, region, party, active) {
     console.log(`[${active ? "active" : "idle"}] ${region.id} ${report.outcome} · fights ${report.stats.fights} · ambushes ${report.stats.ambushes} · party ${before.join(" | ")}`);
     if (report.outcome !== "victory") console.log(`    ...${report.log.slice(-3).join(" | ").slice(0, 300)}`);
   }
+  // The tick above ran the guild clock ahead to `until`; wind it back to when
+  // the trip really ended, or resting afterwards would heal nobody.
+  const back = report.endedAt + report.stats.autoFightSeconds * 1000;
+  state.lastTickAt = back;
   return {
     state,
-    clock: report.endedAt + report.stats.autoFightSeconds * 1000,
+    clock: back,
     reached: region.endless ? report.wavesCleared || 0 : report.stats.fights,
     // A trip counts as won once it's done, even if pushing deeper went badly.
     outcome: report.depth > 0 ? "victory" : report.outcome,
