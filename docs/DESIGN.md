@@ -485,6 +485,21 @@ press-your-luck question comes back every few minutes.
 - **Records:** `state.records.deepest[regionId]`; reports carry `depth`. The balance and
   scenario scripts count a finished trip as won even if the depths went badly.
 
+## Perk tree status (Oct 2026)
+
+Every Bible node is purchasable and wired except the three Phase 2 nodes (C3 Construct,
+C3a Familiar, N3 Primal Bond), still gated as in Demonanic. The last pending ones:
+
+- **Ward (C2a, special move):** absorb the next 80 damage to the lowest-HP ally within
+  150 units, or the caster; 18 s. The Bible left the range open; the owner chose 150 (same
+  as Interpose).
+- **Loaded Dice (F2, passive):** each direct weapon hit has a 10% chance of ×1.5 and 20% of
+  ×0.75; neutral on average (the owner's option 3).
+- **Jackpot (F3, special move):** the next 3 direct weapon hits are crits; 35 s.
+- **Special moves are manual** (owner's call): they fire only when the player taps them on
+  the battle card, never on auto or in unattended fights. Spells, by contrast, cast on auto
+  and on tap. Nodes that add a button are tagged ★ Special move / ✦ Spell in the tree.
+
 ## Spells (Arcana, `src/combat/spells.js`)
 
 Owner-approved design (Oct 2026). The Bible's Arcana nodes, built for Gauntlet:

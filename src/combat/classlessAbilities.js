@@ -156,6 +156,37 @@ const CLASSLESS_ABILITIES = Object.freeze([
     effect: "crimson_covenant",
     requiresTarget: false,
   }),
+  // Ward's range: the Bible left it open; the owner chose 150, like Interpose,
+  // with the caster as the fallback target (Oct 2026).
+  Object.freeze({
+    id: "C2a",
+    branch: "Conjuration",
+    unlockNodeId: "C2a",
+    name: "Ward",
+    description: "Absorb the next 80 damage dealt to the lowest-HP allied hero within 150 battlefield units (you, if no ally qualifies).",
+    cooldownSeconds: 18,
+    resourceCost: 0,
+    targetMode: null,
+    rangeMode: "allies_in_radius",
+    range: 150,
+    absorb: 80,
+    effect: "ward",
+    requiresTarget: false,
+  }),
+  Object.freeze({
+    id: "F3",
+    branch: "Fortune",
+    unlockNodeId: "F3",
+    name: "Jackpot",
+    description: "Your next 3 direct weapon hits are guaranteed critical hits.",
+    cooldownSeconds: 35,
+    resourceCost: 0,
+    targetMode: null,
+    rangeMode: "self",
+    guaranteedHits: 3,
+    effect: "jackpot",
+    requiresTarget: false,
+  }),
 ]);
 
 const DEFINITIONS = new Map(CLASSLESS_ABILITIES.map((ability) => [ability.id, ability]));

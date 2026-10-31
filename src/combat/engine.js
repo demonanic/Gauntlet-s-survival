@@ -931,6 +931,19 @@ export class Engine {
       this._float(protectedHero.x, protectedHero.y - 22, "INTERPOSE", "#22D3EE");
       this.effects.push({ kind: "shield", x: protectedHero.x, y: protectedHero.y, r: 22, life: 0.5, color: "#22D3EE" });
       affectedTargets = [protectedHero];
+    } else if (definition.effect === "ward") {
+      const allies = this.heroes.filter((ally) => ally !== h && ally.alive &&
+        Math.hypot(ally.x - h.x, ally.y - h.y) <= definition.range);
+      const warded = allies.sort((a, b) => a.ref.hp - b.ref.hp || a.i - b.i)[0] || h;
+      warded.ref.shield = (warded.ref.shield || 0) + definition.absorb;
+      this._float(warded.x, warded.y - 22, "WARD", "#A78BFA");
+      this.effects.push({ kind: "shield", x: warded.x, y: warded.y, r: 22, life: 0.5, color: "#A78BFA" });
+      affectedTargets = [warded];
+    } else if (definition.effect === "jackpot") {
+      h.jackpotHits = definition.guaranteedHits;
+      this._float(h.x, h.y - 22, "JACKPOT", "#FFE600");
+      this.effects.push({ kind: "guard", x: h.x, y: h.y, r: 22, life: 0.5, color: "#FFE600" });
+      affectedTargets = [h];
     } else if (definition.effect === "crimson_covenant") {
       const state = h.classlessCombatState;
       state.covenantUntil = this.time + definition.durationSeconds;
@@ -3037,8 +3050,17 @@ export class Engine {
     if (p.elementalBonus) damage *= 1 + Math.min(0.5, p.elementalBonus);
     // Vanish's next-hit bonus belongs to the shared situational category and
     // therefore obeys its canonical +50% cap in the damage pipeline.
-    const crit = p.guaranteedCrit || Math.random() < hero.d.critChance;
+    // Jackpot: the next few direct weapon hits are sure crits.
+    const jackpot = p.damageCategory === "weapon" && !p.ability && hero.jackpotHits > 0;
+    if (jackpot) hero.jackpotHits -= 1;
+    const crit = p.guaranteedCrit || jackpot || Math.random() < hero.d.critChance;
     if (crit) damage *= hero.d.critMult;
+    // Loaded Dice: 10% of weapon hits deal 150%, 20% deal 75%.
+    if (p.damageCategory === "weapon" && effects.loadedDice) {
+      const roll = Math.random();
+      if (roll < 0.1) damage *= 1.5;
+      else if (roll < 0.3) damage *= 0.75;
+    }
     // Master Marksman: a ranged crit finishes off a badly wounded common foe.
     if (crit && p.damageCategory === "weapon" && hero.d.rangeMode === "midline" && traits?.execute > 0 &&
       !target.boss && !target.legendary && target.tier !== "elite" && target.hp - damage <= target.maxHp * traits.execute) {
