@@ -12,6 +12,24 @@
 export const BOSS_ROTATION = Object.freeze(["demon", "imperialNecromancer", "nuclearBehemoth"]);
 export const BOSS_RANK_SCALING = Object.freeze({ hpGrowth: 1.15, dmgGrowth: 1.09, bounty: 0.15 });
 
+// Every 5th boss rank (5, 10, 15...) is a Champion with one extra mechanic,
+// in this order; it pays double bounty and an extra crystal.
+export const CHAMPION_EVERY = 5;
+export const CHAMPIONS = Object.freeze({
+  warded: { name: "Warded", text: "shields itself at 66% and 33% HP, restoring 15% of its health" },
+  swarming: { name: "Swarming", text: "calls two skeletons every 4 seconds, up to six alive" },
+  frenzied: { name: "Frenzied", text: "below half HP attacks 40% faster and hits 20% harder" },
+  vampiric: { name: "Vampiric", text: "heals 2% of its max HP with every hit" },
+});
+export const CHAMPION_ORDER = Object.freeze(["warded", "swarming", "frenzied", "vampiric"]);
+
+// The Champion mechanic for the boss at `rank` (0-based), or null.
+export function championFor(rank = 0) {
+  const shown = Math.max(0, rank) + 1;
+  if (shown % CHAMPION_EVERY !== 0) return null;
+  return CHAMPION_ORDER[(shown / CHAMPION_EVERY - 1) % CHAMPION_ORDER.length];
+}
+
 export function bossForRank(rank = 0) {
   return BOSS_ROTATION[Math.max(0, rank) % BOSS_ROTATION.length];
 }

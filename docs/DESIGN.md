@@ -409,6 +409,13 @@ bonuses are stamped onto every hero as `hero.guildBonus` so the engine can read 
   - *Abomination:* no minions; a toxic slam on every hero within reach, faster once it
     enrages below 35% HP.
   - Minions summoned mid-fight spawn at 60% HP / 70% damage of the encounter's scale.
+- **Champions** (owner-approved, Oct 2026; `championFor`, `CHAMPIONS` in regions.js,
+  `_championTick` / `_vampiric` in the engine): boss ranks 5, 10, 15... (`CHAMPION_EVERY`)
+  rotate Warded (at 66% and 33% HP restore 15% max HP), Swarming (two skeletons every 4 s,
+  up to 6 summons alive), Frenzied (below 50%: attack speed ×1.4, damage ×1.2, once) and
+  Vampiric (2% max HP back per hit landed, melee or projectile). The boss is named for it
+  ("Frenzied Abomination"), the feed explains the mechanic, and a kill pays double bounty
+  and a second Flawless crystal.
 - **The Endless Rift** (LV 3+): one continuous fight. Each cleared wave rolls into the next
   after 3 seconds; HP ×1.10 and damage ×1.07 per wave, squads grow to 8, a lieutenant
   every 5th wave and a rotating boss every 10th. Loot tier rises every 5 waves. Return home
