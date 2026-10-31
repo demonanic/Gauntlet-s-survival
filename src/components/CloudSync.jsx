@@ -26,7 +26,9 @@ function SaveSummary({ title, summary, updatedAt }) {
 
 // Cloud saves: sign in with email + password; the guild then syncs on its own.
 // `onLoadSave(state)` replaces the local guild when the player picks the cloud copy.
-export default function CloudSync({ guild, onLoadSave }) {
+// `localReplaced`: this device's save was unreadable and a fresh guild started;
+// signing in then always asks before anything is written to the cloud.
+export default function CloudSync({ guild, onLoadSave, localReplaced = false }) {
   const [user, setUser] = useState(null);
   const [open, setOpen] = useState(false);
   const [choice, setChoice] = useState(null);
@@ -73,7 +75,7 @@ export default function CloudSync({ guild, onLoadSave }) {
       try {
         const remote = await fetchCloudSave(user.id);
         if (cancelled) return;
-        if (needsSaveChoice(readLastSync(), user.id, remote)) setChoice(remote);
+        if (needsSaveChoice(readLastSync(), user.id, remote, localReplaced)) setChoice(remote);
         else await push();
       } catch (error) {
         if (!cancelled) setStatus({ kind: "error", message: error.message });

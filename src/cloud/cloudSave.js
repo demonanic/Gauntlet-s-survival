@@ -90,7 +90,10 @@ export function writeLastSync(userId, updatedAt, storage = globalThis.localStora
   }
 }
 
-export function needsSaveChoice(lastSync, userId, remote) {
+// `localReplaced`: this device's save could not be read and a fresh guild was
+// started, so the cloud copy must never be overwritten without asking.
+export function needsSaveChoice(lastSync, userId, remote, localReplaced = false) {
   if (!remote) return false;
+  if (localReplaced) return true;
   return lastSync?.userId !== userId || lastSync.updatedAt !== remote.updatedAt;
 }
