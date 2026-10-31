@@ -43,8 +43,8 @@ These were judged to work well. A PR that weakens one needs an explicit reason t
 | 0 | Record a baseline | (all) | Done |
 | 1 | Versioned save upgrades; an unreadable save is never silently overwritten | F4 | Done (#28, merged `30731da`) |
 | 2 | Enemy-definition coverage tests | F3 (first step) | Done (#29, merged `57f9143`) |
-| 3 | One fight-outcome builder for watched and unattended fights | F5 | Done, in review (#30) |
-| 4 | Injectable, seedable randomness | F7 | Not started |
+| 3 | One fight-outcome builder for watched and unattended fights | F5 | Done (#30, merged `c6a07c7`) |
+| 4 | Injectable, seedable randomness | F7 | In progress |
 | 5 | Legacy reachability investigation (no edits) | F2, F9 | Not started |
 | 6 | Remove only verified legacy code, in small PRs | F2, F9 | Not started |
 | 7 | Move fight results and rewards out of `expedition.js` | F6 | Not started |
@@ -105,7 +105,7 @@ Phase 2 report:
 | Unreachable | None. Every enemy in `C.ENEMIES` can appear in a fight. |
 | Uncertain | Boss summon types are written into the engine (`"bandit"`, `"skeleton"`, `"ghost"`), and `sim.makeMinion` silently turns an unknown type into a skeleton. The fight test records every summon and fails on an unknown type, but only for summons that happen within its 20 seconds. Candidate for Phase 6A (fail loudly). The engine's per-type behavior checks are string comparisons; a misspelt type there would not be caught by these tests. Phase 8B (behavior handlers) addresses that. |
 
-### Phase 3: One fight-outcome builder (done, in review)
+### Phase 3: One fight-outcome builder (done)
 
 - [x] Documented the outcome fields from both paths. Before Phase 3 both built the same 11 fields by hand: `victory`, `party`, `xpGains`, `gold`, `items`, `wavesCleared`, `downed`, `nemesisSlain`, `nemesisFled`, `clutches`, `spellCasts`. The engine's `onEnd` also gave `reason` and `killed` (dropped by both) and `xpGains.towers` (legacy, dropped). The two paths differed only in their edge cases: the Battle screen's engine-error result paid no gold or items; an unattended fight that hit the headless time limit (no engine result) kept its gold and items.
 - [x] Tested that they matched before the refactor (`src/game/fightOutcome.test.js`, characterization block, written and passing on the old code): both mappings gave equal results for a real win, a real defeat and a real Endless Rift return, and for a synthetic result with every field set; and the same engine result fed through the old watched mapping and the unattended path gave the same expedition state.
@@ -117,7 +117,7 @@ Phase 2 report:
 - [x] A first run showed one rare failure (about 1 in 49 runs): the recorded fights used unseeded randomness. Fixed by seeding the case setup and recording; then 0 failures in 30 runs.
 - [x] Full suite: 30 files, 434 tests passed. Focused suites (expedition, nemesis, clutch, spells, endgame, fight outcome, classless engine): 7 files, 132 tests passed. Production build succeeded.
 - [x] Played in the browser (`npm run dev`, `?debug`): a watched ambush in the Gutter at 8× showed VICTORY, 3 slain, +14g, and after Continue the save had 1 fight, 14 gold of loot, 0 auto-fight seconds. An unattended fight left past the prompt timer resolved on its own: 1 fight, 12 gold, 5 auto-fight seconds. No page or console errors.
-- [ ] Sam merges the PR.
+- [x] Sam merged PR #30 (`c6a07c7`); 434 tests pass on `main` after the merge, and the live site redeployed with it.
 
 Canonical fight result (`buildFightOutcome`): `victory`, `reason` (`"cleared"`, `"returned"`, `"heroes"`, `"error"` or `null` for the time limit), `party`, `xpGains`, `gold`, `items`, `wavesCleared`, `killed`, `downed`, `nemesisSlain`, `nemesisFled`, `clutches`, `spellCasts`. `reason` and `killed` are new to the result; nothing in `applyFightResult` reads them, so behavior is unchanged.
 
@@ -226,3 +226,4 @@ None right now. New questions for Sam are listed here until answered.
 | 2026-10-31 | Phase 2 review | #29 | Review passed (Sam). Test and roadmap wording corrected: the fight test shows engine participation, rendering and observed summons, not enemy-specific behavior. No gameplay change; 411 tests pass, build passes |
 | 2026-10-31 | Phase 2 merged | #29 | Merged `57f9143`; 411 tests pass on `main` |
 | 2026-10-31 | Phase 3 one fight-outcome builder | #30 | 434 tests pass, build passes, watched and unattended fights checked in the browser |
+| 2026-10-31 | Phase 3 merged | #30 | Merged `c6a07c7`; 434 tests pass on `main`; live site redeployed |
