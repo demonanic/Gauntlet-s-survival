@@ -1,5 +1,6 @@
 import HallOfLegends from "../components/HallOfLegends";
 import NemesisBoard from "../components/NemesisBoard";
+import BondOffers from "../components/BondOffers";
 import HeroRow from "../components/HeroRow";
 import ItemDetails from "../components/ItemDetails";
 import { NeonButton, Panel } from "../components/ui";
@@ -11,7 +12,7 @@ const byRarityThenSlot = (a, b) => RARITY_ORDER.indexOf(b.rarity) - RARITY_ORDER
   || (b.tier || 1) - (a.tier || 1) || a.slot.localeCompare(b.slot);
 
 export default function GuildHall({
-  guild, now, onRecruit, onOpenPerks, onOpenGear, onSell, onSalvage, onUpgrade, onReforge, onTreat, onRetire, onBuyLegacy,
+  guild, now, onRecruit, onOpenPerks, onOpenGear, onSell, onSalvage, onUpgrade, onReforge, onTreat, onRetire, onBuyLegacy, onAnswerBond,
 }) {
   const cost = recruitCost(guild);
   const vault = [...guild.vault].sort(byRarityThenSlot);
@@ -107,6 +108,7 @@ export default function GuildHall({
           </ul>
         )}
       </Panel>
+      <BondOffers guild={guild} onAnswer={onAnswerBond} />
       <NemesisBoard guild={guild} />
       <HallOfLegends guild={guild} onBuy={onBuyLegacy} />
     </div>

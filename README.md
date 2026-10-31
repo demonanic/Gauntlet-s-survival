@@ -89,9 +89,12 @@ don't choose, the hero's nature does: Reckless and Berserker heroes swing, every
 drinks. Fights you aren't watching decide the same way, and the feed tells the story.
 
 **Bonds:** heroes who come through won fights side by side grow closer: **Acquainted** after
-10 shared wins, **Comrades** after 30 (+5% damage while both are standing) and **Sworn**
-after 75 (each hero has only one Sworn partner: when one drops below a quarter of their HP,
-the other leaps in and shields them, once a fight). When a bonded partner falls mid-fight,
+10 shared wins; after 30 they can become **Comrades** (+5% damage while both are standing),
+and after 75 swear to be **Sworn** (each hero has only one Sworn partner: when one drops
+below a quarter of their HP, the other leaps in and shields them, once a fight). Comrades
+and Sworn are your call: a card in the Guild Hall explains what the bond does and asks;
+"Not now" asks again after 10 more shared wins. A bond is a commitment: setting out
+without a hero's Comrade costs the party 2 morale (4 for a Sworn partner). When a bonded partner falls mid-fight,
 most heroes fly into **Vengeance** (+25% damage for 10 seconds); calm ones (Stalwart,
 Steadfast, Paranoid) are **Shaken** instead (-10% for the rest of the fight). Retire a
 Comrade or Sworn partner and the other remembers them: +3% damage, up to three memories.

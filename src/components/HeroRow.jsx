@@ -68,6 +68,9 @@ export default function HeroRow({ hero, guild, status, injuredUntil, now, select
               <span key={bond.partnerId} className={bond.level === "sworn" ? "text-sky-300" : bond.level === "comrades" ? "text-sky-200/80" : "text-slate-500"}
                 title={`${bond.wins} wins side by side`}>
                 {BOND_NAMES[bond.level]}: {bond.name}
+                {bond.toNext != null && (bond.toNext > 0
+                  ? ` · ${bond.wins}/${bond.wins + bond.toNext}`
+                  : " · ready")}
               </span>
             ))}
             {memorials.map((memory, index) => (

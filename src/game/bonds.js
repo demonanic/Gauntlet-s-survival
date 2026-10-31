@@ -1,7 +1,10 @@
 // Bonds between heroes. Two heroes who both come through a won fight
 // standing grow closer: Acquainted, then Comrades (+5% damage while both are
 // up), then Sworn (one Sworn partner each: when one drops low, the other
-// shields them, once a fight). When a bonded partner falls mid-fight a hero
+// shields them, once a fight). Becoming Comrades and swearing the Sworn pact
+// are the player's choice, made on a card at the guild (`bondOffers`); "not
+// now" asks again after a few more shared wins. Leaving a Comrade or Sworn
+// partner behind when the party sets out costs a little morale. When a bonded partner falls mid-fight a hero
 // flies into Vengeance, or, if calm by nature, is Shaken. A Comrade or Sworn
 // partner who retires is remembered: +3% damage, up to three memories.
 // Owner-approved design (Oct 2026).
@@ -23,6 +26,10 @@ export const BONDS = Object.freeze({
   calm: Object.freeze(["stalwart", "steadfast", "paranoid"]),
   memorialDamage: 0.03,
   maxMemorials: 3,
+  // "Not now" on a bond offer: ask again after this many more shared wins.
+  snoozeWins: 10,
+  // Morale lost when the party sets out without a hero's Comrade / Sworn partner.
+  separationMorale: Object.freeze({ comrades: 2, sworn: 4 }),
 });
 
 export const BOND_LEVELS = Object.freeze(["none", "acquainted", "comrades", "sworn"]);
@@ -39,9 +46,63 @@ function bondFor(state, a, b) {
 export function bondLevel(bond) {
   if (!bond) return "none";
   if (bond.sworn) return "sworn";
-  if (bond.wins >= BONDS.comrades) return "comrades";
+  if (bond.comrades) return "comrades";
   if (bond.wins >= BONDS.acquainted) return "acquainted";
   return "none";
+}
+
+// The step a pair has earned but not yet been offered or accepted: "comrades",
+// "sworn", or null.
+function earnedStep(state, a, b, bond) {
+  if (!bond || bond.sworn || bond.wins < (bond.askAt || 0)) return null;
+  if (!bond.comrades) return bond.wins >= BONDS.comrades ? "comrades" : null;
+  if (bond.wins < BONDS.sworn || swornPartner(state, a) || swornPartner(state, b)) return null;
+  return "sworn";
+}
+
+// Bonds waiting on the player: [{ a, b, step, wins }], Sworn first.
+export function bondOffers(state) {
+  const present = new Set((state.heroes || []).map((hero) => hero.identity.id));
+  return Object.entries(state.bonds || {})
+    .map(([key, bond]) => {
+      const [a, b] = key.split("|");
+      if (!present.has(a) || !present.has(b)) return null;
+      const step = earnedStep(state, a, b, bond);
+      return step ? { a, b, step, wins: bond.wins } : null;
+    })
+    .filter(Boolean)
+    .sort((x, y) => (y.step === "sworn") - (x.step === "sworn") || y.wins - x.wins);
+}
+
+// The player answers a bond offer. Returns { ok, state } with a copy of `state`.
+export function answerBond(state, a, b, accept) {
+  const offer = bondOffers(state).find((entry) => bondKey(entry.a, entry.b) === bondKey(a, b));
+  if (!offer) return { ok: false, reason: "no_offer" };
+  const next = structuredClone(state);
+  const bond = next.bonds[bondKey(a, b)];
+  if (!accept) bond.askAt = bond.wins + BONDS.snoozeWins;
+  else if (offer.step === "comrades") bond.comrades = true;
+  else bond.sworn = true;
+  return { ok: true, state: next };
+}
+
+// Wins still needed for the next step (null at Sworn, or when one is waiting).
+export function winsToNext(bond) {
+  if (!bond || bond.sworn) return null;
+  const target = bond.comrades ? BONDS.sworn : bond.wins < BONDS.acquainted ? BONDS.acquainted : BONDS.comrades;
+  return Math.max(0, target - bond.wins);
+}
+
+// Morale the party loses setting out without some heroes' bonded partners,
+// and who is missed: { morale, missed: [{ hero, partner }] }.
+export function separation(state, partyIds) {
+  const missed = [];
+  for (const id of partyIds) {
+    for (const { partnerId, level } of heroBonds(state, id)) {
+      if ((level === "comrades" || level === "sworn") && !partyIds.includes(partnerId)) missed.push({ hero: id, partner: partnerId, level });
+    }
+  }
+  return { morale: missed.reduce((sum, entry) => sum + BONDS.separationMorale[entry.level], 0), missed };
 }
 
 export function swornPartner(state, id) {
@@ -54,34 +115,36 @@ export function swornPartner(state, id) {
   return null;
 }
 
-// A hero's bonds of Acquainted or better: [{ partnerId, level, wins }], strongest first.
+// A hero's bonds of Acquainted or better: [{ partnerId, level, wins, toNext }], strongest first.
 export function heroBonds(state, id) {
   return Object.entries(state.bonds || {})
     .map(([key, bond]) => {
       const [a, b] = key.split("|");
       if (a !== id && b !== id) return null;
       const level = bondLevel(bond);
-      return level === "none" ? null : { partnerId: a === id ? b : a, level, wins: bond.wins };
+      return level === "none" ? null : { partnerId: a === id ? b : a, level, wins: bond.wins, toNext: winsToNext(bond) };
     })
     .filter(Boolean)
     .sort((x, y) => BOND_LEVELS.indexOf(y.level) - BOND_LEVELS.indexOf(x.level) || y.wins - x.wins);
 }
 
 // Every pair among `ids` (heroes still standing after a won fight) grows
-// closer. Mutates `state`; returns the pairs that reached a new level as
-// [{ a, b, level }].
+// closer. Mutates `state`; returns what changed as [{ a, b, level }] for a pair
+// that just became Acquainted, or [{ a, b, offer }] for one that just earned
+// the chance to become Comrades or Sworn (the player decides at the guild).
 export function recordSharedWin(state, ids) {
   state.bonds ||= {};
   const grown = [];
   for (let i = 0; i < ids.length; i += 1) {
     for (let j = i + 1; j < ids.length; j += 1) {
-      const key = bondKey(ids[i], ids[j]);
-      const bond = (state.bonds[key] ||= { wins: 0 });
+      const [a, b] = [ids[i], ids[j]];
+      const bond = (state.bonds[bondKey(a, b)] ||= { wins: 0 });
       const before = bondLevel(bond);
+      const offered = earnedStep(state, a, b, bond);
       bond.wins += 1;
-      if (!bond.sworn && bond.wins >= BONDS.sworn && !swornPartner(state, ids[i]) && !swornPartner(state, ids[j])) bond.sworn = true;
-      const after = bondLevel(bond);
-      if (after !== before) grown.push({ a: ids[i], b: ids[j], level: after });
+      if (bondLevel(bond) !== before) grown.push({ a, b, level: bondLevel(bond) });
+      const offer = earnedStep(state, a, b, bond);
+      if (offer && offer !== offered) grown.push({ a, b, offer });
     }
   }
   return grown;
