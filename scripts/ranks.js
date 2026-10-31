@@ -10,9 +10,10 @@ import { createGuild, currentEncounterParty, recruitHero } from "../src/game/gui
 import { createGearItem } from "../src/game/items";
 import { championFor, getRegion } from "../src/game/regions";
 import { simulateEncounter } from "../src/game/simulate";
-import { activePlayer, developHeroes } from "./simKit";
+import { activePlayer, applySeedFlag, developHeroes } from "./simKit";
 
 const args = process.argv.slice(2);
+applySeedFlag(args);
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : null);
 const RANKS = (flag("--ranks") || "0,5,10,15,20,25,30").split(",").map(Number);
 const FIGHTS = Number(flag("--fights")) || 8;

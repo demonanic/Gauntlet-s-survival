@@ -90,6 +90,10 @@ on the Demonanic combat engine.
   all bows, all staves, mixed, trio, duo, solo), every innate quality and best/worst
   loadouts, and revive rules (Gravebinder Ring, one or two second chances). Reports win
   rate, fights, sneaks, ambushes, knockouts, morale and HP at the end of the trip.
+- `--seed N` on `balance`, `scenarios` and `ranks` makes a run repeatable (same seed and
+  flags, same numbers). In the game, randomness comes in as an `rng` function
+  (`src/game/random.js`): `Math.random` in play, `seededRandom(seed)` in tests and tools.
+  The combat engine and encounter sim take it from `createEncounterSim(..., { rng })`.
 - `scripts/simKit.js`: the scripted player both scripts share (perk and stat build,
   "active" ability use).
 - `src/screens/`, `src/components/`: React UI (Tailwind).

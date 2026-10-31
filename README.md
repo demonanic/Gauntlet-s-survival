@@ -306,6 +306,10 @@ npm run balance   # simulate full playthroughs and report balance numbers
 npm run scenarios # compare party make-ups, qualities and revive rules side by side
 ```
 
+Add `-- --seed 7` (any whole number) to `balance`, `scenarios` or `ranks` to make a run
+repeatable: the same seed and flags give the same numbers. Without it every run differs,
+by about ±15% at 24 trips.
+
 Saves live in the browser's `localStorage`. Use **Reset save** at the bottom of the
 page to start over.
 

@@ -15,6 +15,7 @@
 //   npm run scenarios -- --regions ashen,blightmire
 //   npm run scenarios -- --active             # fire abilities as soon as they're ready
 //   npm run scenarios -- --gear uncommon      # gear rarity (default common)
+//   npm run scenarios -- --seed 7             # repeatable run: same seed and flags, same numbers
 //
 // Every trip is unattended: the party decides every prompt on its own. Camp
 // (on 20+ minute trips) revives fallen heroes at 10% HP in every scenario.
@@ -32,7 +33,7 @@ import { composeStats, createGearItem } from "../src/game/items";
 import { createPet } from "../src/game/pets";
 import { getRegion } from "../src/game/regions";
 import { regionReference } from "../src/game/threat";
-import { activePlayer, developHeroes } from "./simKit";
+import { activePlayer, applySeedFlag, developHeroes } from "./simKit";
 
 // Tuning: TUNE="boneyard:1.3:1.3,frostfang:1:1.2" npm run scenarios ... multiplies
 // those regions' enemy HP and damage scales for this run only.
@@ -43,6 +44,7 @@ for (const entry of (process.env.TUNE || "").split(",").filter(Boolean)) {
   region.dmgScale *= Number(dmg);
 }
 const args = process.argv.slice(2);
+applySeedFlag(args);
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : null);
 const GROUP = flag("--group") || "all";
 const TRIPS = Number(flag("--trips")) || 16;

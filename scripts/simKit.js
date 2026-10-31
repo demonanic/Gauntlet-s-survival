@@ -2,6 +2,19 @@
 // scripted player builds heroes and plays a live fight.
 import { allocateClasslessStat, purchaseClasslessNode } from "../src/combat/classlessProgression";
 import { updateHero } from "../src/game/guild";
+import { seededRandom } from "../src/game/random";
+
+// `--seed N` makes a run repeatable: every random roll in it (guild creation,
+// trips, fights, loot, the shop) comes from one seeded generator. Without the
+// flag the run uses Math.random as before. Returns the seed, or null.
+export function applySeedFlag(args) {
+  if (!args.includes("--seed")) return null;
+  const seed = Number(args[args.indexOf("--seed") + 1]);
+  if (!Number.isInteger(seed)) throw new RangeError("--seed needs a whole number");
+  Math.random = seededRandom(seed);
+  console.log(`Seed ${seed}: this run can be repeated exactly with the same flags.`);
+  return seed;
+}
 
 // A sensible generic build: survivability and damage first, then actives.
 export const PERK_ORDER = ["V1", "W1", "P1", "V2", "W2", "P2a", "P3", "W2a", "S1", "P2", "V3", "T1", "S2", "F1"];
