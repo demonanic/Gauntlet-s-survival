@@ -23,6 +23,7 @@ import { heroTraitEffects } from "./traits";
 import { isNeonIdentityColor } from "./heroModel";
 import { heroSpriteFilter } from "./heroPalette";
 import { combatVfxAssetId, drawCombatVfx, getCombatVfxImage, projectileVfxAssetId } from "./combatVfx";
+import { defaultRandom } from "../game/random";
 
 let heroSpriteImage = null;
 const classlessWeaponImages = new Map();
@@ -211,6 +212,9 @@ export class Engine {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
     this.sim = sim;              // cloned fragment (mutated)
+    // Every random roll in the fight (game/random.js). A sim made with a seeded
+    // rng gives the same fight for the same inputs; otherwise Math.random.
+    this.rng = typeof sim.rng === "function" ? sim.rng : defaultRandom;
     this.wave = wave;           // {enemies,total,...}
     this.cb = callbacks;
     this.speed = 1;
@@ -1340,7 +1344,7 @@ export class Engine {
     if (!slot) return false;
     const item = CONSUMABLES[slot.key];
     h.arrowShots = (h.arrowShots || 0) + 1;
-    if (h.arrowShots % ARROW_SHOTS === 0 && !(Math.random() < Math.min(0.75, h.d.gear?.arrowSaver || 0))) {
+    if (h.arrowShots % ARROW_SHOTS === 0 && !(this.rng() < Math.min(0.75, h.d.gear?.arrowSaver || 0))) {
       slot.qty -= 1;
       h.model.arrowsSpent ||= {};
       h.model.arrowsSpent[slot.key] = (h.model.arrowsSpent[slot.key] || 0) + 1;
@@ -1427,7 +1431,7 @@ export class Engine {
       const capInZone = Math.max(4, this.wave.total * 0.5);
       if (this.active.length < capInZone) {
         const e = this.spawnQueue.shift();
-        e.x = laneX(pickLane(this, e)); e.y = 10 + Math.random() * 20;
+        e.x = laneX(pickLane(this, e)); e.y = 10 + this.rng() * 20;
         e.lane = Math.round(e.x / (W / LANES) - 0.5);
         e.dmgBy = {}; e.atkCd = 0; e.state = "advance";
         this.active.push(e);
@@ -2439,7 +2443,7 @@ export class Engine {
       let dmg = p.dmg * falloff;
       if (v.kind === "hero") {
         const h = v.obj;
-        if (Math.random() < this._heroDodgeChance(h, true)) {
+        if (this.rng() < this._heroDodgeChance(h, true)) {
           this._float(h.x, h.y - 20, "DODGE", "#00F3FF");
           continue;
         }
@@ -2588,7 +2592,7 @@ export class Engine {
     }
     const remaining = Math.max(0, damage);
     if (remaining > 0) hero.hitUntil = this.time + 0.24;
-    if (remaining > 0 && hero.d.decoyChance > 0 && state.mirrorReadyAt <= this.time && Math.random() < hero.d.decoyChance) {
+    if (remaining > 0 && hero.d.decoyChance > 0 && state.mirrorReadyAt <= this.time && this.rng() < hero.d.decoyChance) {
       state.decoy = true;
       state.mirrorReadyAt = this.time + 15;
       this.effects.push({ kind: "shield", x: hero.x, y: hero.y, r: 18, life: 0.45, color: "#A78BFA" });
@@ -2770,7 +2774,7 @@ export class Engine {
     if (p.targetKind === "hero") {
       const h = obj;
       if (!h.alive || h.ref?.hp <= 0) return;
-      if (Math.random() < this._heroDodgeChance(h)) {
+      if (this.rng() < this._heroDodgeChance(h)) {
         this._float(h.x, h.y - 20, "DODGE", "#00F3FF");
         return;
       }
@@ -2826,7 +2830,7 @@ export class Engine {
       if (e.type === "warlock") {
         h.ref.shield = 0;
       }
-      if (Math.random() < this._heroDodgeChance(h)) { this._float(h.x, h.y - 20, "DODGE", "#00F3FF"); return; }
+      if (this.rng() < this._heroDodgeChance(h)) { this._float(h.x, h.y - 20, "DODGE", "#00F3FF"); return; }
       // Gauntlet behavior families: predators maul the wounded; a Carrion
       // Priest's sacrifice empowers its allies for a while.
       const predator = e.families?.includes("predator") && h.ref.hp < h.d.maxHp * 0.5 ? 1.4 : 1;
@@ -2937,7 +2941,7 @@ export class Engine {
       const tower = this.towers.find((item) => item.slot === slot);
       if (tower?.ref?.type === "ballista" && e.boss) dmg *= 1 + (tower.d.bossDamagePct || 0);
     }
-    const crit = Math.random() < (p.critChance ?? C.BASE_CRIT);
+    const crit = this.rng() < (p.critChance ?? C.BASE_CRIT);
     if (crit) dmg *= (p.critMult ?? C.CRIT_MULT);
 
     e.hp = Math.max(0, e.hp - dmg);
@@ -3000,7 +3004,7 @@ export class Engine {
       return false;
     }
     // Gauntlet darkness: some weapon attacks miss outright.
-    if (p.damageCategory === "weapon" && hero.d.env?.miss > 0 && Math.random() < hero.d.env.miss) {
+    if (p.damageCategory === "weapon" && hero.d.env?.miss > 0 && this.rng() < hero.d.env.miss) {
       this._float(target.x, target.y - 4, "MISS", "#64748B");
       return false;
     }
@@ -3053,11 +3057,11 @@ export class Engine {
     // Jackpot: the next few direct weapon hits are sure crits.
     const jackpot = p.damageCategory === "weapon" && !p.ability && hero.jackpotHits > 0;
     if (jackpot) hero.jackpotHits -= 1;
-    const crit = p.guaranteedCrit || jackpot || Math.random() < hero.d.critChance;
+    const crit = p.guaranteedCrit || jackpot || this.rng() < hero.d.critChance;
     if (crit) damage *= hero.d.critMult;
     // Loaded Dice: 10% of weapon hits deal 150%, 20% deal 75%.
     if (p.damageCategory === "weapon" && effects.loadedDice) {
-      const roll = Math.random();
+      const roll = this.rng();
       if (roll < 0.1) damage *= 1.5;
       else if (roll < 0.3) damage *= 0.75;
     }
@@ -3177,7 +3181,7 @@ export class Engine {
     if (gear.burn > 0) this._applyDot(target, damage * gear.burn, 3, "#FF6600", p.sourceId);
     if (gear.venom > 0) this._applyDot(target, damage * gear.venom, 4, "#39FF14", p.sourceId);
     // Storm crystals: a chance to arc lightning to the nearest other foe.
-    if (gear.shock > 0 && Math.random() < gear.shock) {
+    if (gear.shock > 0 && this.rng() < gear.shock) {
       const arc = this.active
         .filter((other) => other !== target && other.hp > 0 && Math.hypot(other.x - target.x, other.y - target.y) <= 110)
         .sort((a, b) => Math.hypot(a.x - target.x, a.y - target.y) - Math.hypot(b.x - target.x, b.y - target.y))[0];
@@ -3287,7 +3291,7 @@ export class Engine {
     h.visualActionKind = "attack";
     h.visualActionStartedAt = this.time;
     h.visualActionUntil = this.time + 0.3;
-    if (!(Math.random() < spell.success)) {
+    if (!(this.rng() < spell.success)) {
       this._float(h.x, h.y - 26, "FIZZLE", "#94A3B8");
       return true;
     }
@@ -3472,7 +3476,7 @@ export class Engine {
       this.effects.push({ x: h.x, y: h.y, r: 20, life: 0.4, color: "#39FF14", ring: true });
     } else {
       const target = [h.currentTarget, ...this.active].find((e) => e && e.hp > 0 && !e._dead);
-      if (target && Math.random() < this.clutchCritChance(h)) {
+      if (target && this.rng() < this.clutchCritChance(h)) {
         const sourceId = "H" + h.i;
         const damage = target.boss ? target.maxHp * CLUTCH.bossDamage : target.hp;
         target.hp = Math.max(0, target.hp - damage);
@@ -3528,7 +3532,7 @@ export class Engine {
     if (e.regen > 0) e.hp = Math.min(e.maxHp, e.hp + e.maxHp * e.regen * dt);
     if (e.fleeRolled || e.hp > e.maxHp * (e.fleeBelow || 0)) return false;
     e.fleeRolled = true;
-    if (!(Math.random() < (e.fleeChance || 0))) return false;
+    if (!(this.rng() < (e.fleeChance || 0))) return false;
     this.nemesisFled = e.nemesisId;
     this._float(e.x, e.y - 30, `${e.name.toUpperCase()} FLEES!`, "#F59E0B");
     this.effects.push({ kind: "impact", x: e.x, y: e.y, r: 30, life: 0.5, color: "#F59E0B" });
@@ -4731,9 +4735,9 @@ export class Engine {
   }
 }
 
-function pickLane() {
+function pickLane(engine) {
   // Encounter squads fan out across the top edge; there are no lanes to defend.
-  return Math.floor(Math.random() * LANES);
+  return Math.floor(engine.rng() * LANES);
 }
 function clamp(v) { return Math.max(0, Math.min(100, v)); }
 function roundRect(ctx, x, y, w, h, r) {

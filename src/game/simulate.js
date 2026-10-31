@@ -9,8 +9,10 @@ const MAX_ENDLESS_SECONDS = 3600;
 // Used by tests and balance checks; live play goes through the Battle screen.
 // `onStep(engine)` runs before every tick, e.g. to fire abilities like an active player.
 // `endless` runs an Endless Rift fight; `shouldReturn(engine)` decides when to go home.
-export function simulateEncounter(party, wave, { regionTier = 1, onStep = null, endless = false, shouldReturn = null } = {}) {
-  const sim = createEncounterSim(party, regionTier, wave);
+// `rng` (game/random.js) drives every roll in the fight; a seeded one makes the
+// fight repeatable. Without it the fight uses Math.random.
+export function simulateEncounter(party, wave, { regionTier = 1, onStep = null, endless = false, shouldReturn = null, rng } = {}) {
+  const sim = createEncounterSim(party, regionTier, wave, { rng });
   let result = null;
   const engine = new Engine({ getContext: () => null }, sim, structuredClone(wave), {
     onEnd: (outcome) => { result = outcome; },

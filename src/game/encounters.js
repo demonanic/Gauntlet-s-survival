@@ -4,6 +4,7 @@ import { constrainSquad, fillEcology, rollEcology } from "./ecology";
 import { luckEffects, partyLuck } from "../combat/luck";
 import { NEMESIS, nemesisStats } from "./nemesis";
 import { rollLoot } from "./items";
+import { defaultRandom } from "./random";
 import { BOSS_ROTATION, CHAMPIONS, bossForRank, bossRankScale, championFor } from "./regions";
 
 // Enemies get tougher the deeper into an expedition the party is: +30% HP and
@@ -218,7 +219,9 @@ const MINION_SCALE = Object.freeze({ hp: 0.6, dmg: 0.7 });
 // Disposable battle state handed to the engine. The engine mutates it (hero HP,
 // gold per kill, equipment drops), so it never aliases the saved guild state.
 // Loot and summoned minions follow the current wave's lootTier and scale.
-export function createEncounterSim(party, regionTier, wave = null) {
+// `rng` (game/random.js) drives every roll in the fight: the engine's, loot
+// drops and Endless Rift waves. Without it they use Math.random.
+export function createEncounterSim(party, regionTier, wave = null, { rng = defaultRandom } = {}) {
   const sim = {
     heroes: structuredClone(party),
     towers: [],
@@ -233,9 +236,10 @@ export function createEncounterSim(party, regionTier, wave = null) {
     threat: wave?.threat ?? { hp: 1, dmg: 1 },
     minionScale: wave?.scale ?? { hp: 1, dmg: 1 },
     set: wave?.set ?? null,
+    rng,
   };
   const luck = luckEffects(partyLuck(party)).rareLoot;
-  sim.rollDrop = (enemy) => rollLoot(enemy, sim.lootTier, Math.random, { set: sim.set, luck });
+  sim.rollDrop = (enemy) => rollLoot(enemy, sim.lootTier, sim.rng, { set: sim.set, luck });
   sim.makeMinion = (type) => makeEnemy(C.ENEMIES[type] || C.ENEMIES.skeleton,
     sim.minionScale.hp * MINION_SCALE.hp, sim.minionScale.dmg * MINION_SCALE.dmg);
   return sim;
@@ -243,7 +247,7 @@ export function createEncounterSim(party, regionTier, wave = null) {
 
 // Engine `nextWave` callback for an Endless Rift fight: builds the next wave
 // and moves the sim's loot tier and minion scale along with it.
-export function endlessWaveSource(sim, rng = Math.random) {
+export function endlessWaveSource(sim, rng = sim.rng) {
   return (wavesCleared) => {
     const wave = buildEndlessWave(wavesCleared + 1, rng, sim.threat);
     sim.lootTier = wave.lootTier;
