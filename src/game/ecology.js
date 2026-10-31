@@ -37,8 +37,9 @@ export const ECOLOGIES = Object.freeze({
   },
 });
 
-const FODDER = ["goblin", "skeleton", "ghost", "slime"];
-const FRONTLINE = ["skeleton", "orc", "goblin", "ghost"];
+// Plain fighters for template "fodder" / "frontline" slots and squad fixes.
+export const FODDER = Object.freeze(["goblin", "skeleton", "ghost", "slime"]);
+export const FRONTLINE = Object.freeze(["skeleton", "orc", "goblin", "ghost"]);
 
 // Anti-frustration limits, per squad. One Bulwark (two would wall off the
 // backline completely), one of each resurrector or sacrificer, no more than
