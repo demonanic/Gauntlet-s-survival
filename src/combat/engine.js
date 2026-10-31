@@ -359,9 +359,12 @@ export class Engine {
       !(h.d.magic && enemy.magicImmune);
   }
 
+  // In range to be hit: melee reach (from the edge of the target's body) for
+  // swords, weapon range for everything else.
   _isValidClasslessTarget(h, enemy) {
-    return !!h?.classless && !!enemy && enemy.hp > 0 && this.active.includes(enemy) &&
-      Math.hypot(enemy.x - h.x, enemy.y - h.y) <= h.d.range;
+    if (!h?.classless || !enemy || enemy.hp <= 0 || !this.active.includes(enemy)) return false;
+    const reach = h.d.rangeMode === "melee" ? this._meleeReach(h, enemy) : h.d.range;
+    return Math.hypot(enemy.x - h.x, enemy.y - h.y) <= reach;
   }
 
   _isHeroUntargetable(hero) {

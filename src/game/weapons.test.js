@@ -46,7 +46,7 @@ describe("weapons decide how a hero fights", () => {
     engine.active = [target];
     for (let step = 0; step < 90 && target.hp === 500; step += 1) engine.update(1 / 30);
     expect(target.hp).toBeLessThan(500);
-    expect(Math.hypot(target.x - hero.x, target.y - hero.y)).toBeLessThanOrEqual(WEAPON_PROFILES.sword.range);
+    expect(Math.hypot(target.x - hero.x, target.y - hero.y)).toBeLessThanOrEqual(engine._meleeReach(hero, target));
     expect(engine.projectiles).toHaveLength(0);
   });
 
