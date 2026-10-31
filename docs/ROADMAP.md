@@ -44,7 +44,7 @@ These were judged to work well. A PR that weakens one needs an explicit reason t
 | 1 | Versioned save upgrades; an unreadable save is never silently overwritten | F4 | Done (#28, merged `30731da`) |
 | 2 | Enemy-definition coverage tests | F3 (first step) | Done (#29, merged `57f9143`) |
 | 3 | One fight-outcome builder for watched and unattended fights | F5 | Done (#30, merged `c6a07c7`) |
-| 4 | Injectable, seedable randomness | F7 | In progress |
+| 4 | Injectable, seedable randomness | F7 | Done, in review |
 | 5 | Legacy reachability investigation (no edits) | F2, F9 | Not started |
 | 6 | Remove only verified legacy code, in small PRs | F2, F9 | Not started |
 | 7 | Move fight results and rewards out of `expedition.js` | F6 | Not started |
@@ -129,13 +129,29 @@ Findings for later phases (no change made):
 - The end-to-end parity fights have no Clutch moments, spell casts or nemesis results; those fields are covered by the unit tests with a full synthetic result.
 - On the Battle screen at 8×, the throttled HUD can still read "1 enemies left" behind the VICTORY panel. Existing display behavior, not touched here.
 
-### Phase 4: Seedable randomness
+### Phase 4: Seedable randomness (done, in review)
 
-- [ ] Inventory direct `Math.random` calls in expedition, encounters, engine, drops and their helpers.
-- [ ] One random-source interface, defaulting to `Math.random`.
-- [ ] Thread it from encounter setup into the engine; replace direct calls step by step.
-- [ ] Balance scripts accept a seed.
-- [ ] Same seed and state give the same result; probabilities unchanged.
+- [x] Inventoried every direct `Math.random` call and every call that skipped an available `rng` (live code, before the change):
+  - `combat/engine.js`: 15 direct calls, and no way to pass a random source in.
+  - `game/expedition.js`: 13 direct uses of `Math.random` in 7 places that ignored the trip's `rng` (leg cache, ambush spotting, nemesis trophy, quality development, legendary hoard, Scavenger, Field Surgeon), plus 4 helper calls that fell back to their `Math.random` default (end boss wave, two boss crystals, pet crate). Unattended fights never received the trip's `rng`.
+  - `game/encounters.js`: loot drops (`sim.rollDrop`) and Endless Rift waves (`endlessWaveSource`) used `Math.random`.
+  - Elsewhere, by design or out of scope, unchanged: gear and hero ids (clock + counter + an entropy suffix; identity, not gameplay); guild creation (starter hue, guild seed, starting traits and looks); player actions in the UI (recruit candidate, reforge, opening a crate, picking a hue); debug tools; loading old saves (traits for heroes without one); legacy modules (`logic.js`, `equipment.js`, `libraryResearch.js`, `perks.js`; Phase 5); watched fights on the Battle screen (still `Math.random`).
+- [x] One random-source interface: an `rng` function returning [0, 1), as the game code already used. `src/game/random.js` provides `seededRandom(seed)` (the shop's existing mulberry32, moved there unchanged) and `defaultRandom` (reads `Math.random` on every call, so tests that replace `Math.random` still control it).
+- [x] Threaded from encounter setup into the engine: `createEncounterSim(party, tier, wave, { rng })` stores it, the engine reads `sim.rng` (default `defaultRandom`), and loot drops and Rift waves use it. `simulateEncounter(..., { rng })` passes it on. Unattended fights get the trip's `rng`; `resolveEncounter(..., { rng })` takes one too (default `Math.random`). All of them (the 7 places and the 4 helper calls) now use the trip's `rng`; the only `Math.random` left in `expedition.js` is the default of the four entry points (`startExpedition`, `tick`, `choosePending`, `resolveEncounter`).
+- [x] Balance scripts accept `--seed N` (`balance`, `scenarios`, `ranks`, via `applySeedFlag` in `scripts/simKit.js`). Checked: `scenarios --group party --trips 6 --regions frostfang --seed 7` twice gave identical output, seed 8 differed, and two unseeded runs differed; `ranks --ranks 0,5 --fights 2 --seed 7` and `balance --runs 1 --hours 1 --seed 7` were each identical across two runs.
+- [x] Same seed and state give the same result (`src/game/random.test.js`, 13 tests): seeded wild, boss (with summons) and Rift fights repeat exactly and ignore `Math.random` entirely; different seeds give different fights; unseeded fights still follow `Math.random`; a whole seeded Gutter trip (12 unattended fights), a seeded Boneyard trip (retreat, nemesis created) and a seeded boss win (region clear, boss crystal, pet crate, Scavenger pickings, quality development) each come out identical with `Math.random` at 0.01 or 0.99 (gear ids, which carry the clock, excluded).
+- [x] The tests catch a missed roll: putting `Math.random` back into the engine's classless crit, spawn lane or hero dodge, or into the expedition's leg cache, pet crate, boss crystal, Scavenger roll or quality development each made them fail (checked, then reverted).
+- [x] Probabilities unchanged: with `Math.random` seeded identically, the previous `main` (`c6a07c7`, in a separate checkout) and this branch produced byte-identical results for four unattended trips (Gutter win, Boneyard and Frostfang retreats with nemeses, a Rift return), three direct fights (a defeat, one that hit the 600 s limit, a Rift return) and a shop rotation. In play every roll still calls `Math.random` at the same moment and in the same order.
+- [x] The Phase 3 parity tests now give both paths the same `rng`, as the game does.
+- [x] Full suite: 31 files, 447 tests passed (13 new). Production build succeeded.
+- [ ] Sam merges the PR.
+
+Findings (no change made):
+
+- The seeded tests can only prove there's no bypass on paths they reach. Two rolls were not reached by any seeded fight: the Loaded Dice perk roll (no hero had the perk), and the crit roll in the non-classless body of `_applyHit`. The latter is supporting evidence for Phase 5: no ordinary fight reached it.
+- Watched fights still use `Math.random`. Seeding them (for replays or bug reports) would need the Battle screen to pick a seed; not needed now.
+- Gear and hero ids include the clock, so two seeded runs give the same results but different ids.
+- Observed while choosing test cases: three level-10 heroes in starter gear lost or retreated in 12 of 12 seeded Boneyard trips, because the threat system (PR #25) scales enemies up for an over-levelled party. This is existing balance, not changed here; noted for Sam in case it isn't intended.
 
 ### Phase 5: Legacy reachability (no edits)
 
@@ -208,7 +224,7 @@ None right now. New questions for Sam are listed here until answered.
 
 ## Known unknowns
 
-- Whether any live path reaches the non-classless body of `_applyHit` (Phase 5).
+- Whether any live path reaches the non-classless body of `_applyHit` (Phase 5). Phase 4 found that no seeded wild, boss or Rift fight reached its crit roll.
 - What an engine error in an unattended fight should do (today it would escape `tick()`); see the Phase 3 findings.
 - Whether a misspelt type string in the engine's behavior or sprite branches would be noticed (only by reading the code until Phase 8B).
 - The count of unused `config.js` exports is approximate; dynamic lookups would not show up (Phase 5).
@@ -227,3 +243,4 @@ None right now. New questions for Sam are listed here until answered.
 | 2026-10-31 | Phase 2 merged | #29 | Merged `57f9143`; 411 tests pass on `main` |
 | 2026-10-31 | Phase 3 one fight-outcome builder | #30 | 434 tests pass, build passes, watched and unattended fights checked in the browser |
 | 2026-10-31 | Phase 3 merged | #30 | Merged `c6a07c7`; 434 tests pass on `main`; live site redeployed |
+| 2026-10-31 | Phase 4 seedable randomness | Pending | 447 tests pass, build passes; unseeded play byte-identical to `c6a07c7`; seeded scripts repeat exactly |
