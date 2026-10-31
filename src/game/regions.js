@@ -58,6 +58,8 @@ export const REGIONS = Object.freeze([
     color: "#39FF14",
     tier: 1,
     minLevel: 1,
+    // The level its enemies are tuned for, in Rare gear of its tier (threat.js).
+    level: 1,
     durationMinutes: 6,
     hpScale: 0.9,
     dmgScale: 0.9,
@@ -76,6 +78,8 @@ export const REGIONS = Object.freeze([
     color: "#FF3366",
     tier: 2,
     minLevel: 3,
+    // The level its enemies are tuned for, in Rare gear of its tier (threat.js).
+    level: 5,
     durationMinutes: 10,
     hpScale: 2.48,
     dmgScale: 1.67,
@@ -98,6 +102,8 @@ export const REGIONS = Object.freeze([
     color: "#7DD3FC",
     tier: 3,
     minLevel: 4,
+    // The level its enemies are tuned for, in Rare gear of its tier (threat.js).
+    level: 7,
     durationMinutes: 12,
     hpScale: 2.95,
     dmgScale: 1.59,
@@ -120,6 +126,8 @@ export const REGIONS = Object.freeze([
     tier: 4,
     bossRotation: true,
     minLevel: 6,
+    // The level its enemies are tuned for, in Rare gear of its tier (threat.js).
+    level: 10,
     durationMinutes: 15,
     hpScale: 3.07,
     dmgScale: 1.67,
@@ -142,6 +150,8 @@ export const REGIONS = Object.freeze([
     color: "#A3E635",
     tier: 5,
     minLevel: 10,
+    // The level its enemies are tuned for, in Rare gear of its tier (threat.js).
+    level: 13,
     durationMinutes: 20,
     hpScale: 4.63,
     dmgScale: 1.66,
@@ -165,6 +175,8 @@ export const REGIONS = Object.freeze([
     tier: 1,
     endless: true,
     minLevel: 3,
+    // The level its enemies are tuned for, in Rare gear of its tier (threat.js).
+    level: 1,
     durationMinutes: null,
     hpScale: 1,
     dmgScale: 1,

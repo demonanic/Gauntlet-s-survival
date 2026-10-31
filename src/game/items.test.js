@@ -6,7 +6,7 @@ import { getEquippedHeroWeaponType } from "../combat/heroWeapon";
 import { buildWildEncounter, createEncounterSim } from "./encounters";
 import { createGuild, resolveEncounter, startExpedition, tick } from "./guild";
 import {
-  bankLoot, buyConsumable, createGearItem, equipGear, heroCombatSummary, loadQuickSlot, migrateVaultItem,
+  GEAR_VERSION, bankLoot, buyConsumable, createGearItem, equipGear, heroCombatSummary, loadQuickSlot, migrateVaultItem,
   rollLoot, sellGear, unequipGear, unloadQuickSlot,
 } from "./items";
 import { getRegion } from "./regions";
@@ -25,9 +25,20 @@ describe("gear items", () => {
     const common = createGearItem({ slot: "chest", rarity: "common", tier: 1 });
     const epic = createGearItem({ slot: "chest", rarity: "epic", tier: 3 });
     expect(common.stats).toEqual({ defense: 5, maxHp: 25 });
-    expect(epic.stats.defense).toBeGreaterThan(common.stats.defense * 5);
+    // Rarity ×1.8 and tier ×2.4 (plus affixes).
+    expect(epic.baseStats.defense).toBe(Math.round(5 * 1.8 * 2.4));
     expect(epic.value).toBeGreaterThan(common.value);
     expect(createGearItem({ slot: "weapon", variant: "bow" }).weaponType).toBe("bow");
+  });
+
+  test("gear saved before the rarity rescale is brought in line on load", () => {
+    const fresh = createGearItem({ slot: "chest", rarity: "epic", tier: 3 }, () => 0.4);
+    const old = { ...fresh, baseStats: { defense: Math.round(5 * 3.2 * 2.4), maxHp: Math.round(25 * 3.2 * 2.4) }, gearVersion: undefined };
+    old.stats = { ...old.baseStats };
+    const migrated = migrateVaultItem(old);
+    expect(migrated.baseStats).toEqual({ defense: Math.round(38 * 1.8 / 3.2), maxHp: Math.round(192 * 1.8 / 3.2) });
+    expect(migrated.gearVersion).toBe(GEAR_VERSION);
+    expect(migrateVaultItem(migrated)).toBe(migrated);
   });
 
   test("new heroes start with a common weapon and two empty quick slots", () => {

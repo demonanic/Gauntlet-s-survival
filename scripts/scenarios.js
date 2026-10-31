@@ -46,18 +46,14 @@ const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : nul
 const GROUP = flag("--group") || "all";
 const TRIPS = Number(flag("--trips")) || 16;
 const ACTIVE = args.includes("--active");
-// Gear rarity for every slot: common keeps the baseline party near the edge,
-// where differences between scenarios show.
-const GEAR = flag("--gear") || "common";
+// Gear rarity for every slot. The baseline is the party each region is tuned
+// for (threat.js): its recommended level, Rare gear of its tier. Before Oct
+// 2026 it was the weakest party allowed in (minimum level, Common gear a tier
+// below), and real, better-geared parties were never in danger.
+const GEAR = flag("--gear") || "rare";
 
-// The bar is set low on purpose (the lowest level allowed in, gear a tier
-// below the region's), so the baseline isn't a sure win and differences show.
-const SETUPS = {
-  boneyard: { level: 3, tier: 1 },
-  frostfang: { level: 4, tier: 2 },
-  ashen: { level: 6, tier: 3 },
-  blightmire: { level: 10, tier: 4 },
-};
+const SETUPS = Object.fromEntries(["boneyard", "frostfang", "ashen", "blightmire"]
+  .map((id) => [id, { level: getRegion(id).level, tier: getRegion(id).tier }]));
 const REGIONS = (flag("--regions") || (GROUP === "qualities" ? "frostfang" : Object.keys(SETUPS).join(","))).split(",");
 
 const MIXED = ["sword", "bow", "staff", "sword"];
