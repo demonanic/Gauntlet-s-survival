@@ -41,7 +41,7 @@ These were judged to work well. A PR that weakens one needs an explicit reason t
 | Phase | Goal | Audit finding | Status |
 | --- | --- | --- | --- |
 | 0 | Record a baseline | (all) | Done |
-| 1 | Versioned save upgrades; an unreadable save is never silently overwritten | F4 | Done, in review |
+| 1 | Versioned save upgrades; an unreadable save is never silently overwritten | F4 | Done, in review (#28) |
 | 2 | Enemy-definition coverage tests | F3 (first step) | Not started |
 | 3 | One fight-outcome builder for watched and unattended fights | F5 | Not started |
 | 4 | Injectable, seedable randomness | F7 | Not started |
@@ -191,4 +191,4 @@ None right now. New questions for Sam are listed here until answered.
 | --- | --- | --- | --- |
 | 2026-10-31 | Architecture audit (analysis only) | (none) | 9 findings, F1–F9 |
 | 2026-10-31 | Phase 0 baseline (no edits) | (none) | 341 tests pass, build passes, scenario baselines recorded |
-| 2026-10-31 | Phase 1 safe save upgrades | Pending | 358 tests pass, build passes, browser-checked |
+| 2026-10-31 | Phase 1 safe save upgrades | #28 | 358 tests pass, build passes, browser-checked |
