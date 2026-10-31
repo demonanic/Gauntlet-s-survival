@@ -120,13 +120,13 @@ describe("purchaseNode", () => {
     expect(purchaseClasslessNode(createHero("knight"), "V1")).toEqual({ ok: false, reason: "not_classless_hero" });
   });
 
-  test("purchases implemented Echo and keeps Ward pending while its range is unspecified", () => {
+  test("purchases implemented Echo and Ward (range 150, the owner's call)", () => {
     const hero = createHero();
     hero.progression = { level: 5, xp: 0, ap: 4, sp: 4, ownedNodeIds: ["C1"] };
     expect(purchaseClasslessNode(hero, "C2")).toMatchObject({ ok: true,
       progression: { ap: 2, ownedNodeIds: ["C1", "C2"] } });
     expect(purchaseClasslessNode({ ...hero, progression: { ...hero.progression, ap: 2 } }, "C2a"))
-      .toEqual({ ok: false, reason: "effect_pending" });
+      .toMatchObject({ ok: true });
   });
 
   test("permits only the newly registered Interpose and Blood Price/Covenant effects after canonical prerequisites", () => {

@@ -19,9 +19,7 @@ const REASONS = {
   unknown_node: "Unknown node",
 };
 
-const BLOCKED_NODE_REASONS = {
-  C2a: "Unavailable — canonical range unspecified",
-};
+const BLOCKED_NODE_REASONS = {};
 
 const EFFECT_LABELS = {
   V1: "+8% direct weapon damage (active)",
@@ -49,6 +47,9 @@ const EFFECT_LABELS = {
   C2: "First ability hit every 10 seconds marks for 4 seconds; next allied hit adds 20% of this hero's attack (active)",
   H1: "2% direct-hit lifesteal (active)",
   F1: "+15 percentage points critical damage (active)",
+  F2: "10% of weapon hits deal 150%, 20% deal 75% (active)",
+  F3: "Active · 35s cooldown · next 3 direct weapon hits are crits (active)",
+  C2a: "Active · 18s cooldown · absorb the next 80 damage to the lowest-HP ally within 150 (active)",
   A1: "Unlocks mana and spell casting; Arcane Bolt; +8% arcane damage (active)",
   A2: "Choose an element and learn its spells; +10% damage with your elements (active)",
   A2a: "Elemental bolts jump to 2 more foes for 40% (active)",

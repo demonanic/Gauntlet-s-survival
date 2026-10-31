@@ -27,6 +27,8 @@ const IMPLEMENTED_PASSIVES = Object.freeze({
   H2: { bloodPriceBonus: 0.12, bloodPriceCost: 0.05 },
   F1: { critDamage: 0.15 },
   F2a: { clutch: 1 },
+  // Loaded Dice (owner's call, Oct 2026): 10% of hits ×1.5, 20% ×0.75; neutral on average.
+  F2: { loadedDice: 1 },
   // Arcana (spells.js): casting, an element, chain jumps, and two big spells.
   A1: { arcane: 1 },
   A2: { elementalism: 1 },
@@ -49,7 +51,7 @@ export function classlessCombatEffects(ownedNodeIds = []) {
     activeTargetDamage: 0, openingDamage: 0, formationMitigation: 0,
     echoDamageFraction: 0, echoCooldownSeconds: 0, echoDurationSeconds: 0,
     rootEverySeconds: 0, bloodPriceBonus: 0, bloodPriceCost: 0, clutch: 0,
-    arcane: 0, elementalism: 0, chainSpark: 0, arcaneChannel: 0, meteor: 0 };
+    arcane: 0, elementalism: 0, chainSpark: 0, arcaneChannel: 0, meteor: 0, loadedDice: 0 };
   for (const id of new Set(ownedNodeIds)) {
     const effect = IMPLEMENTED_PASSIVES[id];
     if (!effect) continue;

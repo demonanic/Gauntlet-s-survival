@@ -8,7 +8,7 @@ import {
 
 describe("canonical classless active ability definitions", () => {
   test("exposes implemented Phase 1 Warden, Vanguard, Precision, Shadowcraft, Illusion, and Hemomancy abilities", () => {
-    expect(IMPLEMENTED_CLASSLESS_ABILITY_NODE_IDS).toEqual(["P3", "P3a", "V3", "V3a", "T2a", "W3", "S2a", "S3a", "I3", "H3"]);
+    expect(IMPLEMENTED_CLASSLESS_ABILITY_NODE_IDS).toEqual(["P3", "P3a", "V3", "V3a", "T2a", "W3", "S2a", "S3a", "I3", "H3", "C2a", "F3"]);
     expect(getClasslessAbilityDefinition("P3")).toMatchObject({
       unlockNodeId: "P3", name: "Execution", cooldownSeconds: 22, resourceCost: 0,
       targetMode: "enemy", damageMultiplier: 1.8, conditionalTargetHpBelow: 0.35, conditionalDamageBonus: 0.25,
@@ -52,7 +52,7 @@ describe("canonical classless active ability definitions", () => {
       damageMultiplier: 1.5, conditionalDamageBonus: 0.5, effect: "phantom_strike",
       targetMode: "enemy", requiresTarget: true,
     });
-    expect(getClasslessAbilityDefinition("C2a")).toBeNull();
+    expect(getClasslessAbilityDefinition("C2a")).toMatchObject({ name: "Ward", range: 150, absorb: 80, effect: "ward" });
     expect(getClasslessAbilityDefinition("A3")).toBeNull();
   });
 
