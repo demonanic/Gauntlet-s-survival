@@ -415,6 +415,28 @@ bonuses are stamped onto every hero as `hero.guildBonus` so the engine can read 
   at any time to keep everything plus 10 gold per wave; a wipe keeps half. Best wave is
   recorded.
 
+## Bonds (`src/game/bonds.js`, `BONDS`)
+
+Owner-approved design (Oct 2026).
+
+- **Growth:** `state.bonds[bondKey(a, b)] = { wins, sworn? }`. After every won fight, each
+  pair of heroes still standing gains a win (`recordSharedWin`, in `applyFightResult`);
+  the feed marks each new level. Levels (`bondLevel`): Acquainted 10, Comrades 30, Sworn
+  75. A pair turns Sworn only if neither hero already has a Sworn partner
+  (`swornPartner`); otherwise it stays Comrades.
+- **Into battle:** `currentEncounterParty` gives each hero `bonds` (`combatBonds`: Comrades
+  or Sworn partners in this fight). The engine's `_bondDamage` adds +5% while any such
+  partner is standing, +25% for 10 s of Vengeance after one falls (`_bondsReactToFall`,
+  from `_heroDowned`), -10% for the rest of the fight if Shaken instead (traits Stalwart,
+  Steadfast, Paranoid), and memories of the retired.
+- **Sworn guard** (`_swornGuard`, after each hit in `_resolveClasslessHeroDamage`): when a
+  hero drops below 25% HP, their Sworn partner (if standing, once per fight) jumps beside
+  them and adds a shield of 20% of their max HP.
+- **Retiring** (`rememberRetired`, in `retireHero`): Comrade and Sworn partners get a
+  memorial (`hero.memorials`, +3% damage each, at most 3); all bonds with the retired
+  hero are removed.
+- **UI:** the roster and party picker list a hero's bonds and memories (`HeroRow`).
+
 ## Push deeper (`DEEPER` in expedition.js)
 
 Owner-approved design (Oct 2026): set-length legs, not an open-ended run, so the

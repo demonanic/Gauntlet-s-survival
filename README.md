@@ -88,6 +88,15 @@ hero's target outright (a boss loses a quarter of its HP); a miss changes nothin
 don't choose, the hero's nature does: Reckless and Berserker heroes swing, everyone else
 drinks. Fights you aren't watching decide the same way, and the feed tells the story.
 
+**Bonds:** heroes who come through won fights side by side grow closer: **Acquainted** after
+10 shared wins, **Comrades** after 30 (+5% damage while both are standing) and **Sworn**
+after 75 (each hero has only one Sworn partner: when one drops below a quarter of their HP,
+the other leaps in and shields them, once a fight). When a bonded partner falls mid-fight,
+most heroes fly into **Vengeance** (+25% damage for 10 seconds); calm ones (Stalwart,
+Steadfast, Paranoid) are **Shaken** instead (-10% for the rest of the fight). Retire a
+Comrade or Sworn partner and the other remembers them: +3% damage, up to three memories.
+The roster shows each hero's bonds.
+
 Veterans develop more qualities from how they actually fought and travelled: at level 10
 and 16 the game looks back over the hero's career and they may become a **Marksman**,
 **Bladesworn**, **Survivor**, **Giantslayer**, **Ghost-Step**, **Bulwark**, **Field

@@ -31,6 +31,7 @@ import { bankLoot, createGearItem, normalizeHeroGear, randomCrystal, restockQuic
 import { legacyBonuses } from "./legacy";
 import { BOSS_RANK_SCALING, bossForRank, getRegion } from "./regions";
 import { simulateEncounter } from "./simulate";
+import { BOND_NAMES, combatBonds, recordSharedWin } from "./bonds";
 import {
   NEMESIS, growNemesis, nemesisAppearChance, nemesisLevel, nemesisTraits, nemesisTriumphs, regionNemesis, riseNemesis, slayNemesis,
 } from "./nemesis";
@@ -863,8 +864,11 @@ export function currentEncounterParty(state) {
   const run = state.expedition;
   const bonus = moraleDamageBonus(run?.morale ?? ADVENTURE.startMorale);
   const environment = getEnvironment(getRegion(run?.regionId));
-  return livingParty(state).map((hero) => ({
+  const fighting = livingParty(state);
+  const ids = fighting.map(heroId);
+  return fighting.map((hero) => ({
     ...hero,
+    bonds: combatBonds(state, hero, ids),
     moraleBonus: { damage: bonus },
     environment: combatEnvironment(hero, environment, !!run?.packed?.includes(heroId(hero))),
   }));
@@ -1198,6 +1202,13 @@ function applyFightResult(state, region, { victory, party, xpGains, gold, items,
   }
   const qualities = road(state);
   changeMorale(state, 8 + roadEffect(qualities, "moraleOnWin"));
+  // Heroes who came through it standing grow closer.
+  for (const { a, b, level } of recordSharedWin(state, party.filter((hero) => hero.combat.hp > 0).map(heroId))) {
+    const [first, second] = [a, b].map((id) => findHero(state, id)?.identity.name);
+    addFeed(run, at, level === "sworn"
+      ? `${first} and ${second} swear to fight as one. They are Sworn.`
+      : `${first} and ${second} are ${BOND_NAMES[level]} now.`, "good", level !== "acquainted");
+  }
   for (const hero of livingParty(state)) heal(hero, AFTER_FIGHT_HEAL);
   afterVictory(state, qualities, at);
   if (recovered > 0) addFeed(run, at, `Picked up ${recovered} arrow${recovered > 1 ? "s" : ""} from the field.`, "flavor");

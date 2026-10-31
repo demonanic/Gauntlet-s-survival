@@ -1,3 +1,4 @@
+import { rememberRetired } from "./bonds";
 // Prestige: retire a level-20 hero to earn Renown, then spend it in the Hall
 // of Legends on permanent guild upgrades. Combat bonuses are stamped onto each
 // hero as hero.guildBonus so the engine and max-HP maths can read them.
@@ -88,6 +89,7 @@ export function retireHero(state, id, now) {
     renown,
     retiredAt: now,
   }];
+  rememberRetired(next, hero);
   next.heroes = next.heroes.filter((entry) => entry !== hero);
   delete next.injuries[id];
   return { ok: true, state: next, renown };

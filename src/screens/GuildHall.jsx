@@ -32,6 +32,7 @@ export default function GuildHall({
               <HeroRow
                 key={hero.identity.id}
                 hero={hero}
+                guild={guild}
                 now={now}
                 status={status}
                 injuredUntil={guild.injuries[hero.identity.id]}
