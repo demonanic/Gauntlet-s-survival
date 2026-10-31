@@ -81,8 +81,8 @@ export const REGIONS = Object.freeze([
     // The level its enemies are tuned for, in Rare gear of its tier (threat.js).
     level: 5,
     durationMinutes: 10,
-    hpScale: 2.48,
-    dmgScale: 1.67,
+    hpScale: 4.34,
+    dmgScale: 5.01,
     completionGold: 300,
     recoverySeconds: 120,
     // Death sustains death: priests, necromancers and the shields that guard them.
@@ -105,8 +105,8 @@ export const REGIONS = Object.freeze([
     // The level its enemies are tuned for, in Rare gear of its tier (threat.js).
     level: 7,
     durationMinutes: 12,
-    hpScale: 2.95,
-    dmgScale: 1.59,
+    hpScale: 5.6,
+    dmgScale: 5.25,
     completionGold: 500,
     recoverySeconds: 180,
     // Hunters: everything here goes for whoever is weakest.
@@ -129,8 +129,8 @@ export const REGIONS = Object.freeze([
     // The level its enemies are tuned for, in Rare gear of its tier (threat.js).
     level: 10,
     durationMinutes: 15,
-    hpScale: 3.07,
-    dmgScale: 1.67,
+    hpScale: 7.68,
+    dmgScale: 7.52,
     completionGold: 800,
     recoverySeconds: 240,
     // Organized warfare: shields, snipers and sappers in formation.
@@ -153,8 +153,8 @@ export const REGIONS = Object.freeze([
     // The level its enemies are tuned for, in Rare gear of its tier (threat.js).
     level: 13,
     durationMinutes: 20,
-    hpScale: 4.63,
-    dmgScale: 1.66,
+    hpScale: 10.19,
+    dmgScale: 6.64,
     completionGold: 1600,
     recoverySeconds: 300,
     // Attrition and corruption: the dead get back up, the hunters wait for you to weaken.
