@@ -10,7 +10,22 @@
 // (gear eventually tops out, so every guild meets a ceiling); the bounty grows
 // linearly.
 export const BOSS_ROTATION = Object.freeze(["demon", "imperialNecromancer", "nuclearBehemoth"]);
-export const BOSS_RANK_SCALING = Object.freeze({ hpGrowth: 1.08, dmgGrowth: 1.24, bounty: 0.15 });
+// Boss ranks grow steeply up to `steepUntil`, then gently, so a guild meets a
+// wall around there but can keep inching past it as its heroes improve.
+export const BOSS_RANK_SCALING = Object.freeze({
+  hpGrowth: 1.08, dmgGrowth: 1.24, steepUntil: 20, gentleHpGrowth: 1.04, gentleDmgGrowth: 1.06, bounty: 0.15,
+});
+
+// HP and damage multipliers for the boss at `rank` (0-based).
+export function bossRankScale(rank = 0) {
+  const s = BOSS_RANK_SCALING;
+  const steep = Math.min(rank, s.steepUntil);
+  const gentle = Math.max(0, rank - s.steepUntil);
+  return {
+    hp: s.hpGrowth ** steep * s.gentleHpGrowth ** gentle,
+    dmg: s.dmgGrowth ** steep * s.gentleDmgGrowth ** gentle,
+  };
+}
 
 // Every 5th boss rank (5, 10, 15...) is a Champion with one extra mechanic,
 // in this order; it pays double bounty and an extra crystal.
