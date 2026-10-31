@@ -32,6 +32,7 @@ import { legacyBonuses } from "./legacy";
 import { BOSS_RANK_SCALING, CHAMPIONS, bossForRank, championFor, getRegion } from "./regions";
 import { simulateEncounter } from "./simulate";
 import { BOND_NAMES, combatBonds, recordSharedWin, separation } from "./bonds";
+import { ELEMENTS, ROMAN, SPELLS, recordCasts } from "../combat/spells";
 import {
   NEMESIS, growNemesis, nemesisAppearChance, nemesisLevel, nemesisTraits, nemesisTriumphs, regionNemesis, riseNemesis, slayNemesis,
 } from "./nemesis";
@@ -1104,7 +1105,7 @@ function autoFight(state, region, at, rng, onStep) {
     victory: !!result?.victory, party: sim.heroes, xpGains: result?.xpGains?.heroes || {},
     gold: sim.gold, items: sim.vault, wavesCleared: result?.wavesCleared || 0,
     downed: result?.downed || {}, nemesisSlain: result?.nemesisSlain || null, nemesisFled: result?.nemesisFled || null,
-    clutches: result?.clutches || [],
+    clutches: result?.clutches || [], spellCasts: result?.spellCasts || {},
   }, at);
   // Left to themselves, a battered party doesn't push its luck.
   if (state.expedition && !state.expedition.pending && partyHpFraction(state) < AUTO_RETREAT_HP) {
@@ -1155,6 +1156,12 @@ function applyFightResult(state, region, { victory, party, xpGains, gold, items,
       }
     }
     saved.quickSlots = normalizeHeroGear(runtime).quickSlots;
+    // Successful casts rank up spells and element proficiency.
+    for (const up of recordCasts(saved, outcome.spellCasts?.[index])) {
+      addFeed(run, at, up.kind === "spell"
+        ? `${saved.identity.name}'s ${SPELLS[up.id].name} reaches rank ${ROMAN[up.rank - 1]}.`
+        : `${saved.identity.name} grows more skilled with ${ELEMENTS[up.id].name} magic (proficiency ${ROMAN[up.rank - 1]}).`, "good", up.kind === "element");
+    }
     const spent = Math.floor((runtime.arrowsSpent?.arrows || 0) * ARROW_RECOVERY);
     if (victory && spent > 0) recovered += returnArrows(state, saved, spent);
     recordFight(saved, runtime.battleStats, { victory, morale: run.morale, ambush: run.pending?.kind === "ambush" });

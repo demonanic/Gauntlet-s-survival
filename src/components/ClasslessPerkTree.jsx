@@ -1,5 +1,11 @@
 import { describeLuck, heroLuck } from "../combat/luck";
 import { CANONICAL_NODES, purchaseClasslessNode } from "../combat/classlessProgression";
+import { IMPLEMENTED_CLASSLESS_ABILITY_NODE_IDS } from "../combat/classlessAbilities";
+import Spellbook from "./Spellbook";
+
+// Nodes that put a new button on the hero's battle card.
+const SPECIAL_MOVE_NODES = new Set(IMPLEMENTED_CLASSLESS_ABILITY_NODE_IDS);
+const SPELL_NODES = new Set(["A1", "A3", "A3a"]);
 
 const REASONS = {
   invalid_progression: "Progression data is invalid",
@@ -43,6 +49,11 @@ const EFFECT_LABELS = {
   C2: "First ability hit every 10 seconds marks for 4 seconds; next allied hit adds 20% of this hero's attack (active)",
   H1: "2% direct-hit lifesteal (active)",
   F1: "+15 percentage points critical damage (active)",
+  A1: "Unlocks mana and spell casting; Arcane Bolt; +8% arcane damage (active)",
+  A2: "Choose an element and learn its spells; +10% damage with your elements (active)",
+  A2a: "Elemental bolts jump to 2 more foes for 40% (active)",
+  A3: "Spell · 20s cooldown · 175% arcane bolt (active)",
+  A3a: "Spell · 25s cooldown · lands after 2s on up to 5 foes for 180% (active)",
   F2a: "Once per fight at death's door: Drink or Ultra Crit, chosen in slow motion (active)",
   N1: "1% maximum HP regeneration every 3s after 5s without damage (active)",
   I1: "8% evasion at full HP (active)",
@@ -50,7 +61,7 @@ const EFFECT_LABELS = {
   N2: "Root the next target every 12 seconds (active)",
 };
 
-export default function ClasslessPerkTree({ hero, onPurchase, onAllocate, onClose }) {
+export default function ClasslessPerkTree({ hero, onPurchase, onAllocate, onLearnElement, onClose }) {
   if (!hero || hero.cls || !hero.combat || !hero.progression) return null;
   const owned = new Set(hero.progression.ownedNodeIds || []);
   const branches = [...new Set(CANONICAL_NODES.map((node) => node.branch))];
@@ -72,7 +83,7 @@ export default function ClasslessPerkTree({ hero, onPurchase, onAllocate, onClos
         </p>
         <section className="mb-4 rounded border border-cyan-400/20 p-3" aria-label="Allocate stat points">
           <div className="mb-2 font-mono-g text-[10px] text-cyan-100">STAT POINTS · {hero.progression.sp} SP</div>
-          <p className="mb-2 font-mono-g text-[9px] text-slate-400">Attack, Defense, and Agility feed current combat stats. Intelligence is saved; classless spell scaling is not connected yet. Luck never adds damage or HP: it tilts the odds, in battle and on the road.</p>
+          <p className="mb-2 font-mono-g text-[9px] text-slate-400">Attack, Defense, and Agility feed current combat stats. Intelligence powers spells (Arcana): more mana, stronger spells, and casts that land more often. Luck never adds damage or HP: it tilts the odds, in battle and on the road.</p>
           <div className="grid grid-cols-2 gap-2">
             {Object.entries(hero.combat.stats).map(([stat, value]) => (
               <button key={stat} type="button" disabled={hero.progression.sp <= 0}
@@ -86,6 +97,7 @@ export default function ClasslessPerkTree({ hero, onPurchase, onAllocate, onClos
             LUCK {heroLuck(hero)}: {describeLuck(heroLuck(hero)).join(" · ")}
           </p>
         </section>
+        <Spellbook hero={hero} onLearnElement={onLearnElement} />
         <div className="grid gap-3 sm:grid-cols-2">
           {branches.map((branch) => (
             <section key={branch} className="rounded-lg border border-white/10 p-2" aria-label={`${branch} perks`}>
@@ -99,7 +111,11 @@ export default function ClasslessPerkTree({ hero, onPurchase, onAllocate, onClos
                   return (
                     <div key={node.id} className="flex items-center gap-2 rounded border border-white/10 bg-white/[0.025] p-2" data-testid={`classless-node-${node.id}`}>
                       <div className="min-w-0 flex-1">
-                        <div className="font-mono-g text-xs font-bold text-slate-100">{node.name} · {node.id} · Tier {node.tier}</div>
+                        <div className="font-mono-g text-xs font-bold text-slate-100">
+                          {node.name} · {node.id} · Tier {node.tier}
+                          {SPECIAL_MOVE_NODES.has(node.id) && <span className="ml-1 text-yellow-300" data-testid="special-move-node">★ Special move</span>}
+                          {SPELL_NODES.has(node.id) && <span className="ml-1 text-fuchsia-300">✦ Spell</span>}
+                        </div>
                         <div className="font-mono-g text-[9px] text-slate-400">
                           {node.apCost} AP · Level {node.minLevel}
                           {node.prerequisites.length ? ` · Requires ${node.prerequisites.join(" or ")}` : " · No prerequisite"}

@@ -485,6 +485,41 @@ press-your-luck question comes back every few minutes.
 - **Records:** `state.records.deepest[regionId]`; reports carry `depth`. The balance and
   scenario scripts count a finished trip as won even if the depths went badly.
 
+## Spells (Arcana, `src/combat/spells.js`)
+
+Owner-approved design (Oct 2026). The Bible's Arcana nodes, built for Gauntlet:
+
+- **Who casts:** heroes with A1 (Arcane Spark): mana `60 + 4 × (Int − 10) + 2 × level`,
+  regenerating `2 + 0.04 × Int` per second (the engine's existing mana tick); Arcane Bolt;
+  +8% arcane spell damage. A2 (Elementalism): choose an element on the Perks screen
+  (`learnElement`) and get its spells; +10% spell damage with it. A2a (Chain Spark):
+  elemental bolts jump to 2 more foes within 140 px for 40%. A3 (Arcane Channel: 175%,
+  20 s) and A3a (Meteor: lands after 2 s on up to 5 foes within 90 px for 180%, 25 s) are
+  spells. All five nodes are now purchasable.
+- **Spells** (`SPELLS`, from the old Library database): per element a bolt (one target,
+  known on learning), an area spell (proficiency II) and a lingering curse (IV: damage over
+  time, double the hit, plus a stronger element effect). Element effects
+  (`_spellElement`): fire burns 30% over 3 s, poison 40% over 5 s, ice slows 30% for 2.5 s,
+  mind stuns 0.6 s (bosses 0.2 s), lightning arcs to one more foe for 50%. Magic-immune
+  foes are unaffected. Damage = attack × power × (1 + 10% per spell rank above I) × element
+  bonus × (1 + 1.2% per Int above 10) × 1.2 with a staff (`spellPower`).
+- **Fizzles:** success = 60% + 1.5% per Int above 10 + 0.3% per effective Luck point + 5%
+  per proficiency rank above I, capped at 95% (`castSuccessChance`). Mana and cooldown are
+  spent either way; only successes count (`engine.spellSuccesses` → `outcome.spellCasts` →
+  `recordCasts` in `applyFightResult`, with feed lines on rank-ups).
+- **Ranks:** a spell's rank and an element's proficiency (summed over its spells) are I–V
+  at 15/45/100/200 successful casts (`RANK_CASTS`). Spell rank: +10% power, +8% area per
+  rank. Proficiency: +5% success per rank, and teaches the area spell (II) and curse (IV).
+- **More elements** (`elementSlot`): a second at proficiency III and level 12, a third at V
+  and level 18, 2 AP each (owner's call: "a mix between 1 and 3").
+- **In battle:** casters on auto cast by themselves (`_autoCast`: Meteor on a crowd,
+  Arcane Channel, an area spell on 2+ foes, a curse on a fresh target, else a bolt; 0.8 s
+  between casts); the player can tap a spell on the hero card (`castHeroSpell`). The card
+  shows a mana bar. Saved per hero as `hero.magic = { elements, casts }`.
+- **Perks screen:** a Spellbook (proficiency, success chance, each spell's rank and next
+  rank), element choice, and ★ "Special move" / ✦ "Spell" tags on nodes that add a button.
+- The balance scripts' heroes don't take Arcana, so their numbers don't move.
+
 ## Clutch (Fortune perk F2a, `CLUTCH` in engine.js)
 
 A Gauntlet addition to the Bible's Fortune branch: tier 2 (level 5, 2 AP, after F1); F3

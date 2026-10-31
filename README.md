@@ -80,6 +80,19 @@ on road gambles, a few more finds and rare encounters, and 1% off wandering merc
 25%). Points past 20 count half. In a fight a hero uses their own Luck; on the road the
 party uses its average. The Perks screen lists exactly what a hero's Luck is doing.
 
+**Spells (the Arcana perks):** not every hero casts. **Arcane Spark** gives a hero mana and
+Arcane Bolt; **Elementalism** picks an element (Fire, Ice, Poison, Lightning or Mind) and
+its bolt; **Chain Spark** makes elemental bolts jump to two more foes; **Arcane Channel** and
+**Meteor** are big spells. Each element has three spells: a bolt, an area spell (learned at
+proficiency II) and a lingering curse (IV), and its own touch: fire burns, ice slows, poison
+festers, lightning arcs, mind stuns. Casts can **fizzle** (the mana is spent, nothing
+happens): the chance they land starts at 60% and grows with Intelligence, a little Luck and
+proficiency, up to 95%. Only successful casts count: they rank a spell up (I–V at
+15/45/100/200 casts) and raise the element's proficiency. A second element opens at
+proficiency III and level 12, a third at V and level 18 (2 AP each). Heroes cast on their
+own, and you can tap a spell on their battle card; Intelligence means more mana and
+stronger spells, and a staff adds 20%. The Perks screen has the hero's spellbook.
+
 **Clutch** (Fortune perk, level 5, 2 AP, after Lucky Edge): once per fight, when the next
 hit would bring a hero down, the battle slows to a crawl and you get 5 seconds to choose.
 **Drink** heals for sure (the hero's best potion or bandage, or a 30% second wind without
