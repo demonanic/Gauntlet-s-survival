@@ -41,8 +41,8 @@ These were judged to work well. A PR that weakens one needs an explicit reason t
 | Phase | Goal | Audit finding | Status |
 | --- | --- | --- | --- |
 | 0 | Record a baseline | (all) | Done |
-| 1 | Versioned save upgrades; an unreadable save is never silently overwritten | F4 | Done, in review (#28) |
-| 2 | Enemy-definition coverage tests | F3 (first step) | Not started |
+| 1 | Versioned save upgrades; an unreadable save is never silently overwritten | F4 | Done (#28, merged `30731da`) |
+| 2 | Enemy-definition coverage tests | F3 (first step) | Done, in review (#29) |
 | 3 | One fight-outcome builder for watched and unattended fights | F5 | Not started |
 | 4 | Injectable, seedable randomness | F7 | Not started |
 | 5 | Legacy reachability investigation (no edits) | F2, F9 | Not started |
@@ -64,7 +64,7 @@ These were judged to work well. A PR that weakens one needs an explicit reason t
 - [x] Test coverage mapped for saves, expeditions, watched and unattended outcomes, classless combat, enemies, fight results and catch-up.
 - [x] Missing Phase 1 safety tests identified.
 
-### Phase 1: Safe save upgrades (done, in review)
+### Phase 1: Safe save upgrades (done)
 
 Decision (Sam): when a save can't be read, back it up and start fresh rather than refuse to play.
 
@@ -79,18 +79,31 @@ Decision (Sam): when a save can't be read, back it up and start fresh rather tha
 - [x] Tests (`src/game/storage.test.js`, 17): current and early version-1 fixtures, the runner with fake steps (order, input unchanged, deterministic), missing or wrong steps, future version, damaged shapes, invalid JSON, backup, duplicate, cap of 5, failed backup, unreadable storage, cloud guard.
 - [x] Full suite: 28 files, 358 tests passed. Production build succeeded.
 - [x] Checked in a real browser: a good save loads untouched; newer-version and corrupted saves are backed up, show the notice and the game runs; no page errors.
-- [ ] Sam merges the PR.
+- [x] Sam merged PR #28 (`30731da`); live site checked: the deployed bundle contains the backup key.
 
 How to change the save format later: bump `STATE_VERSION` in `src/game/guild.js`, append one step to `SAVE_MIGRATIONS`, and add a fixture test that loads a save of the previous version. Never remove a step.
 
-### Phase 2: Enemy coverage tests
+### Phase 2: Enemy coverage tests (done, in review)
 
-- [ ] Identify the real set of active enemies.
-- [ ] Read the existing ecology and qualities tests first.
-- [ ] Every active enemy has stats, and families, roles and sprite or behavior paths where required, or a documented default.
-- [ ] Pools and templates only name real enemies; orphaned references (such as the `zombie` sprite branch) are reported.
-- [ ] Report separates missing data, intentional defaults, legacy, unreachable and uncertain entries.
-- [ ] No registry redesign in this phase.
+- [x] Identified the real set of active enemies: the 22 keys of `C.ENEMIES` (17 regular, 5 bosses). Spawn sources: region wildlife pools, region boss squads, elite rolls (lieutenant), the boss rotation, the Endless Rift pools and elites, ecology templates, the plain fodder and frontline lists, the stalker, and boss summons (`sim.makeMinion`).
+- [x] Read the existing ecology and qualities tests first. They already check that ecology template slots name real enemies, and the squad limits; nothing checked the tables as a whole.
+- [x] Every active enemy has a valid stat block (tier, boss flag, stats, color, affinities, ranges, shield), declared families and roles (or the documented boss default), and, in a short real fight, spawns through the real encounter builder, takes part in engine updates without errors, renders without errors, and only produces real enemies as summons during the 20 seconds observed. Tests: `src/game/enemies.test.js` (53). This does not prove that each enemy's own attack, ability or special behavior runs; that is out of scope for Phase 2 (see Phase 8B).
+- [x] Pools and templates only name real enemies, and every enemy can appear in a fight. Orphaned references are reported below.
+- [x] Report below separates missing data, intentional defaults, legacy, unreachable and uncertain entries.
+- [x] No registry redesign. The only production change exports three existing lists so the tests can read them: `ENDLESS_POOLS` (`encounters.js`), `FODDER` and `FRONTLINE` (`ecology.js`). They are now frozen; nothing modifies them.
+- [x] The tests catch mistakes: a misspelt enemy in a region pool, a missing role entry, and a new enemy with no tables or spawn source each made them fail (checked, then reverted).
+- [x] Full suite: 29 files, 411 tests passed. Production build succeeded.
+- [ ] Sam merges the PR.
+
+Phase 2 report:
+
+| Category | Entries |
+| --- | --- |
+| Missing data | None. Every enemy has a complete stat block and table entries. |
+| Intentional defaults | Bosses have no behavior families or squad roles; `rolesOf` reads them as frontline. Enemies without a special handler use the engine's generic enemy update (9 types have special handlers in `_updateSpecialEnemy`; the others get type rules in `_updateEnemy` or the generic path). The generic body shape is the sprite fallback, but every one of the 22 enemies has its own sprite branch (checked by reading `_drawEnemySprite`). |
+| Legacy | A `zombie` sprite branch in `_drawEnemySprite` (`engine.js`), with no `zombie` enemy anywhere. Unused legacy pools in `config.js`: `BASIC_POOL`, `SPEC_POOL`, `EARLY_WAVE_POOLS` (they name real enemies). For Phase 5. |
+| Unreachable | None. Every enemy in `C.ENEMIES` can appear in a fight. |
+| Uncertain | Boss summon types are written into the engine (`"bandit"`, `"skeleton"`, `"ghost"`), and `sim.makeMinion` silently turns an unknown type into a skeleton. The fight test records every summon and fails on an unknown type, but only for summons that happen within its 20 seconds. Candidate for Phase 6A (fail loudly). The engine's per-type behavior checks are string comparisons; a misspelt type there would not be caught by these tests. Phase 8B (behavior handlers) addresses that. |
 
 ### Phase 3: One fight-outcome builder
 
@@ -180,7 +193,7 @@ None right now. New questions for Sam are listed here until answered.
 ## Known unknowns
 
 - Whether any live path reaches the non-classless body of `_applyHit` (Phase 5).
-- Whether any test checks that every enemy has a family, role and sprite (Phase 2).
+- Whether a misspelt type string in the engine's behavior or sprite branches would be noticed (only by reading the code until Phase 8B).
 - The count of unused `config.js` exports is approximate; dynamic lookups would not show up (Phase 5).
 - No performance measurements exist yet (Phase 10).
 - The Supabase table and row-level security were not inspected.
@@ -191,4 +204,6 @@ None right now. New questions for Sam are listed here until answered.
 | --- | --- | --- | --- |
 | 2026-10-31 | Architecture audit (analysis only) | (none) | 9 findings, F1–F9 |
 | 2026-10-31 | Phase 0 baseline (no edits) | (none) | 341 tests pass, build passes, scenario baselines recorded |
-| 2026-10-31 | Phase 1 safe save upgrades | #28 | 358 tests pass, build passes, browser-checked |
+| 2026-10-31 | Phase 1 safe save upgrades | #28 | 358 tests pass, build passes, browser-checked; merged `30731da`, live |
+| 2026-10-31 | Phase 2 enemy coverage tests | #29 | 411 tests pass, build passes, tests shown to catch three kinds of mistakes |
+| 2026-10-31 | Phase 2 review | #29 | Review passed (Sam). Test and roadmap wording corrected: the fight test shows engine participation, rendering and observed summons, not enemy-specific behavior. No gameplay change; 411 tests pass, build passes |

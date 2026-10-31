@@ -29,11 +29,11 @@ export const ENDLESS = Object.freeze({
   maxSquad: 8,
   wavesPerLootTier: 5,
 });
-const ENDLESS_POOLS = [
+export const ENDLESS_POOLS = Object.freeze([
   { fromWave: 1, enemies: ["goblin", "ghost", "slime"] },
   { fromWave: 4, enemies: ["skeleton", "orc"] },
   { fromWave: 8, enemies: ["reaper", "darkElf", "warlock", "bulwark"] },
-];
+]);
 
 let enemySequence = 0;
 const nextEnemyId = () => { enemySequence += 1; return enemySequence; };
