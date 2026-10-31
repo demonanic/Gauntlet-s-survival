@@ -194,6 +194,11 @@ const SAPPER_SPRINT_RANGE = 110;
 const HERO_BODY_RADIUS = 20;
 const ENEMY_BODY_RADIUS = (e) => (e.boss ? 33 : e.tier === "elite" ? 24 : 18);
 const BODY_PAD = 9;
+// Champion bosses: Warded heals this share of max HP at each ward; Swarming
+// keeps up to this many summons alive; Vampiric heals this share per hit.
+const CHAMPION_WARD = 0.15;
+const CHAMPION_SWARM = 6;
+const CHAMPION_VAMPIRIC = 0.02;
 // Heroes this close to a boss are in melee with it: it won't lob bombs at them.
 const BOSS_MELEE_REACH = 90;
 function laneX(i) { return (W / LANES) * (i + 0.5); }
@@ -1684,6 +1689,7 @@ export class Engine {
 
   _updateEnemy(e, dt) {
     if (e.nemesisId && this._nemesisTick(e, dt)) return;
+    if (e.champion) this._championTick(e, dt);
     e.atkCd -= dt * (e.attackSlowUntil > this.time ? (e.attackSlowMultiplier || 1) : 1) * (e.attackSpeed || 1);
     if (e.stunUntil && e.stunUntil > this.time) return;
     // Boss special: a targeted, proximity-based napalm bottle.
@@ -2417,7 +2423,7 @@ export class Engine {
         }
         dmg = h.classless ? this._classlessReducedDamage(h, dmg) : this._legacyInterposedDamage(h, dmg);
         dmg *= 1 - Math.min(0.9, h.d.gear?.blastWard || 0);
-        if (p.source) h.lastHitBy = p.source;
+        if (p.source) { h.lastHitBy = p.source; this._vampiric(p.source); }
         if (h.ref.shield > 0) {
           const ab = Math.min(h.ref.shield, dmg);
           h.ref.shield -= ab;
@@ -2747,7 +2753,7 @@ export class Engine {
         return;
       }
       let damage = h.classless ? this._classlessReducedDamage(h, p.dmg) : this._legacyInterposedDamage(h, p.dmg);
-      if (p.source) h.lastHitBy = p.source;
+      if (p.source) { h.lastHitBy = p.source; this._vampiric(p.source); }
       if (h.ref.shield > 0) {
         const absorbed = Math.min(h.ref.shield, damage);
         h.ref.shield -= absorbed;
@@ -2812,6 +2818,7 @@ export class Engine {
       if (dmg > 0) this._triggerHeroReaction(h, "ally");
       if (dmg > 0 && h.d.gear?.thorns > 0 && e.hp > 0) this._bonusDamage(e, dmg * h.d.gear.thorns, "H" + h.i, "#F8FAFC");
       if (e.boss) e.hp = Math.min(e.maxHp, e.hp + dmg * 0.5); // Demon Lord lifesteal
+      if (dmg > 0) this._vampiric(e);
       this._float(h.x, h.y - 20, "-" + Math.round(dmg), "#FF3366");
       if (!h.classless && h.ref.hp <= 0 && h.alive) {
         h.alive = false;
@@ -3315,6 +3322,38 @@ export class Engine {
     }
     this.clutches.push(record);
     return true;
+  }
+
+  // ---- Champion bosses (game/regions.js CHAMPIONS) ----
+  _championTick(e, dt) {
+    const share = e.hp / e.maxHp;
+    if (e.champion === "warded") {
+      const next = [0.66, 0.33][e.wardsUsed || 0];
+      if (next != null && share < next) {
+        e.wardsUsed = (e.wardsUsed || 0) + 1;
+        e.hp = Math.min(e.maxHp, e.hp + e.maxHp * CHAMPION_WARD);
+        this._float(e.x, e.y - 34, "WARDED", "#38BDF8");
+        this.effects.push({ kind: "shield", x: e.x, y: e.y, r: 44, life: 1, color: "#38BDF8" });
+      }
+    } else if (e.champion === "swarming") {
+      e.swarmCd = (e.swarmCd ?? 3) - dt;
+      if (e.swarmCd <= 0) {
+        e.swarmCd = 4;
+        if (this._summonUpTo(["skeleton", "skeleton"], CHAMPION_SWARM)) this._float(e.x, e.y - 34, "SWARM", e.color);
+      }
+    } else if (e.champion === "frenzied" && !e.frenzied && share < 0.5) {
+      e.frenzied = true;
+      e.attackSpeed = (e.attackSpeed || 1) * 1.4;
+      e.damage *= 1.2;
+      this._float(e.x, e.y - 34, "FRENZY", "#F43F5E");
+      this.effects.push({ kind: "impact", x: e.x, y: e.y, r: 46, life: 0.7, color: "#F43F5E" });
+    }
+  }
+
+  // A Vampiric Champion heals with every hit it lands.
+  _vampiric(e) {
+    if (e?.champion !== "vampiric" || !(e.hp > 0)) return;
+    e.hp = Math.min(e.maxHp, e.hp + e.maxHp * CHAMPION_VAMPIRIC);
   }
 
   // A nemesis regenerates, and once per fight, nearly dead, may flee the

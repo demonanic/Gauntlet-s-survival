@@ -29,7 +29,7 @@ import { developQualities, recordFight, recordHistory, sharedQualities } from ".
 import { combatEnvironment, getEnvironment, heroResistance, rollEnvironmentEvent } from "./environment";
 import { bankLoot, createGearItem, normalizeHeroGear, randomCrystal, restockQuickSlots, tierMult } from "./items";
 import { legacyBonuses } from "./legacy";
-import { BOSS_RANK_SCALING, bossForRank, getRegion } from "./regions";
+import { BOSS_RANK_SCALING, CHAMPIONS, bossForRank, championFor, getRegion } from "./regions";
 import { simulateEncounter } from "./simulate";
 import { BOND_NAMES, combatBonds, recordSharedWin, separation } from "./bonds";
 import {
@@ -394,6 +394,7 @@ function reachEnd(state, region, at) {
     const wave = buildBossEncounter(region, state.bossRank || 0);
     const boss = wave.enemies.find((enemy) => enemy.boss || enemy.tier === "elite") || wave.enemies[0];
     addFeed(run, at, `The way out is blocked: ${boss.name} stands guard with ${describeSquad({ enemies: wave.enemies.filter((enemy) => enemy !== boss) })}.`, "danger", true);
+    if (wave.champion) addFeed(run, at, `A Champion! It ${CHAMPIONS[wave.champion].text}. Double bounty if it falls.`, "danger", true);
     openPending(run, at, { kind: "boss", wave, label: boss.name });
     return;
   }
@@ -1243,7 +1244,14 @@ function applyFightResult(state, region, { victory, party, xpGains, gold, items,
       const rank = state.bossRank || 0;
       bounty = Math.round(bounty * (1 + BOSS_RANK_SCALING.bounty * rank));
       state.bossRank = rank + 1;
-      addFeed(run, at, `${C.ENEMIES[bossForRank(rank)].name} slain! Next on the throne: ${C.ENEMIES[bossForRank(rank + 1)].name} (rank ${rank + 2}).`, "good");
+      const next = championFor(rank + 1);
+      addFeed(run, at, `${C.ENEMIES[bossForRank(rank)].name} slain! Next on the throne: ${next ? `a Champion: ${CHAMPIONS[next].name} ` : ""}${C.ENEMIES[bossForRank(rank + 1)].name} (rank ${rank + 2}).`, "good");
+    }
+    // A Champion pays double, and leaves a second crystal.
+    if (pending.wave.champion) {
+      bounty *= 2;
+      run.loot.items.push(randomCrystal(2));
+      addFeed(run, at, `The Champion is broken! Double bounty and an extra crystal.`, "loot", true);
     }
     run.loot.gold += bounty;
     run.bounty = bounty;

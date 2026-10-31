@@ -239,7 +239,14 @@ the ones you've slain.
 
 - **Boss rotation:** after the Three-Headed Demon falls, Ashen Keep's throne passes to the
   Imperial Necromancer, then the Abomination, then back to the Demon. Every kill raises the
-  boss rank: tougher bosses, bigger bounties, better loot.
+  boss rank: tougher bosses, bigger bounties, better loot. Ranks climb quickly at first;
+  around rank 25 a guild meets a wall (about 7 wins in 10) that it inches past as its heroes
+  improve.
+- **Champions:** every 5th rank (5, 10, 15...) the boss is a Champion with one extra
+  mechanic, in turn: **Warded** (shields itself at 66% and 33% HP, restoring 15% of its
+  health), **Swarming** (two skeletons every 4 seconds, up to six alive), **Frenzied**
+  (below half HP: 40% faster, 20% harder hits) and **Vampiric** (heals 2% of its max HP with
+  every hit). A Champion pays double bounty and an extra crystal.
 - **The Endless Rift:** one nonstop fight with ever-stronger waves (a boss every 10th
   wave). Return home whenever you like to keep everything; get overrun and keep half.
 

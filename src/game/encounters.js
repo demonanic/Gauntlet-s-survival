@@ -4,7 +4,7 @@ import { constrainSquad, fillEcology, rollEcology } from "./ecology";
 import { luckEffects, partyLuck } from "../combat/luck";
 import { NEMESIS, nemesisStats } from "./nemesis";
 import { rollLoot } from "./items";
-import { BOSS_RANK_SCALING, BOSS_ROTATION, bossForRank } from "./regions";
+import { BOSS_ROTATION, CHAMPIONS, bossForRank, bossRankScale, championFor } from "./regions";
 
 // Enemies get tougher the deeper into an expedition the party is: +30% HP and
 // damage by the time the timer runs out. The end boss fights at full depth.
@@ -136,10 +136,18 @@ export function buildBossEncounter(region, bossRank = 0, rng = Math.random) {
   const squad = region.boss.map((key) => (region.bossRotation && C.ENEMIES[key]?.boss ? bossForRank(rank) : key));
   const depth = 1 + DEPTH_SCALE_AT_END;
   const scale = {
-    hp: region.hpScale * depth * BOSS_RANK_SCALING.hpGrowth ** rank,
-    dmg: region.dmgScale * depth * BOSS_RANK_SCALING.dmgGrowth ** rank,
+    hp: region.hpScale * depth * bossRankScale(rank).hp,
+    dmg: region.dmgScale * depth * bossRankScale(rank).dmg,
   };
-  return { ...assembleWave(squad, scale, region.tier + Math.floor(rank / 2)), set: region.set || null, vanguard };
+  const wave = { ...assembleWave(squad, scale, region.tier + Math.floor(rank / 2)), set: region.set || null, vanguard };
+  const champion = region.bossRotation ? championFor(rank) : null;
+  const boss = champion && wave.enemies.find((enemy) => enemy.boss);
+  if (boss) {
+    boss.champion = champion;
+    boss.name = `${CHAMPIONS[champion].name} ${boss.name}`;
+    wave.champion = champion;
+  }
+  return wave;
 }
 
 // A short description of a squad for the adventure feed: "3 Skeletons and a Ghost".

@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "balance": "vite-node scripts/balance.js",
-    "scenarios": "vite-node scripts/scenarios.js"
+    "scenarios": "vite-node scripts/scenarios.js",
+    "ranks": "vite-node scripts/ranks.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",

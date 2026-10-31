@@ -6,7 +6,7 @@ import {
   choosePending, createGuild, currentEncounterWave, engagePending, resolveEncounter, riftBounty, startExpedition, treatInjury, treatmentCost,
 } from "./guild";
 import { createGearItem, equipGear, upgradeCost, upgradeGear } from "./items";
-import { BOSS_ROTATION, getRegion } from "./regions";
+import { BOSS_RANK_SCALING, BOSS_ROTATION, getRegion } from "./regions";
 import { SHOP_ROTATION_MS, buyShopItem, rerollShop, shopStock, shopTier } from "./shop";
 
 const T0 = 1_000_000;
@@ -110,8 +110,8 @@ describe("boss rotation", () => {
     expect(types).toEqual([...BOSS_ROTATION, BOSS_ROTATION[0]]);
     const rank0 = buildBossEncounter(ashen, 0);
     const rank3 = buildBossEncounter(ashen, 3);
-    // Rank 3 is the demon again, with HP compounded 15% per rank.
-    expect(Math.abs(rank3.enemies[0].maxHp - rank0.enemies[0].maxHp * 1.15 ** 3)).toBeLessThan(2);
+    // Rank 3 is the demon again, with HP compounded per rank.
+    expect(Math.abs(rank3.enemies[0].maxHp - rank0.enemies[0].maxHp * BOSS_RANK_SCALING.hpGrowth ** 3)).toBeLessThan(2);
     expect(rank3.lootTier).toBe(rank0.lootTier + 1);
     // Boneyard's boss doesn't rotate.
     expect(buildBossEncounter(getRegion("boneyard"), 5).enemies[0].type).toBe("lieutenant");
