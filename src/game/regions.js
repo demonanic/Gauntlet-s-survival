@@ -129,8 +129,8 @@ export const REGIONS = Object.freeze([
     // The level its enemies are tuned for, in Rare gear of its tier (threat.js).
     level: 10,
     durationMinutes: 15,
-    hpScale: 7.68,
-    dmgScale: 7.52,
+    hpScale: 6.91,
+    dmgScale: 6.77,
     completionGold: 800,
     recoverySeconds: 240,
     // Organized warfare: shields, snipers and sappers in formation.
