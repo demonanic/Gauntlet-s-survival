@@ -14,7 +14,10 @@ import { createGearItem, heroCombatSummary } from "./items";
 
 export const THREAT = Object.freeze({
   // Share of the gap closed: enemies scale by (party / reference) ^ CLOSE.
-  close: 0.75,
+  close: Number(globalThis.process?.env?.THREAT_CLOSE) || 0.75,
+  // Enemies start growing only past this much stronger than the reference
+  // (the reference has no perks; real heroes at that level do).
+  slack: Number(globalThis.process?.env?.THREAT_SLACK) || 1.2,
   max: 4,
   // The reference hero's stat points, in this order.
   spOrder: Object.freeze(["attack", "defense", "attack"]),
@@ -71,7 +74,7 @@ export function partyThreat(heroes, region) {
   const party = partyPower(heroes);
   const { level, tier } = regionReference(region);
   const reference = referencePower(level, tier);
-  const grow = (ratio) => Math.min(THREAT.max, Math.max(1, ratio) ** THREAT.close);
+  const grow = (ratio) => Math.min(THREAT.max, Math.max(1, ratio / THREAT.slack) ** THREAT.close);
   return {
     hp: Math.round(grow(party.offense / reference.offense) * 100) / 100,
     dmg: Math.round(grow(party.toughness / reference.toughness) * 100) / 100,
