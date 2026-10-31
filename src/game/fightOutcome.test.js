@@ -127,11 +127,14 @@ function playBothWays(state, recorded, watchedOutcome) {
   simulateEncounter.mockReturnValueOnce(structuredClone(recorded));
   const unattended = tick(structuredClone(state), at, { interactive: false, rng: seeded(5) });
 
+  // The watched path gets the same rng the unattended tick would have used:
+  // first for applying the result, then for the rest of the tick.
   random.mockImplementation(seeded(11));
+  const rng = seeded(5);
   const copy = structuredClone(recorded);
-  const resolved = resolveEncounter(structuredClone(state), watchedOutcome(copy.result, copy.sim), at);
+  const resolved = resolveEncounter(structuredClone(state), watchedOutcome(copy.result, copy.sim), at, { rng });
   expect(resolved.ok).toBe(true);
-  const watched = tick(resolved.state, at, { interactive: false, rng: seeded(5) });
+  const watched = tick(resolved.state, at, { interactive: false, rng });
 
   random.mockRestore();
   return { unattended, watched };
