@@ -1,6 +1,8 @@
 // Animated familiars on the battle canvas, drawn from shapes (no images):
 // the wolf runs on four legs, the hawk flaps, the imp flickers, the sprite
-// glows and flutters, the tortoise stomps. Each has walk (or hover), attack,
+// glows and flutters, the tortoise stomps. Summoned spirit beasts (tiger, wolf,
+// hawk, bat, rat, wasp, spider, dragon) glow green and half see-through.
+// Each has walk (or hover), attack,
 // hurt and downed poses, faces where it's going, and glows brighter with its
 // level. Drawing only; no imports, so it can also be rendered on its own.
 
@@ -33,6 +35,13 @@ export function drawFamiliar(ctx, pet, time) {
   ctx.lineWidth = 1.4;
   ctx.shadowBlur = pet.down ? 0 : 5 + level * 1.1;
   ctx.shadowColor = pet.owner?.d?.color || color;
+  if (pet.summoned) {
+    // A spirit: see-through, with a green glow that pulses.
+    ctx.globalAlpha *= 0.82;
+    ctx.shadowColor = "#9BE15D";
+    ctx.shadowBlur = 10 + Math.sin(time * 6) * 3;
+    if (species === "dragon") ctx.scale(1.5, 1.5);
+  }
   const draw = DRAW[species] || DRAW.wolf;
   draw(ctx, { time: time + seed, moving: pet.moving && !pet.down, strikeK, line, color, level, down: pet.down });
   ctx.restore();
@@ -123,6 +132,78 @@ const DRAW = {
     ctx.moveTo(1, -1); ctx.quadraticCurveTo(8, -7 - flutter * 3, 7, 1);
     ctx.stroke();
     ctx.beginPath(); ctx.arc(0, 0, 2.6, 0, TAU); ctx.fill(); ctx.stroke();
+  },
+  tiger(ctx, args) {
+    DRAW.wolf(ctx, args);
+    // stripes over the wolf-like frame, and a heavier jaw
+    ctx.strokeStyle = "#FF8A00"; ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (const x of [-4, -1, 2]) { ctx.moveTo(x, -3); ctx.lineTo(x + 1, 1); }
+    ctx.stroke();
+  },
+  bat(ctx, { time, strikeK }) {
+    const flap = Math.sin(time * 16);
+    ctx.translate(strikeK * 5, Math.sin(time * 4) * 2);
+    ctx.beginPath();
+    for (const side of [-1, 1]) {
+      ctx.moveTo(0, 0);
+      ctx.lineTo(side * 5, -3 - flap * 4); ctx.lineTo(side * 9, -1 - flap * 5); ctx.lineTo(side * 11, 2 - flap * 3);
+      ctx.lineTo(side * 8, 1); ctx.lineTo(side * 6, 3); ctx.lineTo(side * 3, 1.5); ctx.closePath();
+    }
+    ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(0, 0.5, 2.6, 3.2, 0, 0, TAU); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-1.6, -2.2); ctx.lineTo(-2.2, -4.6); ctx.moveTo(1.6, -2.2); ctx.lineTo(2.2, -4.6); ctx.stroke();
+  },
+  rat(ctx, { time, moving, strikeK }) {
+    const run = moving ? Math.sin(time * 20) : 0;
+    ctx.translate(strikeK * 3, 0);
+    ctx.beginPath(); ctx.ellipse(0, 1, 5, 2.8, 0, 0, TAU); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(4, 0); ctx.lineTo(8, 1); ctx.lineTo(4, 2.6); ctx.stroke();
+    ctx.beginPath(); ctx.arc(3.6, -1.6, 1.3, 0, TAU); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-5, 1); ctx.quadraticCurveTo(-10, -2 + run * 2, -12, 2); ctx.stroke();
+  },
+  wasp(ctx, { time, strikeK }) {
+    const buzz = Math.sin(time * 40);
+    ctx.translate(strikeK * 6, Math.sin(time * 5) * 2);
+    ctx.globalAlpha *= 0.7;
+    ctx.beginPath(); ctx.ellipse(-1, -4, 4, 2 + buzz, -0.3, 0, TAU); ctx.ellipse(2, -4, 4, 2 - buzz, 0.3, 0, TAU); ctx.stroke();
+    ctx.globalAlpha /= 0.7;
+    ctx.beginPath(); ctx.ellipse(-3, 1, 4.5, 2.6, 0, 0, TAU); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = "#0B1018"; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(-4, -1.4); ctx.lineTo(-4, 3.4); ctx.moveTo(-2, -1.6); ctx.lineTo(-2, 3.6); ctx.stroke();
+    ctx.strokeStyle = "#FDE047"; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.arc(3, 0, 2.2, 0, TAU); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-7.5, 1); ctx.lineTo(-10 - strikeK * 2, 1.5); ctx.stroke();
+  },
+  spider(ctx, { time, moving, strikeK }) {
+    const walk = moving ? Math.sin(time * 18) : 0;
+    ctx.translate(strikeK * 3, 0);
+    ctx.beginPath();
+    for (let i = 0; i < 4; i += 1) {
+      const x = -3 + i * 2;
+      const lift = (i % 2 ? 1 : -1) * walk * 1.5;
+      ctx.moveTo(x, 0); ctx.lineTo(x - 4, -4 + lift); ctx.lineTo(x - 6, 3);
+      ctx.moveTo(x, 0); ctx.lineTo(x + 4, -4 - lift); ctx.lineTo(x + 6, 3);
+    }
+    ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(-2, 0, 4, 3.4, 0, 0, TAU); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(3, 0, 2.2, 0, TAU); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#FF2A5F"; ctx.beginPath(); ctx.arc(4, -0.6, 0.6, 0, TAU); ctx.arc(4, 0.8, 0.6, 0, TAU); ctx.fill();
+  },
+  dragon(ctx, { time, strikeK }) {
+    const flap = Math.sin(time * 7);
+    ctx.translate(0, Math.sin(time * 2.5) * 2);
+    // wings
+    ctx.beginPath();
+    ctx.moveTo(-2, -1); ctx.lineTo(-7, -9 - flap * 4); ctx.lineTo(-4, -5); ctx.lineTo(-1, -9 - flap * 3); ctx.lineTo(2, -2);
+    ctx.fill(); ctx.stroke();
+    // body, tail, neck and horned head (jaw open when it breathes)
+    ctx.beginPath(); ctx.ellipse(-1, 1, 6, 3.4, 0, 0, TAU); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-6, 1); ctx.quadraticCurveTo(-11, 4, -13, 0); ctx.lineTo(-11, -0.5); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(3, -1); ctx.quadraticCurveTo(6, -4, 8, -4);
+    ctx.lineTo(11, -3); ctx.lineTo(8, -1.5 + strikeK * 2.5); ctx.lineTo(5, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(8, -4); ctx.lineTo(7, -7); ctx.stroke();
+    ctx.fillStyle = "#FFE600"; ctx.beginPath(); ctx.arc(9, -3, 0.7, 0, TAU); ctx.fill();
   },
   tortoise(ctx, { time, moving, strikeK }) {
     const stomp = moving ? Math.sin(time * 7) : 0;

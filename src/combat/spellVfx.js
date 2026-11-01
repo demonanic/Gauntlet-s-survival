@@ -13,6 +13,8 @@
 //   mind      rings and waves, pulsing           rank: faster pulse
 //   restoration soft motes and leaves, drifting up rank: more motes, brighter bloom
 //   warding   hexagon shells, snapping into place  rank: more shell layers (1–3)
+//   shadow    smoke wisps and afterimages, creeping rank: thicker smoke
+//   wild      vines, thorns and leaves, bursting up rank: thicker vines
 
 export const ELEMENT_LOOKS = Object.freeze({
   arcane: { color: "#E879F9", light: "#FCE7FF" },
@@ -23,10 +25,14 @@ export const ELEMENT_LOOKS = Object.freeze({
   mind: { color: "#A855F7", light: "#E9D5FF" },
   restoration: { color: "#A7F3D0", light: "#F0FFF7" },
   warding: { color: "#FFB547", light: "#FFE7B0" },
+  shadow: { color: "#8EA3C7", light: "#E2E8F0" },
+  wild: { color: "#9BE15D", light: "#E3FFC2" },
 });
 
 // Lingering effects the engine can attach to a foe or a hero.
-const AURA_KINDS = new Set(["fire", "poison", "ice", "mind", "renewal", "lifeline", "barrier", "empower", "aegis"]);
+const AURA_KINDS = new Set(["fire", "poison", "ice", "mind", "renewal", "lifeline", "barrier", "empower", "aegis", "veil", "fear", "confuse", "dominate", "root"]);
+const AURA_SCHOOL = { renewal: "restoration", lifeline: "restoration", barrier: "warding", empower: "warding", aegis: "warding",
+  veil: "shadow", fear: "shadow", confuse: "shadow", dominate: "mind", root: "wild" };
 
 // Below this frame rate (sustained) effects thin out; they come back once it recovers.
 export const VFX_QUALITY = Object.freeze({ slowFps: 50, recoverFps: 57, window: 1, steps: [1, 0.7, 0.45, 0.25], maxParticles: 700 });
@@ -60,6 +66,10 @@ export function rankLook(element, rank) {
     look.bloom = 0.45 + 0.55 * t;
   } else if (element === "warding") {
     look.layers = r >= 5 ? 3 : r >= 3 ? 2 : 1;
+  } else if (element === "shadow") {
+    look.smoke = Math.round(4 + 6 * t);
+  } else if (element === "wild") {
+    look.vine = 1.2 + 1.8 * t;
   } else {
     look.rings = r >= 5 ? 3 : r >= 3 ? 2 : 1;
   }
@@ -180,6 +190,16 @@ export class SpellVfx {
       }
     } else if (element === "warding") {
       this._add({ kind: "hex", x, y: y - 8, r: 12, grow: 1.4, color, life: 0.35, width: 2 });
+    } else if (element === "shadow") {
+      for (let i = 0; i < this._count(look.smoke); i += 1) {
+        this._add({ kind: "smoke", x: x + (R() - 0.5) * 20, y: y - R() * 16, vx: (R() - 0.5) * 18, vy: -14 - R() * 12, size: 6 + R() * 6, color: "#3A3F5C", life: 0.7 + R() * 0.3 });
+      }
+      for (let i = 1; i <= 2; i += 1) this._add({ kind: "ghost", x: x - i * 6, y, color, life: 0.35 + i * 0.1 });
+    } else if (element === "wild") {
+      for (let i = 0; i < this._count(6); i += 1) {
+        const a = (i / 6) * TAU;
+        this._add({ kind: "leaf", x: x + Math.cos(a) * 14, y: y - 6 + Math.sin(a) * 8, vx: -Math.sin(a) * 60, vy: Math.cos(a) * 30 - 20, rot: a, spin: 6, size: 3, color, life: 0.5 });
+      }
     }
   }
 
@@ -282,6 +302,21 @@ export class SpellVfx {
         const a = R() * TAU;
         this._add({ kind: "spark", x, y, vx: Math.cos(a) * (120 + R() * 120), vy: Math.sin(a) * (120 + R() * 120), size: 5 + R() * 6, color: R() < 0.5 ? light : color, life: 0.15 + R() * 0.1 });
       }
+    } else if (element === "shadow") {
+      this._add({ kind: "ring", x, y, r0: 4, r1: spread + 18, color: "#2B3345", life: 0.35, width: 5 });
+      for (let i = 0; i < this._count(look.smoke + 2); i += 1) {
+        const a = R() * TAU;
+        this._add({ kind: "smoke", x: x + Math.cos(a) * spread * 0.5, y: y + Math.sin(a) * spread * 0.3, vx: Math.cos(a) * 30, vy: -10 - R() * 10, size: 7 + R() * 6, color: "#3A3F5C", life: 0.6 + R() * 0.3 });
+      }
+      this._add({ kind: "ghost", x, y, color: light, life: 0.3 });
+    } else if (element === "wild") {
+      for (let i = 0; i < this._count(5); i += 1) {
+        const a = R() * TAU;
+        this._add({ kind: "thorn", x: x + Math.cos(a) * R() * (spread * 0.7 + 6), y: y + 8 + Math.sin(a) * R() * spread * 0.35, h: 8 + R() * 8 * look.vine, w: 2 + look.vine, color, life: 0.5 });
+      }
+      for (let i = 0; i < this._count(6); i += 1) {
+        this._add({ kind: "leaf", x, y, vx: (R() - 0.5) * 90, vy: -40 - R() * 50, rot: R() * TAU, spin: (R() - 0.5) * 8, size: 2.6, color: R() < 0.5 ? color : "#5EE6A0", life: 0.6, gravity: 140 });
+      }
     } else if (element === "mind") {
       const waves = Math.max(2, Math.round(look.pulse * 0.8));
       for (let i = 0; i < waves; i += 1) {
@@ -353,7 +388,7 @@ export class SpellVfx {
   // `keep` (optional) ends it early once it returns false.
   aura(element, target, seconds, rank = 1, keep = null) {
     if (!target || !(seconds > 0) || !AURA_KINDS.has(element)) return;
-    const school = ["renewal", "lifeline"].includes(element) ? "restoration" : ["barrier", "empower", "aegis"].includes(element) ? "warding" : element;
+    const school = AURA_SCHOOL[element] || element;
     const existing = this.auras.find((aura) => aura.target === target && aura.element === element);
     if (existing) { existing.until = Math.max(existing.until, this.time + seconds); existing.rank = Math.max(existing.rank, rank); existing.keep = keep || existing.keep; return; }
     this.auras.push({ element, school, target, until: this.time + seconds, rank, look: rankLook(school, rank), next: 0, spin: this.rand() * TAU, keep, born: this.time });
@@ -464,6 +499,9 @@ export class SpellVfx {
       aura.next = 0.12 / (this.quality * (0.6 + aura.look.bloom));
       this._add({ kind: "mote", x: t.x + (R() - 0.5) * 22, y: t.y + 4, vx: (R() - 0.5) * 6, vy: -22 - R() * 14, size: 2 + R() * 2, color: R() < 0.5 ? ELEMENT_LOOKS.restoration.light : ELEMENT_LOOKS.restoration.color, life: 0.8 });
       if (R() < 0.25) this._add({ kind: "leaf", x: t.x + (R() - 0.5) * 18, y: t.y, vx: (R() - 0.5) * 12, vy: -18, rot: R() * TAU, spin: 3, size: 2.6, color: "#5EE6A0", life: 0.9 });
+    } else if (aura.element === "veil") {
+      aura.next = 0.09 / this.quality;
+      this._add({ kind: "smoke", x: t.x + (R() - 0.5) * 20, y: t.y - R() * 18, vx: (R() - 0.5) * 10, vy: -12, size: 5 + R() * 4 + aura.look.smoke * 0.4, color: "#3A3F5C", life: 0.6 });
     } else if (aura.element === "empower") {
       // A glint runs along the weapon and gold sparks rise off the hero.
       aura.next = 0.22 / this.quality;
@@ -487,6 +525,100 @@ export class SpellVfx {
     for (const aura of this.auras) {
       if (aura.element === "mind") this._drawDazed(ctx, aura);
       else if (["lifeline", "barrier", "aegis"].includes(aura.element)) this._drawWard(ctx, aura);
+      else if (["veil", "fear", "confuse", "dominate", "root"].includes(aura.element)) this._drawControl(ctx, aura);
+    }
+  }
+
+  // Controls on foes (and Veil on a hero), drawn each frame: Veil's
+  // afterimage, Terror's shaking "!", Confusion's circling "?" and red eyes,
+  // Dominate's chain halo, roots wrapped around the feet.
+  _drawControl(ctx, aura) {
+    const t = aura.target;
+    const left = aura.until - this.time;
+    const fade = Math.min(1, left / 0.3);
+    const head = t.y - (t.boss ? 40 : 24);
+    ctx.save();
+    if (aura.element === "veil") {
+      // A dark shroud over the hero, trailed by two afterimages.
+      const g = ctx.createRadialGradient(t.x, t.y - 8, 0, t.x, t.y - 8, 20);
+      g.addColorStop(0, rgba("#05070C", 0.55 * fade)); g.addColorStop(1, rgba("#05070C", 0));
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(t.x, t.y - 8, 20, 0, TAU); ctx.fill();
+      for (let i = 1; i <= 2; i += 1) {
+        ctx.strokeStyle = rgba(ELEMENT_LOOKS.shadow.light, 0.55 * fade / i); ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.ellipse(t.x - i * 6 * (0.6 + 0.4 * Math.sin(this.time * 3)), t.y - 8, 7, 12, 0, 0, TAU); ctx.stroke();
+      }
+    } else if (aura.element === "fear") {
+      const shake = Math.sin(this.time * 60) * 1.5;
+      ctx.font = "900 14px Unbounded, JetBrains Mono, monospace"; ctx.textAlign = "center";
+      ctx.fillStyle = rgba("#F8FAFC", fade); ctx.fillText("!", t.x + shake, head);
+      ctx.strokeStyle = rgba(ELEMENT_LOOKS.shadow.light, 0.7 * fade); ctx.lineWidth = 1.2;
+      for (const side of [-1, 1]) {
+        ctx.beginPath(); ctx.moveTo(t.x + side * 10, head - 8); ctx.lineTo(t.x + side * 14 + shake, head - 4); ctx.lineTo(t.x + side * 10, head);
+        ctx.stroke();
+      }
+    } else if (aura.element === "confuse") {
+      ctx.font = "800 11px Unbounded, JetBrains Mono, monospace"; ctx.textAlign = "center";
+      for (let i = 0; i < 3; i += 1) {
+        const a = this.time * 3 + (i / 3) * TAU;
+        ctx.fillStyle = rgba(i ? ELEMENT_LOOKS.shadow.light : "#C4B5FD", fade);
+        ctx.fillText("?", t.x + Math.cos(a) * 12, head + Math.sin(a) * 4);
+      }
+      ctx.fillStyle = rgba("#FF2A5F", fade);
+      ctx.beginPath(); ctx.arc(t.x - 3, t.y - 6, 1.6, 0, TAU); ctx.arc(t.x + 3, t.y - 6, 1.6, 0, TAU); ctx.fill();
+    } else if (aura.element === "dominate") {
+      const { color, light } = ELEMENT_LOOKS.mind;
+      ctx.globalCompositeOperation = "lighter";
+      ctx.strokeStyle = rgba(light, 0.9 * fade); ctx.lineWidth = 1.3;
+      for (let i = 0; i < 10; i += 1) {
+        const a = this.time * 1.5 + (i / 10) * TAU;
+        ctx.beginPath(); ctx.ellipse(t.x + Math.cos(a) * 13, head - 2 + Math.sin(a) * 4, 2.6, 1.6, a, 0, TAU); ctx.stroke();
+      }
+      ctx.strokeStyle = rgba(color, 0.8 * fade); ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(t.x, t.y + 8, t.boss ? 26 : 14, t.boss ? 9 : 5, 0, 0, TAU); ctx.stroke();
+    } else if (aura.element === "root") {
+      const { color } = ELEMENT_LOOKS.wild;
+      const w = t.boss ? 22 : 12;
+      ctx.strokeStyle = rgba(color, 0.9 * fade); ctx.lineWidth = aura.look.vine || 1.6; ctx.lineCap = "round";
+      for (let i = 0; i < 4; i += 1) {
+        const x0 = t.x - w + (i / 3) * w * 2;
+        const curl = Math.sin(this.time * 2 + i) * 2;
+        ctx.beginPath(); ctx.moveTo(x0, t.y + 10);
+        ctx.quadraticCurveTo(x0 + (i % 2 ? -8 : 8) + curl, t.y + 2, t.x + (i - 1.5) * 3, t.y - 2 + (i % 2) * 4);
+        ctx.stroke();
+      }
+      ctx.fillStyle = rgba("#5EE6A0", 0.8 * fade);
+      ctx.beginPath(); ctx.ellipse(t.x - w * 0.6, t.y + 2, 2.4, 1.2, 0.6, 0, TAU); ctx.ellipse(t.x + w * 0.5, t.y - 1, 2.4, 1.2, -0.6, 0, TAU); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // A spirit beast appears in a swirl of leaves; it leaves the same way.
+  beastSpawn(pet, rank = 1) {
+    const R = this.rand;
+    const { color } = ELEMENT_LOOKS.wild;
+    this._add({ kind: "bloom", x: pet.x, y: pet.y - 4, r: 22 + rank * 3, color, life: 0.5 });
+    for (let i = 0; i < this._count(10); i += 1) {
+      const a = (i / 10) * TAU;
+      this._add({ kind: "leaf", x: pet.x + Math.cos(a) * 18, y: pet.y + Math.sin(a) * 8, vx: -Math.sin(a) * 70 - Math.cos(a) * 20, vy: Math.cos(a) * 30 - 30, rot: a, spin: 7, size: 3, color: R() < 0.5 ? color : "#5EE6A0", life: 0.6 });
+    }
+  }
+
+  beastFade(pet) {
+    const R = this.rand;
+    for (let i = 0; i < this._count(8); i += 1) {
+      this._add({ kind: "leaf", x: pet.x + (R() - 0.5) * 16, y: pet.y - 4, vx: (R() - 0.5) * 50, vy: -30 - R() * 30, rot: R() * TAU, spin: 5, size: 2.6, color: ELEMENT_LOOKS.wild.color, life: 0.7, gravity: 60 });
+    }
+    this._add({ kind: "mote", x: pet.x, y: pet.y - 4, vx: 0, vy: -20, size: 6, color: ELEMENT_LOOKS.wild.light, life: 0.5 });
+  }
+
+  // A dragon's breath: a cone of fire from the beast toward its target.
+  breath(pet, target, range) {
+    const R = this.rand;
+    const a = Math.atan2(target.y - pet.y, target.x - pet.x);
+    for (let i = 0; i < this._count(16); i += 1) {
+      const spread = (R() - 0.5) * 1.1;
+      const s = range * (1.6 + R() * 1.4);
+      this._add({ kind: "flame", x: pet.x, y: pet.y - 6, vx: Math.cos(a + spread) * s, vy: Math.sin(a + spread) * s, size: 5 + R() * 5, core: "#FFF1C2", edge: "#FF6A1A", life: 0.35 + R() * 0.15 });
     }
   }
 
@@ -537,7 +669,7 @@ export class SpellVfx {
     const life = Math.max(0.0001, p.life - (p.delay || 0));
     const k = Math.min(1, (p.age - (p.delay || 0)) / life);
     const fade = 1 - k;
-    ctx.globalCompositeOperation = ["smoke", "mist", "fizzleText", "warning"].includes(p.kind) ? "source-over" : "lighter";
+    ctx.globalCompositeOperation = ["smoke", "mist", "fizzleText", "warning", "ghost"].includes(p.kind) ? "source-over" : "lighter";
     switch (p.kind) {
       case "ember": case "glint": {
         ctx.fillStyle = rgba(p.color, fade);
@@ -552,6 +684,17 @@ export class SpellVfx {
         g.addColorStop(1, rgba(p.edge, 0));
         ctx.fillStyle = g;
         ctx.beginPath(); ctx.ellipse(p.x, p.y, r * 0.8, r * 1.25, 0, 0, TAU); ctx.fill();
+        break;
+      }
+      case "ghost": {
+        ctx.strokeStyle = rgba(p.color, 0.5 * fade); ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.ellipse(p.x, p.y - 8, 7, 12, 0, 0, TAU); ctx.stroke();
+        break;
+      }
+      case "thorn": {
+        const h = p.h * Math.min(1, k * 4);
+        ctx.fillStyle = rgba(p.color, fade);
+        ctx.beginPath(); ctx.moveTo(p.x - p.w, p.y); ctx.lineTo(p.x, p.y - h); ctx.lineTo(p.x + p.w, p.y); ctx.closePath(); ctx.fill();
         break;
       }
       case "mote": {
