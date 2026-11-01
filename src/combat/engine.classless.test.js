@@ -1,15 +1,15 @@
 import { createHeroModel, HERO_BASELINE } from "./heroModel";
-import { createNewState } from "./logic";
 import * as C from "./config";
 import { Engine } from "./engine";
 import { combatVfxAssetId } from "./combatVfx";
 
-// A bare sim for engine-level tests. The engine requires rollDrop and
-// makeMinion (createEncounterSim provides both in the game); these tests check
-// no drops and expect no summons, so a summon here fails loudly.
+// A bare sim for engine-level tests: just what the engine reads. The engine
+// requires rollDrop and makeMinion (createEncounterSim provides both in the
+// game); these tests check no drops and expect no summons, so a summon here
+// fails loudly.
 function testSim(extra = {}) {
   return {
-    ...createNewState(),
+    heroes: [], gold: 0, vault: [], kills: { total: 0, byType: {} }, morale: 50,
     rollDrop: () => null,
     makeMinion: (type) => { throw new Error(`Unexpected summon (${type}) in an engine test`); },
     ...extra,
@@ -30,7 +30,7 @@ function enemy(name, x, y, overrides = {}) {
 
 describe("the encounter sim", () => {
   test("must supply loot and summons: the engine has no legacy fallback", () => {
-    const bare = () => ({ ...createNewState(), heroes: [createHeroModel({ id: "h" })] });
+    const bare = () => ({ heroes: [createHeroModel({ id: "h" })], gold: 0, vault: [], kills: { total: 0, byType: {} }, morale: 50 });
     const build = (sim) => () => new Engine({ getContext: () => null }, sim, { enemies: [], total: 1 });
     expect(build(bare())).toThrow(/sim\.rollDrop/);
     expect(build({ ...bare(), rollDrop: () => null })).toThrow(/sim\.makeMinion/);

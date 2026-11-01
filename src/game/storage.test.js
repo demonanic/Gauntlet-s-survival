@@ -3,6 +3,10 @@ import {
   BACKUP_KEY, SAVE_MIGRATIONS, loadSave, migrateSave, parseGuild, readGuild, readSaveBackups, saveGuild,
 } from "./storage";
 import { needsSaveChoice } from "../cloud/cloudSave";
+import { buildWildEncounter } from "./encounters";
+import { getRegion } from "./regions";
+import { seededRandom } from "./random";
+import { simulateEncounter } from "./simulate";
 
 const SAVE_KEY = "gauntlet.save.v1";
 const NOW = 1_700_000_000_000;
@@ -157,5 +161,19 @@ describe("cloud sign-in after a replaced local save", () => {
     expect(needsSaveChoice(synced, "u1", remote)).toBe(false);
     expect(needsSaveChoice(synced, "u1", remote, true)).toBe(true);
     expect(needsSaveChoice(synced, "u1", null, true)).toBe(false);
+  });
+});
+
+describe("a save with a stray class field", () => {
+  // No Gauntlet save has one; a hand-edited save did, and its first fight crashed.
+  test("loads every hero as classless, and the hero fights", () => {
+    const save = JSON.parse(JSON.stringify(createGuild()));
+    save.heroes[0].cls = "knight";
+    const { status, state } = readGuild(save);
+    expect(status).toBe("ok");
+    expect(state.heroes.every((hero) => !("cls" in hero))).toBe(true);
+    const wave = buildWildEncounter(getRegion("gutter"), 0, seededRandom(3), { waves: 1 });
+    const { result } = simulateEncounter(state.heroes, wave, { rng: seededRandom(4) });
+    expect(result).toBeTruthy();
   });
 });

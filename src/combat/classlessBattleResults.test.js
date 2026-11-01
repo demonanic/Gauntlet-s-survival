@@ -1,11 +1,9 @@
-import { createNewState } from "./logic";
 import { createHeroModel, normalizeClasslessHero, serializeGameState } from "./heroModel";
 import { mergeClasslessBattleResults } from "./classlessBattleResults";
 
 describe("classless battle result persistence foundation", () => {
   const makeState = () => {
-    const state = createNewState();
-    state.heroes = [createHeroModel({ id: "classless-result", name: "Aster", appearanceId: "look-a" })];
+    const state = { heroes: [createHeroModel({ id: "classless-result", name: "Aster", appearanceId: "look-a" })] };
     state.heroes[0].combat.hp = 241;
     state.heroes[0].progression = { level: 2, xp: 35, ap: 1, sp: 1, ownedNodeIds: ["owned-a"] };
     state.gold = 432;
@@ -58,7 +56,8 @@ describe("classless battle result persistence foundation", () => {
   });
 
   test("leaves legacy heroes and legacy awards for the existing progression path", () => {
-    const state = createNewState(["knight"]);
+    // A Demonanic class hero (Gauntlet never makes one; save loading drops cls).
+    const state = { heroes: [{ id: "knight-1", key: "knight", name: "Knight", cls: "knight", level: 1, xp: 0, hp: 120, maxHp: 120 }] };
     const before = JSON.stringify(state.heroes[0]);
     const result = mergeClasslessBattleResults(state, {
       heroIds: [state.heroes[0].id], runtimeHeroes: [{ hp: 17 }], xpGains: { 0: 99 },

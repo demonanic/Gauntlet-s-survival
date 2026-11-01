@@ -224,9 +224,6 @@ const MINION_SCALE = Object.freeze({ hp: 0.6, dmg: 0.7 });
 export function createEncounterSim(party, regionTier, wave = null, { rng = defaultRandom } = {}) {
   const sim = {
     heroes: structuredClone(party),
-    towers: [],
-    barricades: [],
-    buildings: {},
     wave: regionTier,
     morale: 50,
     gold: 0,

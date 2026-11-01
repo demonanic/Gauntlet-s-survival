@@ -166,7 +166,7 @@ describe("characterization: the old watched mapping and the unattended path", ()
   test("an engine result with every field set is carried the same way", () => {
     const sim = { heroes: [{ identity: { id: "h1" } }], gold: 42, vault: [{ kind: "gear", id: "x" }] };
     const result = {
-      victory: true, reason: "squad", xpGains: { heroes: { 0: 30 }, towers: {} }, killed: 5, wavesCleared: 2,
+      victory: true, reason: "squad", xpGains: { heroes: { 0: 30 } }, killed: 5, wavesCleared: 2,
       downed: { 0: { type: "orc", name: "Orc", nemesisId: null, boss: false, summoned: false } },
       nemesisSlain: "n1", nemesisFled: "n2", clutches: [{ hero: 0, choice: "crit", landed: true }], spellCasts: { 0: { firebolt: 2 } },
     };
@@ -195,7 +195,7 @@ const LEGACY_FIELDS = ["victory", "party", "xpGains", "gold", "items", "wavesCle
 const CANONICAL_FIELDS = [...LEGACY_FIELDS, "reason", "killed"].sort();
 const legacyPart = (outcome) => Object.fromEntries(LEGACY_FIELDS.map((key) => [key, outcome[key]]));
 const FULL_RESULT = {
-  victory: true, reason: "cleared", xpGains: { heroes: { 0: 30, 1: 12 }, towers: {} }, killed: 5, wavesCleared: 2,
+  victory: true, reason: "cleared", xpGains: { heroes: { 0: 30, 1: 12 } }, killed: 5, wavesCleared: 2,
   downed: { 1: { type: "orc", name: "Orc", nemesisId: "n2", boss: false, summoned: false } },
   nemesisSlain: "n1", nemesisFled: "n2", clutches: [{ hero: 0, choice: "crit", landed: true }], spellCasts: { 0: { firebolt: 2 } },
 };

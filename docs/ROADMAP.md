@@ -19,7 +19,7 @@ Source: the first architecture audit (October 2026) and Sam's roadmap built from
 7. When a change touches the path shared by watched and unattended fights, verify both.
 8. Keep commits small and reversible.
 9. If the code contradicts the audit, stop and report instead of forcing the plan.
-10. Never start the next phase without Sam's explicit go-ahead.
+10. Never start the next phase without Sam's explicit go-ahead. Sam may approve a batch of about three steps: one PR for the batch, one commit per step, each commit checked on its own (tests, build, byte-identity probe), and a stop after the batch for review.
 11. Do not rewrite working architecture only for consistency or style.
 12. Report measured facts separately from assumptions.
 
@@ -46,7 +46,7 @@ These were judged to work well. A PR that weakens one needs an explicit reason t
 | 3 | One fight-outcome builder for watched and unattended fights | F5 | Done (#30, merged `c6a07c7`) |
 | 4 | Injectable, seedable randomness | F7 | Done (#31, merged `af594dd`) |
 | 5 | Legacy reachability investigation (no edits) | F2, F9 | Done (#32, merged `50bdf0f`) |
-| 6 | Remove only verified legacy code, in small PRs | F2, F9 | In progress: 6A done, in review (#33) |
+| 6 | Remove only verified legacy code, in small PRs | F2, F9 | In progress: 6A merged (#33); batch 1 (6B, 6C, 6D-1) in review (#34) |
 | 7 | Move fight results and rewards out of `expedition.js` | F6 | Not started |
 | 8 | Split `combat/engine.js`: A renderer, B enemy behavior, C hero abilities and spells, D the rest if justified | F1, F3 | Not started |
 | 9 | One definition per enemy; regional spawn data stays in regions | F3 | Not started |
@@ -178,9 +178,9 @@ The full manifest, with evidence for every item, is in `docs/LEGACY_MANIFEST.md`
 
 ### Phase 6: Remove verified legacy code
 
-The steps follow `docs/LEGACY_MANIFEST.md`. Each step is its own PR and starts only when Sam says go.
+The steps follow `docs/LEGACY_MANIFEST.md`. 6A was its own PR. From 6B on, Sam approves batches (rule 10): batch 1 = 6B, 6C, 6D-1; batch 2 = 6D-2, 6D-3, 6D-4; batch 3 = 6D-5 and Phase 7.
 
-- [x] **6A: remove the sim fallbacks** (manifest items 4 and 5), done, in review.
+- [x] **6A: remove the sim fallbacks** (manifest items 4 and 5), merged.
   - The engine no longer falls back to the legacy `makeSingleEnemy` (`logic.js`) or `rollEquipmentDrop` (`equipment.js`). Its constructor now requires `sim.makeMinion` and `sim.rollDrop` and throws a clear `TypeError` naming the missing one. Both imports are gone, so `equipment.js` is now imported only by `logic.js`.
   - Both production paths (`simulate.js`, `Battle.jsx`) already build sims with `createEncounterSim`, which supplies both.
   - `src/combat/engine.classless.test.js`, the only file with hand-built sims (25, from `createNewState`), now builds them with a `testSim()` helper. Its `rollDrop` drops nothing, which changes no assertion because no test there checks drops. Its `makeMinion` throws, so an unexpected summon fails loudly.
@@ -190,16 +190,23 @@ The steps follow `docs/LEGACY_MANIFEST.md`. Each step is its own PR and starts o
     - Production build succeeded.
     - The Phase 4 probe (`Math.random` seeded identically, four unattended trips, three fights, a shop rotation) gave byte-identical output on `main` (`50bdf0f`) and this branch.
     - A watched fight in the browser (`npm run dev`) won, 3 slain, +12g, saved, no page errors.
-  - [ ] Sam merges the PR.
-- [ ] **6B: remove the class-hero paths** (items 1 and 3). First, save loading drops a stray `cls` field (Sam's decision), with a save-fixture test. Then the class branches go.
-- [ ] **6C: replace the legacy test fixtures** (item 6): `createNewState` and `createHero`.
-- [ ] **6D: delete dead code, one group per PR:**
-  1. towers, the unused sim fields and `xpGains.towers` (items 11, 14, 16);
+  - [x] Sam merged PR #33 (`018271f`).
+- [x] **6B: remove the class-hero paths** (items 1 and 3), batch 1, in review.
+  - Commit 1: `normalizeClasslessHero` drops a stray `cls` (Sam's decision). New save-fixture test: a save with `cls` on a hero loads as `ok`, every hero is classless, and the hero fights. With the fix removed the test fails.
+  - Commit 2: the engine's class-hero branches are gone: legacy derived stats and mana, `perks.js` abilities and `MAGE_SPELLS`, legacy targeting, legacy hit and death handling, the legacy weapon sprite, and the `classless` flags. `useHeroAbility`, `_applyHit`, `getHeroSpellStatus` and `heroMovementSpeed` now take the classless path directly. The constructor throws a clear `TypeError` for a hero not built with the hero model. `engine.js` no longer imports `logic.js` or `perks.js`.
+- [x] **6C: replace the legacy test fixtures** (item 6), batch 1, in review. The engine, battle-result and progression tests build plain objects and hero-model heroes. No test imports `logic.js`. The two class-hero guard tests stay, with a small class-shaped hero.
+- [ ] **6D: delete dead code:**
+  1. [x] towers, the unused sim fields and `xpGains.towers` (items 11, 14, 16), batch 1, in review. Removed the tower and barricade arrays, every tower branch (Warlock drain, napalm splash, bolts, direct attacks), `_nearestTower`, `_selectTowerTarget`, tower XP, and the sim's `towers`, `barricades` and `buildings`. This also removed the 3 tower-loss morale writes (item 13).
   2. the revive API and sim morale (items 12, 13);
   3. the `zombie` sprite (item 15);
   4. the legacy modules (items 7–10);
   5. unused `config.js` exports (items 17–20).
 - [ ] Each PR: imports resolve, tests and build pass, scenarios run, watched combat and save loading still work.
+- Batch 1 evidence, per commit:
+  - Full suite 449 tests pass after each commit (448 plus the save-fixture test). Production build passes.
+  - Byte-identity probe (unseeded play with `Math.random` seeded identically): each commit identical to the one before; 6B identical to `018271f`. From 6D-1 on, the probe ignores the always-empty `xpGains.towers` key, which no longer exists.
+  - Seeded active runs identical before and after: 6B (`scenarios --group party --trips 6 --active --gear rare --seed 11 --regions frostfang,blightmire`, `ranks --ranks 0,10,20 --fights 2 --active --seed 11`, `scenarios --group bosses --trips 3 --active --seed 12`) and 6D-1 (the `ranks` and `bosses` runs).
+  - Browser, 6B: a save where every hero had `cls` loaded classless; a watched fight with manual taps won (3 slain, +21g), saved, no page errors.
 
 ### Phase 7: Fight results out of `expedition.js`
 
@@ -285,3 +292,5 @@ Decisions (Sam, 2026-11-01, reviewing Phase 5):
 | 2026-11-01 | Phase 5 scenario evidence | #32 | Both instrumented scenario runs (idle common, active rare; all 7 groups) recorded 0 legacy hits |
 | 2026-11-01 | Phase 5 merged | #32 | Merged `50bdf0f`; both open decisions settled |
 | 2026-11-01 | Phase 6A sim fallbacks removed | #33 | 448 tests pass, build passes, unseeded play byte-identical to `50bdf0f`, watched fight checked |
+| 2026-11-01 | Phase 6A merged; batching approved | #33 | Merged `018271f`. Sam approved batches of about three steps (rule 10) |
+| 2026-11-01 | Batch 1: 6B, 6C, 6D-1 | #34 | 449 tests pass and build passes after each commit; unseeded play byte-identical; seeded active runs identical; a `cls` save now loads and fights |
