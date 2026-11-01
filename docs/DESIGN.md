@@ -540,6 +540,64 @@ Owner-approved design (Oct 2026). The Bible's Arcana nodes, built for Gauntlet:
   rank), element choice, and ★ "Special move" / ✦ "Spell" tags on nodes that add a button.
 - The balance scripts' heroes don't take Arcana, so their numbers don't move.
 
+## Battle screen: moves and spells (Nov 2026, `screens/Battle.jsx`, `combat/abilityLook.js`)
+
+Owner-approved design (canvas "Gauntlet battle ability UI"):
+
+- **Party tabs** under the battle: each hero's name, HP bar and a badge counting their
+  ready moves. Tapping a tab shows that hero's actions; tapping the shown hero again arms
+  move orders (then tap the field), as before; Auto ends them.
+- **Action panel** for the shown hero. Special moves are 64 px round buttons with an icon
+  (`MOVE_ICONS`), ringed in their perk branch's colour (`BRANCH_COLORS`; Shared Strike is
+  "Basic"). Ready: a pulse in that colour. Cooling: a dark sweep that shrinks, seconds in
+  the middle. Can't fire: a grey ring and the reason (Down, No target, Low HP, Needs a
+  weak foe). Spells are tiles in their element's colour with an icon per shape (bolt,
+  area, curse, meteor), mana cost and chance to land; a draining bar while cooling;
+  faded with "Needs N mana" when short. Quick-slot items are full-width buttons.
+- **Callouts** (`_callout`): a move that fires, or a spell the player taps that lands,
+  flashes its name over the hero in its colour for about a second. Auto casts and
+  fizzles show none. **Hit-stop:** Execution, Killshot, Cleaving Strike, Phantom Strike,
+  Arcane Channel and Meteor freeze the frame for 0.09 s (`BIG_MOVES`, `BIG_SPELLS`).
+  Both run only in the live frame loop (`_loop`), never in headless fights, so they
+  cannot change a fight's result.
+- The hero sprites, enemies and the rest of the battle canvas are unchanged.
+
+## Spells and familiars: the agreed plan (Nov 2026, not built yet)
+
+Owner-approved direction; each step is its own PR, built in this order:
+
+1. Battle screen above (done).
+2. **A distinct effect per element, and a new fizzle.** Each element differs in colour,
+   shape and motion: Arcane stars and glyph rings, orbiting; Fire round flames and
+   embers, flickering up; Ice angular shards, spinning, cracking on impact; Poison blobs
+   and bubbles, arcing and dripping; Lightning zig-zag lines, instant with jitter; Mind
+   rings and waves, pulsing. Effects grow with the caster's proficiency (I–V), each
+   element in its own way: Fire hotter (dull red to white-hot), Ice bigger shard
+   clusters, Poison thicker trails, Lightning more forks (1 to 4), Mind a faster pulse,
+   Arcane more rune rings (1 to 3). Fizzle: the cast starts in its element's style, then
+   breaks into a grey puff with a wobbling FIZZLE. Visual only. Effects stay fully vivid
+   unless the frame rate drops (below about 50 fps for a second), then particles thin
+   out step by step and come back when it recovers; they never touch the fight.
+3. **Restoration and Warding**, new schools chosen like elements, three spells each
+   (start, proficiency II, IV): Mend, Renewal, Lifeline; Barrier, Empower, Aegis.
+   Restoration: soft green-white motes; Warding: gold hexagon shells (1 to 3 layers).
+4. **Familiars as real units:** their own HP (enemies can hit them; downed for the rest
+   of the fight, never lost), their own targets and a simple role per species, and
+   animated sprites. Balance re-measured (`npm run scenarios -- --group companions`).
+5. **Shadow and Wild Magic, plus Dominate.** Shadow: Veil (invisibility), Terror (fear),
+   Confusion. Wild Magic: Ensnare (root), Thornfield, Summon Spirit Beast. Mind gains
+   Dominate (an ordinary foe fights for the party for 6 s; never bosses, elites or
+   nemeses). Bosses resist control (shortened, as stuns are now). The spirit beast comes
+   from the hero's trait: Tiger (Brawny, Berserker), Wolf (Stalwart, Ironhide,
+   Steadfast, Charismatic, Inspiring, Optimist), Hawk (Nimble, Swift, Tracker,
+   Trailwise), Bat (Loud, Paranoid), Rat swarm (Scavenger, Greedy, Frail), Wasp
+   (Reckless), Spider (Bloodhound, Field Medic); a Dragon at Wild Magic V. The player
+   can pick another in the Spellbook. It uses the familiar unit system from step 4.
+
+All spells cast on auto too, with guardrails: never into nothing (no heal at full HP, no
+root on a rooted foe), a mana reserve before Dominate or a summon, no wasted controls on
+bosses. If a guardrail clashes with gameplay, flag it to Sam rather than change it.
+
 ## Clutch (Fortune perk F2a, `CLUTCH` in engine.js)
 
 A Gauntlet addition to the Bible's Fortune branch: tier 2 (level 5, 2 AP, after F1); F3
@@ -749,6 +807,8 @@ boss walls on waves 40 or 50. The compounding boss and wave scaling still sets t
 ceiling; it now takes proportionally longer to reach.
 
 ## Known gaps / next steps
+
+- **Sound:** the game has no sound effects yet; a sound overhaul is planned as its own later update (fizzles are visual only until then).
 
 - **Second trim pass:** `engine.js` still has tower/castle branches that are now dead
   (they iterate empty `towers`/`barricades`), plus `logic.js` with castle economy code the

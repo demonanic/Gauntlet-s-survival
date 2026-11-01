@@ -32,7 +32,7 @@ Last updated: 2026-11-01. At that point Phases 6 and 7 were merged (#34–#36) a
 
 ## What's next
 
-- **Now:** Phases 6 and 7 are merged (#34–#36). Phase 7's second step (party decisions, `game/partyDecisions.js`) is draft PR #37, waiting for Sam's review. Next is Phase 8 or features (Sam's call).
+- **Now:** the architecture roadmap is paused after Phase 7 (all merged, #34–#37). Sam switched to feature work on special moves and spells; the agreed five-step plan is in `docs/DESIGN.md` ("Spells and familiars: the agreed plan"). Step 1, the battle screen redesign, is the open draft PR. Each step needs Sam's go, and new visuals need his design check first.
 - **Still owed:** a watched-fight browser check after 6D-1 and batches 2–3, plus the byte-identity probe and seeded runs for batches 2–3 (the sessions that made them could not install dependencies).
 - **Tests:** 475 (449 plus 15 fight-result and 11 party-decision characterization cases).
 - **After that:** Phases 8 (A–D, split `engine.js`), 9, 10 and 11. The recommendation was to resume features (Endgame B/C/D) after Phase 7 and interleave phases 8–11.

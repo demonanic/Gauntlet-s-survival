@@ -47,7 +47,7 @@ These were judged to work well. A PR that weakens one needs an explicit reason t
 | 4 | Injectable, seedable randomness | F7 | Done (#31, merged `af594dd`) |
 | 5 | Legacy reachability investigation (no edits) | F2, F9 | Done (#32, merged `50bdf0f`) |
 | 6 | Remove only verified legacy code, in small PRs | F2, F9 | In progress: 6A merged (#33); batch 1 (6B, 6C, 6D-1) merged (#34); batch 2 (6D-2, 6D-3, 6D-4) merged (#35); batch 3 (6D-5, Phase 7) merged (#36) |
-| 7 | Move fight results and rewards out of `expedition.js` | F6 | Done (#36, merged `3aa2c7d`); second step (party decisions) in review (#37) |
+| 7 | Move fight results and rewards out of `expedition.js` | F6 | Done (#36 `3aa2c7d`, #37 `3c8df41`) |
 | 8 | Split `combat/engine.js`: A renderer, B enemy behavior, C hero abilities and spells, D the rest if justified | F1, F3 | Not started |
 | 9 | One definition per enemy; regional spawn data stays in regions | F3 | Not started |
 | 10 | Measure performance before any optimization | F8 | Not started |
@@ -226,7 +226,7 @@ The steps follow `docs/LEGACY_MANIFEST.md`. 6A was its own PR. From 6B on, Sam a
   - `expedition.js` (1,393 → 986 lines) imports both and re-exports `DEEPER`, `deeperDanger`, `deeperRegion` and `riftBounty`, so no caller changed.
   - Evidence: every original non-import line of `expedition.js` appears exactly once across the three files (compared as line multisets); the only new lines are imports, `export` keywords and two header comments. Every name used in each file is declared or imported there, and every imported name exists in its module. No import cycle through any of the three files. CI: 464 tests pass with all 15 characterization hashes unchanged; build passes.
   - Not run (npm registry unreachable from this session): the byte-identity probe, seeded active runs and the browser check.
-- [x] Optional second step: the party's own decisions (`decideAlone`, `autoFight`, `AUTO_*`), only if the first move was clean. In review (#37).
+- [x] Optional second step: the party's own decisions (`decideAlone`, `autoFight`, `AUTO_*`), only if the first move was clean. Merged (#37, `3c8df41`).
   - Found: `decideAlone` sends each prompt to the same answer functions `choosePending` uses (`attemptSneak`, `leaveFight`, `resolveStory`, `tradeWithMerchant`, `pushDeeper`/`headHome`), which reach about 15 more helpers. Moving `decideAlone` and `autoFight` out by themselves would make a circular import. Sam chose to move only the policy.
   - Characterization first: `src/game/partyDecisions.characterization.test.js`, 11 cases. Each leaves one prompt unanswered with nobody watching and lets `tick` decide: a sighting with good odds, badly hurt, or healthy with poor odds; an end boss worn down or healthy; a merchant; a story healthy and badly hurt; pushing deeper healthy, with a hero down, and worn down. Each checks its branch, then compares a state hash recorded in CI on the old code (two runs, same hashes).
   - Moved to `src/game/partyDecisions.js`: `AUTO_SNEAK_AT`, `AUTO_BOSS_HP`, `AUTO_CAUTIOUS_HP`, `AUTO_RETREAT_HP`, `RIFT_AUTO_RETURN_HP`, and pure functions `autoChoice`, `wantsToPushDeeper`, `riftShouldReturn`, `tooBatteredToGoOn`. `decideAlone`, `decideDeeper` and `autoFight` stay in `expedition.js`, ask these, and carry out the answer. Party HP is passed as a function so it is worked out only where the old code did. `partyDecisions.js` imports only `adventure.js` and `expeditionRun.js`.
@@ -317,3 +317,4 @@ Decisions (Sam, 2026-11-01, reviewing Phase 5):
 | 2026-11-01 | Batch 3: 6D-5 and Phase 7 | #36 | 6D-5: all `config.js` references resolve, CI 449 tests. Phase 7: 15 characterization cases recorded on the old code, then the move; CI 464 tests, hashes unchanged. Probe, seeded runs and browser not run |
 | 2026-11-01 | Batch 3 merged | #36 | Merged `3aa2c7d` (squash) on CI |
 | 2026-11-01 | Phase 7 second step: party decisions | #37 | 11 characterization cases recorded on the old code, then the policy moved to `partyDecisions.js`; CI 475 tests, all 26 hashes unchanged. Probe, seeded runs, browser not run |
+| 2026-11-01 | Phase 7 second step merged | #37 | Merged `3c8df41` (squash) on CI. Sam paused the roadmap here for feature work (special moves and spells; plan in DESIGN.md) |
