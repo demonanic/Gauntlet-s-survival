@@ -9,7 +9,7 @@ import { combatVfxAssetId } from "./combatVfx";
 // fails loudly.
 function testSim(extra = {}) {
   return {
-    heroes: [], gold: 0, vault: [], kills: { total: 0, byType: {} }, morale: 50,
+    heroes: [], gold: 0, vault: [], kills: { total: 0, byType: {} },
     rollDrop: () => null,
     makeMinion: (type) => { throw new Error(`Unexpected summon (${type}) in an engine test`); },
     ...extra,
@@ -30,7 +30,7 @@ function enemy(name, x, y, overrides = {}) {
 
 describe("the encounter sim", () => {
   test("must supply loot and summons: the engine has no legacy fallback", () => {
-    const bare = () => ({ heroes: [createHeroModel({ id: "h" })], gold: 0, vault: [], kills: { total: 0, byType: {} }, morale: 50 });
+    const bare = () => ({ heroes: [createHeroModel({ id: "h" })], gold: 0, vault: [], kills: { total: 0, byType: {} } });
     const build = (sim) => () => new Engine({ getContext: () => null }, sim, { enemies: [], total: 1 });
     expect(build(bare())).toThrow(/sim\.rollDrop/);
     expect(build({ ...bare(), rollDrop: () => null })).toThrow(/sim\.makeMinion/);
