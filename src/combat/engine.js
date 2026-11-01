@@ -16,7 +16,8 @@ import { getUnlockedClasslessAbilities, validateClasslessAbilityUse } from "./cl
 import { HERO_SPRITE_ATLAS, selectHeroSpriteFrame } from "./heroSprite";
 import { getEquippedHeroWeaponType, HERO_WEAPON_ASSETS } from "./heroWeapon";
 import { CONSUMABLES, QUICK_ITEM_COOLDOWN, healThreshold, heroGearStats, heroUsesArrows, heroWeaponProfile } from "./gear";
-import { petStats } from "./pets";
+import { PET_BODIES, petMaxHp, petStats } from "./pets";
+import { drawFamiliar } from "./familiarSprites";
 import { BIG_MOVES, BIG_SPELLS, HIT_STOP_SECONDS, branchColor } from "./abilityLook";
 import { heroTraitEffects } from "./traits";
 import { isNeonIdentityColor } from "./heroModel";
@@ -320,11 +321,15 @@ export class Engine {
       };
     });
 
-    // Gauntlet familiars: one per hero that has a pet. They can't be hurt.
+    // Gauntlet familiars: one per hero that has a pet, each a unit of its own
+    // (pets.js PET_BODIES): HP, enemies can hit it, downed for the rest of the fight.
     this.pets = this.heroes.filter((h) => h.model.pet).map((h) => {
       const stats = petStats(h.model.pet, h.model.progression?.level || 1);
       h.petGuard = stats?.guard || 0;
-      return stats && { owner: h, name: h.model.pet.name, stats, x: h.x + 18, y: h.y + 14, cd: 1, supportCd: stats.support?.interval || 0, target: null };
+      const maxHp = petMaxHp(h.model.pet, h.d.maxHp);
+      return stats && { owner: h, name: h.model.pet.name, stats, body: PET_BODIES[stats.species] || { hp: 0.2, weight: 0.5 },
+        level: h.model.pet.level || 1, hp: maxHp, maxHp, down: false, hurtAt: -99, strikeAt: -99, face: 1, moving: false,
+        x: h.x + 18, y: h.y + 14, cd: 1, supportCd: stats.support?.interval || 0, tauntCd: 2, target: null };
     }).filter(Boolean);
   }
 
@@ -1393,12 +1398,33 @@ export class Engine {
       }
     }
 
-    // An enemy that reaches a hero attacks it.
+    const meleeCooldown = e.type === "reaper" ? 0.72 : e.type === "goblin" ? 0.65 : e.type === "orc" ? 1.15 : 1.0;
+    // Taunted by a Stonebark Tortoise: go for it until the taunt ends.
+    if (this.pets.length && e.tauntUntil > this.time && e.tauntedBy && !e.tauntedBy.down && !e.boss) {
+      const pet = e.tauntedBy;
+      const dist = Math.hypot(pet.x - e.x, pet.y - e.y) || 1;
+      if (dist <= 30 + BODY_PAD) {
+        if (e.atkCd <= 0) { this._enemyHitPet(e, pet); e.atkCd = meleeCooldown; }
+      } else {
+        e.x += ((pet.x - e.x) / dist) * moveSpeed * dt;
+        e.y += ((pet.y - e.y) / dist) * moveSpeed * dt;
+      }
+      return;
+    }
+    // An enemy that reaches a hero, or a familiar, attacks it.
     const blocker = this._nearestHeroEntity(e.x, e.y, 30 + BODY_PAD);
+    const petInReach = this.pets.length ? this._nearestPetInReach(e.x, e.y, 30 + BODY_PAD) : null;
+    if (petInReach && (!blocker || petInReach.weighted < Math.hypot(blocker.obj.x - e.x, blocker.obj.y - e.y))) {
+      if (e.atkCd <= 0) {
+        this._enemyHitPet(e, petInReach.pet);
+        e.atkCd = meleeCooldown;
+      }
+      return;
+    }
     if (blocker) {
       if (e.atkCd <= 0) {
         this._enemyAttack(e, blocker);
-        e.atkCd = e.type === "reaper" ? 0.72 : e.type === "goblin" ? 0.65 : e.type === "orc" ? 1.15 : 1.0;
+        e.atkCd = meleeCooldown;
       }
       return;
     }
@@ -1667,22 +1693,61 @@ export class Engine {
   // Familiars: attackers go for whatever is closest to their partner (melee
   // pets run in, ranged pets keep to their partner's side); support pets stay
   // close and heal or shield on a timer.
+  // Each familiar picks its own fights by species (no leash to its partner):
+  // the wolf hunts the most wounded foe, the hawk dives at its partner's
+  // target, the imp sets unburnt foes alight, the sprite heals at its
+  // partner's side, the tortoise plants itself between its partner and the
+  // nearest foe and taunts. A downed familiar does nothing more this fight.
   _updatePets(dt) {
     for (const pet of this.pets) {
       const owner = pet.owner;
-      if (!owner.alive) continue;
-      const follow = (speed) => {
-        const tx = owner.x + 18, ty = owner.y + 14;
+      const startX = pet.x;
+      pet.moving = false;
+      if (pet.down || !owner.alive) continue;
+      const moveTo = (tx, ty, speed, stopAt = 2) => {
         const dist = Math.hypot(tx - pet.x, ty - pet.y);
-        if (dist > 2) {
-          const step = Math.min(dist, speed * dt);
+        if (dist > stopAt) {
+          const step = Math.min(dist - stopAt, speed * dt);
           pet.x += ((tx - pet.x) / dist) * step;
           pet.y += ((ty - pet.y) / dist) * step;
+          pet.moving = step > 0.05;
         }
       };
+      const foes = this.active.filter((enemy) => enemy.hp > 0);
+      const nearestTo = (x, y, list = foes) => list.reduce((best, enemy) =>
+        (!best || Math.hypot(enemy.x - x, enemy.y - y) < Math.hypot(best.x - x, best.y - y) ? enemy : best), null);
       const { attack, support } = pet.stats;
+      const species = pet.stats.species;
       if (support) {
-        follow(220);
+        if (species === "tortoise") {
+          // Between its partner and the nearest foe.
+          const threat = nearestTo(owner.x, owner.y);
+          if (threat && Math.hypot(threat.x - owner.x, threat.y - owner.y) < 320) {
+            const d = Math.hypot(threat.x - owner.x, threat.y - owner.y) || 1;
+            moveTo(owner.x + ((threat.x - owner.x) / d) * 34, owner.y + ((threat.y - owner.y) / d) * 34, 120);
+          } else {
+            moveTo(owner.x + 18, owner.y + 14, 160);
+          }
+          const taunt = pet.body.taunt;
+          pet.tauntCd -= dt;
+          if (taunt && pet.tauntCd <= 0) {
+            const drawn = foes.filter((enemy) => !enemy.boss && Math.hypot(enemy.x - pet.x, enemy.y - pet.y) <= taunt.radius);
+            if (drawn.length) {
+              for (const enemy of drawn) { enemy.tauntedBy = pet; enemy.tauntUntil = this.time + taunt.seconds; }
+              pet.tauntCd = taunt.every;
+              this._float(pet.x, pet.y - 18, "TAUNT", pet.stats.color);
+              this.effects.push({ kind: "guard", x: pet.x, y: pet.y, r: taunt.radius * 0.5, life: 0.5, color: pet.stats.color });
+            } else {
+              pet.tauntCd = 0.5;
+            }
+          }
+        } else {
+          // The sprite keeps to its partner's side and darts away from foes that come close.
+          const threat = nearestTo(pet.x, pet.y);
+          const td = threat ? Math.hypot(threat.x - pet.x, threat.y - pet.y) : Infinity;
+          if (td < 60) moveTo(pet.x + ((pet.x - threat.x) / (td || 1)) * 40, pet.y + ((pet.y - threat.y) / (td || 1)) * 40, 200);
+          else moveTo(owner.x - 16, owner.y + 10, 220);
+        }
         pet.supportCd -= dt;
         if (pet.supportCd <= 0) {
           pet.supportCd = support.interval;
@@ -1695,32 +1760,81 @@ export class Engine {
             this.effects.push({ kind: "shield", x: owner.x, y: owner.y, r: 18, life: 0.4, color: pet.stats.color });
           }
         }
+        if (pet.x !== startX) pet.face = pet.x > startX ? 1 : -1;
         continue;
       }
       if (!attack) continue;
       pet.cd -= dt;
-      if (!pet.target || pet.target.hp <= 0 || Math.hypot(pet.target.x - owner.x, pet.target.y - owner.y) > 320) {
-        pet.target = this.active.filter((enemy) => enemy.hp > 0)
-          .sort((a, b) => Math.hypot(a.x - owner.x, a.y - owner.y) - Math.hypot(b.x - owner.x, b.y - owner.y))
-          .find((enemy) => Math.hypot(enemy.x - owner.x, enemy.y - owner.y) <= 320) || null;
+      const valid = pet.target && pet.target.hp > 0 && this.active.includes(pet.target);
+      if (!valid || species === "hawk" || (species === "imp" && pet.cd <= 0)) {
+        if (species === "wolf") {
+          // The most wounded foe on the field.
+          pet.target = valid ? pet.target : foes.reduce((best, enemy) =>
+            (!best || enemy.hp / Math.max(1, enemy.maxHp) < best.hp / Math.max(1, best.maxHp) ? enemy : best), null);
+        } else if (species === "hawk") {
+          const partnerTarget = [owner.manualTarget, owner.currentTarget].find((enemy) => enemy?.hp > 0 && this.active.includes(enemy));
+          pet.target = partnerTarget || (valid ? pet.target : nearestTo(pet.x, pet.y));
+        } else if (species === "imp") {
+          const burning = (enemy) => (enemy.dots || []).some((dot) => dot.color === "#FF6600" && dot.until > this.time);
+          pet.target = nearestTo(pet.x, pet.y, foes.filter((enemy) => !burning(enemy))) || (valid ? pet.target : nearestTo(pet.x, pet.y));
+        } else {
+          pet.target = valid ? pet.target : nearestTo(pet.x, pet.y);
+        }
       }
       const target = pet.target;
       if (!target) {
-        follow(220);
+        moveTo(owner.x + 18, owner.y + 14, 220);
+        if (pet.x !== startX) pet.face = pet.x > startX ? 1 : -1;
         continue;
       }
       const dist = Math.hypot(target.x - pet.x, target.y - pet.y) || 1;
-      if (attack.moveSpeed && dist > attack.range) {
-        const step = Math.min(dist - attack.range * 0.8, attack.moveSpeed * dt);
-        pet.x += ((target.x - pet.x) / dist) * step;
-        pet.y += ((target.y - pet.y) / dist) * step;
+      pet.face = target.x >= pet.x ? 1 : -1;
+      if (dist > attack.range) {
+        // Close in: the wolf at a run, fliers and the imp to just inside their range.
+        moveTo(target.x, target.y, attack.moveSpeed || 150, attack.range * 0.8);
         continue;
       }
-      if (!attack.moveSpeed) follow(220);
-      if (dist > attack.range || pet.cd > 0) continue;
+      if (pet.cd > 0) continue;
       pet.cd = attack.interval;
+      pet.strikeAt = this.time;
       this._petStrike(pet, target);
     }
+  }
+
+  // An enemy's blow lands on a familiar.
+  _enemyHitPet(e, pet) {
+    if (pet.body.airborne && e.attackFx !== "napalm" && this.rng() < 0.5) {
+      this._float(pet.x, pet.y - 14, "MISS", "#94A3B8");
+      return;
+    }
+    const empowered = e.empoweredUntil > this.time ? 1.15 : 1;
+    const damage = e.damage * empowered * (1 - (pet.body.armor || 0));
+    pet.hp = Math.max(0, pet.hp - damage);
+    pet.hurtAt = this.time;
+    this._float(pet.x, pet.y - 14, "-" + Math.round(damage), "#FF3366");
+    if (pet.hp <= 0 && !pet.down) {
+      pet.down = true;
+      pet.target = null;
+      // Its help stops with it: guard, heals and shields, marks.
+      pet.owner.petGuard = 0;
+      for (const enemy of this.active) if (enemy.tauntedBy === pet) enemy.tauntUntil = 0;
+      this._float(pet.x, pet.y - 20, `${pet.name} is down`, "#94A3B8");
+      this.effects.push({ kind: "death", x: pet.x, y: pet.y, r: 10, life: 0.5, color: pet.stats.color });
+    }
+  }
+
+  // The familiar an enemy at (x, y) would go for within reach `r`, and its
+  // weighted distance: a pet with weight 0.5 counts as twice as far away.
+  _nearestPetInReach(x, y, r) {
+    let best = null, bd = Infinity;
+    for (const pet of this.pets) {
+      if (pet.down || !pet.owner.alive) continue;
+      const d = Math.hypot(pet.x - x, pet.y - y);
+      if (d > r) continue;
+      const weighted = d / Math.max(0.1, pet.body.weight || 1);
+      if (weighted < bd) { bd = weighted; best = pet; }
+    }
+    return best ? { pet: best, weighted: bd } : null;
   }
 
   _petStrike(pet, target) {
@@ -3807,35 +3921,9 @@ export class Engine {
 
   // A small neon familiar, shaped by species, outlined in its partner's color.
   _drawPet(pet) {
-    const ctx = this.ctx;
-    const { species, color } = pet.stats;
-    ctx.save();
-    ctx.translate(pet.x, pet.y + Math.sin(this.time * 4 + pet.owner.i) * (species === "hawk" || species === "sprite" ? 3 : 0.5));
-    ctx.scale(1.4, 1.4);
-    ctx.lineJoin = "round";
-    ctx.strokeStyle = color;
-    ctx.fillStyle = "#0B1018";
-    ctx.lineWidth = 1.4;
-    ctx.shadowBlur = 8;
-    ctx.shadowColor = pet.owner.d.color;
-    ctx.beginPath();
-    if (species === "wolf") {
-      ctx.moveTo(-7, 3); ctx.lineTo(-3, -2); ctx.lineTo(4, -2); ctx.lineTo(7, -6); ctx.lineTo(8, -1); ctx.lineTo(5, 3); ctx.lineTo(5, 6); ctx.lineTo(-6, 6); ctx.closePath();
-    } else if (species === "hawk") {
-      ctx.moveTo(-9, -1); ctx.lineTo(0, -4); ctx.lineTo(9, -1); ctx.lineTo(2, 1); ctx.lineTo(0, 5); ctx.lineTo(-2, 1); ctx.closePath();
-    } else if (species === "imp") {
-      ctx.moveTo(-5, 5); ctx.lineTo(-5, -3); ctx.lineTo(-7, -7); ctx.lineTo(-2, -4); ctx.lineTo(2, -4); ctx.lineTo(7, -7); ctx.lineTo(5, -3); ctx.lineTo(5, 5); ctx.closePath();
-    } else if (species === "sprite") {
-      ctx.arc(0, 0, 4, 0, Math.PI * 2);
-      ctx.moveTo(-4, -1); ctx.quadraticCurveTo(-10, -7, -6, 2); ctx.moveTo(4, -1); ctx.quadraticCurveTo(10, -7, 6, 2);
-    } else {
-      ctx.ellipse(0, 1, 8, 5, 0, 0, Math.PI * 2);
-      ctx.moveTo(8, 0); ctx.arc(10, -1, 2.5, 0, Math.PI * 2);
-    }
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
+    drawFamiliar(this.ctx, pet, this.time);
   }
+
 
   _drawHeroSprite(h) {
     const ctx = this.ctx;

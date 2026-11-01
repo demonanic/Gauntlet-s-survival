@@ -1,7 +1,8 @@
 // Familiars: a pet that travels with one hero and helps in battle on its own.
 // Each species has a role; each pet is born with one quality, and at levels
-// 3, 6 and 9 the player picks one of two upgrades ("mods"). Pets can't be hurt:
-// they're too quick (or too stubborn) for enemies to pin down.
+// 3, 6 and 9 the player picks one of two upgrades ("mods"). In battle a pet
+// is a unit of its own (PET_BODIES): it has HP, enemies can hit it, and a
+// downed pet sits out the rest of that fight (back at full HP for the next).
 //
 // `attack` describes how the pet fights (null for support pets); effects use
 // a small shared vocabulary the engine reads (see petStats):
@@ -86,6 +87,29 @@ export const PET_SPECIES = Object.freeze({
   },
 });
 export const PET_SPECIES_KEYS = Object.freeze(Object.keys(PET_SPECIES));
+
+// A pet's body in battle (owner-approved, Nov 2026). `hp`: share of its
+// partner's max HP, +5% per pet level above 1. `armor`: share of each hit it
+// shrugs off. `airborne`: melee blows miss half the time. `weight`: how
+// readily an enemy in reach picks it over a hero (1 = like a hero; 0.5 =
+// half: it counts as twice as far away). `taunt`: every `every` s, foes
+// within `radius` (not bosses) turn on it for `seconds`.
+export const PET_BODIES = Object.freeze({
+  wolf: { hp: 0.25, weight: 1 },
+  hawk: { hp: 0.15, weight: 0.5, airborne: true },
+  imp: { hp: 0.18, weight: 0.5 },
+  sprite: { hp: 0.15, weight: 0.5 },
+  tortoise: { hp: 0.45, weight: 1, armor: 0.4, taunt: { every: 8, seconds: 3, radius: 90 } },
+});
+export const PET_HP_PER_LEVEL = 0.05;
+
+// A pet's max HP beside a partner with `partnerMaxHp`.
+export function petMaxHp(pet, partnerMaxHp) {
+  const body = PET_BODIES[pet?.species];
+  if (!body) return 0;
+  const level = Math.max(1, Math.min(PET_MAX_LEVEL, pet.level || 1));
+  return Math.max(1, Math.round(partnerMaxHp * body.hp * (1 + PET_HP_PER_LEVEL * (level - 1))));
+}
 
 // Born with one of these.
 export const PET_QUALITIES = Object.freeze({
