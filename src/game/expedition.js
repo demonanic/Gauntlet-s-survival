@@ -9,44 +9,44 @@
 // own and fights through the headless combat simulator, so expeditions keep
 // going with the app closed. `tick` catches up on everything that happened
 // since it last ran.
-import { mergeClasslessBattleResults } from "../combat/classlessBattleResults";
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
-import * as C from "../combat/config";
-import { ARROW_RECOVERY, CONSUMABLES, GEAR_SLOTS, PROVISIONS, crystalInfo, heroArrowCount, heroUsesArrows } from "../combat/gear";
+import { CONSUMABLES, GEAR_SLOTS, PROVISIONS, crystalInfo, heroUsesArrows } from "../combat/gear";
 import { serializeGameState } from "../combat/heroModel";
-import { PET_MOD_LEVELS, PET_SPECIES, PET_XP_SHARE } from "../combat/pets";
-import { heroTraitEffects, partyRoadEffects, roadEffect } from "../combat/traits";
+import { heroTraitEffects, roadEffect } from "../combat/traits";
 import {
-  ADVENTURE, LEGENDARY, NIGHT, RARE_EVENTS, STORIES, STORY_KEYS, WEATHER, clampMorale, conditionEffects, findLine, isNight,
+  ADVENTURE, NIGHT, RARE_EVENTS, STORIES, STORY_KEYS, WEATHER, clampMorale, conditionEffects, findLine, isNight,
   moraleDamageBonus, rollBanter, rollFlavor, rollHazard, rollWeather, sneakChance,
 } from "./adventure";
 import {
   buildBossEncounter, buildEndlessWave, buildLegendaryEncounter, buildNemesisEncounter, buildStalkerEncounter, buildWildEncounter, describeSquad,
 } from "./encounters";
 import { ECOLOGIES } from "./ecology";
-import { awardPetXp, earnPetCrate } from "./pets";
-import { developQualities, recordFight, recordHistory, sharedQualities } from "./qualities";
+import { recordHistory } from "./qualities";
 import { combatEnvironment, getEnvironment, heroResistance, rollEnvironmentEvent } from "./environment";
-import { bankLoot, createGearItem, normalizeHeroGear, randomCrystal, restockQuickSlots, tierMult } from "./items";
+import { createGearItem, randomCrystal, restockQuickSlots, tierMult } from "./items";
 import { legacyBonuses } from "./legacy";
-import { BOSS_RANK_SCALING, CHAMPIONS, bossForRank, championFor, getRegion } from "./regions";
+import { CHAMPIONS, getRegion } from "./regions";
 import { simulateEncounter } from "./simulate";
 import { buildFightOutcome } from "./fightOutcome";
-import { BOND_NAMES, combatBonds, recordSharedWin, separation } from "./bonds";
+import { combatBonds, separation } from "./bonds";
 import { partyThreat } from "./threat";
-import { ELEMENTS, ROMAN, SPELLS, recordCasts } from "../combat/spells";
+import { nemesisAppearChance, nemesisLevel, nemesisTraits, regionNemesis } from "./nemesis";
 import {
-  NEMESIS, growNemesis, nemesisAppearChance, nemesisLevel, nemesisTraits, nemesisTriumphs, regionNemesis, riseNemesis, slayNemesis,
-} from "./nemesis";
+  DEEPER, addFeed, changeMorale, closePending, completeExpedition, deeperRegion, findHero, firstName, heal, heroId, livingParty,
+  offerDeeper, openPending, pick, randomBetween, returnArrows, road,
+} from "./expeditionRun";
+import { applyFightResult } from "./fightResults";
+
+// Moved to expeditionRun.js and fightResults.js (Phase 7); re-exported so
+// callers keep importing them from here.
+export { DEEPER, deeperDanger, deeperRegion } from "./expeditionRun";
+export { riftBounty } from "./fightResults";
 
 export const MAX_PARTY_SIZE = 4;
 // Heroes resting at the guild recover this fraction of max HP per second;
 // heroes out exploring patch themselves up much more slowly between events.
 const REST_HEAL_FRACTION_PER_SECOND = 1 / 90;
 const EXPLORE_HEAL_FRACTION_PER_SECOND = 1 / 450;
-// Loot share kept when a defeated party limps home.
-const RETREAT_LOOT_SHARE = 0.5;
-const MAX_FEED_LINES = 200;
 // When the party decides alone, it sneaks if the odds are at least this good,
 // and only challenges an end boss with at least this share of its HP left.
 const AUTO_SNEAK_AT = 0.6;
@@ -76,40 +76,6 @@ const STALKER_STRIKE_HERO_HP = 0.35;
 const STALKER_STRIKE_PARTY_HP = 0.55;
 // Extra opening blow an unnoticed stalker lands on the weakest hero.
 const STALKER_POUNCE = 0.12;
-// Push deeper: when a trip is done (end boss beaten, or the timer out where
-// there is none) the party may press on for another leg. Each leg makes the
-// creatures stronger and the spoils richer; a wipe down there loses
-// everything found past the trip's end. Owner-approved numbers (Oct 2026).
-export const DEEPER = Object.freeze({
-  legMs: 3 * 60_000,
-  // Enemy HP and damage grow ×1.15 per leg, compounding (leg 3: +52%, leg 10:
-  // ×4), so even the strongest party meets a wall eventually.
-  danger: 0.15,
-  loot: 0.3, // extra gold per leg, on the gold found during that leg
-  // Each leg survived also pays this share × depth of the bounty the trip
-  // earned, so a leg pays about as well per minute as starting a new trip.
-  bountyShare: 0.2,
-  // Left alone, the party presses on while this healthy and nobody is down;
-  // a Reckless or Berserker along lowers the bar.
-  autoPushHp: 0.6,
-  gamblerPushHp: 0.45,
-  gamblers: Object.freeze(["reckless", "berserker"]),
-  // An unattended party never goes further than this on its own.
-  autoMaxDepth: 3,
-});
-
-// How much stronger the creatures are `depth` legs past the trip's end.
-export function deeperDanger(depth = 0) {
-  return (1 + DEEPER.danger) ** depth;
-}
-
-// The region as it is `depth` legs past the end of the trip.
-export function deeperRegion(region, depth = 0) {
-  if (!depth) return region;
-  const danger = deeperDanger(depth);
-  return { ...region, hpScale: region.hpScale * danger, dmgScale: region.dmgScale * danger };
-}
-
 // The region as this trip meets it: deeper legs, and grown to the party's
 // strength when it outclasses the region (threat.js, fixed at departure).
 function tripRegion(run) {
@@ -121,9 +87,6 @@ function tripRegion(run) {
 
 // Share of max HP each hero recovers just before the end boss.
 const BOSS_BREATHER_HEAL = 0.3;
-// Share of max HP each standing hero gets back after winning a fight, so each
-// fight is its own challenge instead of one long bleed across the trip.
-const AFTER_FIGHT_HEAL = 0.25;
 // The tutorial trip's first event: this soon, and an easy sighting.
 const TUTORIAL_FIRST_EVENT_MS = 6_000;
 
@@ -138,16 +101,6 @@ const CAMP_RAID_CHANCE = 0.2;
 // The wandering merchant charges this multiple of an item's sell value.
 const MERCHANT_PRICE_MULT = 4;
 
-const heroId = (hero) => hero.identity.id;
-const findHero = (state, id) => state.heroes.find((hero) => heroId(hero) === id) || null;
-const randomBetween = ([min, max], rng) => min + rng() * (max - min);
-const pick = (list, rng) => list[Math.floor(rng() * list.length)];
-
-// Endless Rift bounty paid for the waves cleared on one run.
-export function riftBounty(wavesCleared) {
-  return 10 * wavesCleared;
-}
-
 // Expedition length after Swift Roads.
 export function expeditionDurationMs(state, region) {
   return region.durationMinutes * 60_000 * (1 - legacyBonuses(state).travel);
@@ -157,46 +110,17 @@ function nextEventGap(rng) {
   return randomBetween(ADVENTURE.eventEverySeconds, rng) * 1000;
 }
 
-// `notify` marks big moments worth a notification while the game is in the background.
-function addFeed(run, at, text, tone = "flavor", notify = false) {
-  run.feed.push(notify ? { at, text, tone, notify: true } : { at, text, tone });
-  if (run.feed.length > MAX_FEED_LINES) run.feed.splice(0, run.feed.length - MAX_FEED_LINES);
-}
-
-function livingParty(state) {
-  return state.expedition.heroIds.map((id) => findHero(state, id)).filter((hero) => hero && hero.combat.hp > 0);
-}
-
 function partyHpFraction(state) {
   const party = state.expedition.heroIds.map((id) => findHero(state, id)).filter(Boolean);
   const max = party.reduce((sum, hero) => sum + classlessMaxHp(hero), 0);
   return max ? party.reduce((sum, hero) => sum + Math.max(0, hero.combat.hp), 0) / max : 0;
 }
 
-// The party's road qualities (see combat/traits.js), from whoever is still standing.
-function road(state) {
-  return partyRoadEffects(livingParty(state));
-}
-
-// Steadfast (and similar) qualities soften every morale loss.
-function changeMorale(state, delta) {
-  const run = state.expedition;
-  const cut = delta < 0 ? roadEffect(road(state), "moraleLossCut") : 0;
-  run.morale = clampMorale(run.morale + delta * (1 - cut));
-}
-
-const firstName = (heroes, rng) => (heroes?.length ? pick(heroes, rng).identity.name : null);
-
 // Damage that never kills: hazards and ambush volleys leave at least 1 HP.
 function hurt(hero, fraction) {
   const amount = Math.round(classlessMaxHp(hero) * fraction);
   hero.combat.hp = Math.max(1, hero.combat.hp - amount);
   return amount;
-}
-
-function heal(hero, fraction) {
-  const max = classlessMaxHp(hero);
-  hero.combat.hp = Math.min(max, hero.combat.hp + max * fraction);
 }
 
 // `options.revives`: second chances for the trip (a lost fight revives the
@@ -291,21 +215,6 @@ function packProvisions(state, region, at) {
   addFeed(run, at, run.packed.length
     ? `${environment.name} ahead. Packed ${run.packed.length} ${provision.name}${run.packed.length > 1 ? "s" : ""}${bare ? `; ${bare} hero${bare > 1 ? "es go" : " goes"} without` : ""}.`
     : `${environment.name} ahead, and no ${provision.name}s in the stash. ${environment.desc}`, run.packed.length ? "flavor" : "danger");
-}
-
-function openPending(run, at, details) {
-  run.pending = { ...details, at, promptAt: at, engagedAt: null };
-}
-
-// Resume the expedition timer, which stood still while the prompt was open.
-function closePending(run, resolvedAt) {
-  const paused = Math.max(0, resolvedAt - run.pending.at);
-  if (run.endsAt != null) run.endsAt += paused;
-  if (run.nextEventAt != null) run.nextEventAt += paused;
-  if (run.campAt != null) run.campAt += paused;
-  if (run.treasureAt != null) run.treasureAt += paused;
-  run.healedAt = resolvedAt;
-  run.pending = null;
 }
 
 // Advance timers. Call on every UI tick and on load (covers time spent away).
@@ -418,22 +327,6 @@ function reachEnd(state, region, at, rng) {
     finishLeg(state, region, at, rng);
   }
   offerDeeper(state, at);
-}
-
-// The trip is done: head home, or push deeper for another leg.
-function offerDeeper(state, at) {
-  const run = state.expedition;
-  if (run.guided || !livingParty(state).length) {
-    completeExpedition(state, "victory", at);
-    return;
-  }
-  const depth = (run.depth || 0) + 1;
-  const atStake = run.depth ? run.loot.gold - run.banked.gold : 0;
-  const text = `Push deeper (leg ${depth}: creatures +${Math.round((deeperDanger(depth) - 1) * 100)}%, spoils +${Math.round(DEEPER.loot * depth * 100)}%) or head home?`;
-  addFeed(run, at, run.depth
-    ? `Leg ${run.depth} survived. The dark goes on. ${atStake} gold found down here so far, and all of it lost if the party falls.`
-    : "The way home is clear. But the path goes on, deeper, and the deeper it goes the richer it gets.", "story", true);
-  openPending(run, at, { kind: "deeper", depth, atStake, text });
 }
 
 function pushDeeper(state, at, rng) {
@@ -798,61 +691,6 @@ function nemesisSighting(state, foe) {
   return `Your nemesis is back: ${foe.name}, the ${nemesis.typeName} (LV ${foe.nemesisLevel}${traits.length ? `, ${traits.join(", ")}` : ""}).${grudge}`;
 }
 
-// After a fight: a nemesis that was there grows, flees or falls, and a
-// creature that knocked a hero out may rise as a new one.
-function settleNemeses(state, region, party, { victory, downed, nemesisSlain, nemesisFled }, at, rng) {
-  if (!region.wildlife || region.tier < NEMESIS.fromTier) return;
-  const run = state.expedition;
-  const byFoe = new Map();
-  for (const [index, foe] of Object.entries(downed || {})) {
-    const hero = party[index];
-    if (!foe || !hero || foe.boss || foe.summoned || !C.ENEMIES[foe.type]) continue;
-    const key = foe.nemesisId || foe.type;
-    const entry = byFoe.get(key) || { foe, heroes: [] };
-    entry.heroes.push({ id: heroId(hero), name: hero.identity.name });
-    byFoe.set(key, entry);
-  }
-  const nemesis = run.pending?.nemesisId ? state.nemeses?.find((entry) => entry.id === run.pending.nemesisId) : null;
-  if (nemesis) {
-    byFoe.delete(nemesis.id);
-    if (nemesisSlain === nemesis.id) {
-      const level = nemesisLevel(nemesis, at);
-      const gold = Math.round(NEMESIS.rewardGold * level * tierMult(region.tier));
-      const trophy = createGearItem({ slot: pick(GEAR_SLOTS, rng), rarity: level >= 6 ? "epic" : pick(["rare", "epic"], rng), tier: region.tier + 1 }, rng);
-      run.loot.gold += gold;
-      run.loot.items.push(trophy);
-      changeMorale(state, 20);
-      const avengers = nemesis.victims.filter((victim) => run.heroIds.includes(victim.id)).map((victim) => victim.name);
-      slayNemesis(state, nemesis, run.heroIds, at);
-      addFeed(run, at, `${nemesis.name} falls at last!${avengers.length ? ` ${avengers.join(" and ")} ${avengers.length > 1 ? "have" : "has"} their revenge.` : ""} Its hoard: ${gold} gold and a ${trophy.name}.`, "loot", true);
-    } else {
-      const triumph = downedBy(downed, nemesis.id, party);
-      if (triumph.length || !victory) {
-        const level = nemesisTriumphs(nemesis, triumph, !victory, at);
-        addFeed(run, at, `${nemesis.name} ${triumph.length ? `stands over ${triumph.map((hero) => hero.name).join(" and ")}` : "drives the party off"} and grows stronger (LV ${level}).`, "danger", true);
-      }
-      if (nemesisFled === nemesis.id) {
-        nemesis.fled = (nemesis.fled || 0) + 1;
-        const level = growNemesis(nemesis, 1, at);
-        addFeed(run, at, `${nemesis.name} escapes, bleeding and furious. It will be back (LV ${level}).`, "danger", true);
-      }
-    }
-  }
-  for (const { foe, heroes } of byFoe.values()) {
-    if (foe.nemesisId) continue;
-    const risen = riseNemesis(state, { type: foe.type, typeName: foe.name, regionId: region.id, heroes, wiped: !victory }, at, rng);
-    if (risen) {
-      addFeed(run, at, `The ${foe.name} that downed ${heroes.map((hero) => hero.name).join(" and ")} lets out a howl and slinks away. It has a name now: ${risen.name}. It will remember this.`, "danger", true);
-      break;
-    }
-  }
-}
-
-function downedBy(downed, nemesisId, party) {
-  return Object.entries(downed || {}).filter(([, foe]) => foe?.nemesisId === nemesisId)
-    .map(([index]) => party[index]).filter(Boolean).map((hero) => ({ id: heroId(hero), name: hero.identity.name }));
-}
-
 // Reading an enemy formation. A guild that has met this ecology before, or a
 // party with a veteran along, knows it by name; otherwise the party only sees
 // the signs. Either way it never says what to do about it.
@@ -1130,226 +968,6 @@ export function resolveEncounter(state, outcome, now, { rng = Math.random } = {}
   return { ok: true, state: next };
 }
 
-function applyFightResult(state, region, { victory, party, xpGains, gold, items, wavesCleared = 0, ...outcome }, at, rng) {
-  // Wisdom (guild) and Fast Learner (hero) boost the XP the engine awarded.
-  const xpBonus = legacyBonuses(state).xp;
-  const boostedXp = Object.fromEntries(Object.entries(xpGains || {}).map(([index, xp]) =>
-    [index, Math.round(Number(xp) * (1 + xpBonus + heroTraitEffects(party[index]).xpBonus))]));
-  // Heroes who avenge themselves on a nemesis learn the most from it.
-  const fought = state.expedition.pending?.nemesisId && state.nemeses?.find((entry) => entry.id === state.expedition.pending.nemesisId);
-  if (fought && victory && outcome.nemesisSlain === fought.id) {
-    for (const [index, hero] of party.entries()) {
-      if (fought.victims.some((victim) => victim.id === heroId(hero))) {
-        boostedXp[index] = (boostedXp[index] || 0) + NEMESIS.vengeanceXp * nemesisLevel(fought, at);
-      }
-    }
-  }
-  const merged = mergeClasslessBattleResults(state, { heroIds: party.map(heroId), runtimeHeroes: party, xpGains: boostedXp });
-  Object.assign(state, merged);
-  const run = state.expedition;
-  // Quick-slot stacks spent in the fight come back on the runtime party. After
-  // a win, the party picks up some of the plain arrows it fired.
-  let recovered = 0;
-  for (const [index, runtime] of party.entries()) {
-    const saved = findHero(state, heroId(runtime));
-    if (!saved) continue;
-    // Familiars learn alongside their partner.
-    if (saved.pet) {
-      for (const level of awardPetXp(saved.pet, (boostedXp[index] || 0) * PET_XP_SHARE)) {
-        const mod = PET_MOD_LEVELS.includes(level) ? " A new trick to choose on the Gear screen!" : "";
-        addFeed(run, at, `${saved.identity.name}'s ${PET_SPECIES[saved.pet.species].name.toLowerCase()} ${saved.pet.name} reaches level ${level}.${mod}`, "good", !!mod);
-      }
-    }
-    saved.quickSlots = normalizeHeroGear(runtime).quickSlots;
-    // Successful casts rank up spells and element proficiency.
-    for (const up of recordCasts(saved, outcome.spellCasts?.[index])) {
-      addFeed(run, at, up.kind === "spell"
-        ? `${saved.identity.name}'s ${SPELLS[up.id].name} reaches rank ${ROMAN[up.rank - 1]}.`
-        : `${saved.identity.name} grows more skilled with ${ELEMENTS[up.id].name} magic (proficiency ${ROMAN[up.rank - 1]}).`, "good", up.kind === "element");
-    }
-    const spent = Math.floor((runtime.arrowsSpent?.arrows || 0) * ARROW_RECOVERY);
-    if (victory && spent > 0) recovered += returnArrows(state, saved, spent);
-    recordFight(saved, runtime.battleStats, { victory, morale: run.morale, ambush: run.pending?.kind === "ambush" });
-    for (const development of developQualities(saved, at, rng, sharedQualities(state.heroes, saved))) {
-      addFeed(run, at, development.text, "good", true);
-    }
-  }
-  run.loot.gold += Math.round(gold || 0);
-  run.loot.items.push(...(items || []));
-  const fallen = party.filter((hero) => hero.combat.hp <= 0);
-  for (const hero of fallen) state.injuries[heroId(hero)] = at + region.recoverySeconds * 1000;
-  if (fallen.length && victory) {
-    addFeed(run, at, `${fallen.map((hero) => hero.identity.name).join(" and ")} ${fallen.length > 1 ? "are" : "is"} down${run.campAt != null ? " until the party makes camp"
-      : region.boss && !run.bossDone ? " until the party regroups for the final fight" : " and will sit out the rest of the trip"}.`, "danger");
-  }
-  const { pending } = run;
-  run.stats.fights += 1;
-  if (pending.kind !== "rift") settleNemeses(state, region, party, { victory, ...outcome }, at, rng);
-  for (const { hero, choice, landed } of outcome.clutches || []) {
-    const name = party[hero]?.identity?.name;
-    if (!name) continue;
-    addFeed(run, at, choice === "crit"
-      ? (landed ? `CLUTCH! One hit from falling, ${name} lands an Ultra Crit!` : `One hit from falling, ${name} swings for an Ultra Crit... and misses.`)
-      : `One hit from falling, ${name} grits their teeth and drinks.`, choice === "crit" && landed ? "good" : "flavor", choice === "crit" && landed);
-  }
-
-  if (pending.kind === "rift") {
-    const bounty = riftBounty(wavesCleared);
-    run.loot.gold += bounty;
-    run.wavesCleared = wavesCleared;
-    state.records = { ...(state.records || {}), riftBest: Math.max(state.records?.riftBest || 0, wavesCleared) };
-    run.pending = null;
-    if (!victory) {
-      halveLoot(run);
-      addFeed(run, at, `Overrun on wave ${wavesCleared + 1}. Retreating with half the loot.`, "danger");
-      completeExpedition(state, "retreat", at);
-    } else {
-      addFeed(run, at, `Returned from the Rift after ${wavesCleared} waves. +${bounty} gold bounty.`, "good");
-      completeExpedition(state, "returned", at);
-    }
-    return;
-  }
-  if (!victory && run.revives > 0) {
-    secondChance(state, at);
-    return;
-  }
-  if (!victory) {
-    halveLoot(run);
-    addFeed(run, at, `The party is overrun by ${pending.label} and flees with half the loot.`, "danger");
-    run.pending = null;
-    completeExpedition(state, "retreat", at);
-    return;
-  }
-  const qualities = road(state);
-  changeMorale(state, 8 + roadEffect(qualities, "moraleOnWin"));
-  // Heroes who came through it standing grow closer.
-  for (const { a, b, level, offer } of recordSharedWin(state, party.filter((hero) => hero.combat.hp > 0).map(heroId))) {
-    const [first, second] = [a, b].map((id) => findHero(state, id)?.identity.name);
-    addFeed(run, at, offer === "sworn"
-      ? `${first} and ${second} would trust each other with their lives. They could swear to fight as one (decide at the Guild Hall).`
-      : offer === "comrades"
-        ? `${first} and ${second} have grown close. They could become Comrades (decide at the Guild Hall).`
-        : `${first} and ${second} are ${BOND_NAMES[level]} now.`, "good", !!offer);
-  }
-  for (const hero of livingParty(state)) heal(hero, AFTER_FIGHT_HEAL);
-  afterVictory(state, qualities, at, rng);
-  if (recovered > 0) addFeed(run, at, `Picked up ${recovered} arrow${recovered > 1 ? "s" : ""} from the field.`, "flavor");
-  for (const hero of party) {
-    if (heroUsesArrows(hero) && hero.combat.hp > 0 && heroArrowCount(findHero(state, heroId(hero))) === 0) {
-      addFeed(run, at, `${hero.identity.name} is out of arrows!`, "danger");
-    }
-  }
-  addFeed(run, at, `Victory over ${pending.label}! +${Math.round(gold || 0)} gold${items?.length ? `, ${items.length} item${items.length > 1 ? "s" : ""}` : ""}.`, "good");
-  if (pending.legendary) {
-    const bonus = Math.round(randomBetween(LEGENDARY.rewardGold, rng) * tierMult(region.tier));
-    const trophy = createGearItem({ slot: pick(GEAR_SLOTS, rng), rarity: pick(["rare", "epic"], rng), tier: region.tier + 1 }, rng);
-    run.loot.gold += bonus;
-    run.loot.items.push(trophy);
-    changeMorale(state, 15);
-    addFeed(run, at, `The legend falls! Its hoard: ${bonus} gold and a ${trophy.name}.`, "loot", true);
-  }
-  if (pending.kind === "boss") {
-    run.bossDone = true;
-    let bounty = region.completionGold;
-    if (region.bossRotation) {
-      const rank = state.bossRank || 0;
-      bounty = Math.round(bounty * (1 + BOSS_RANK_SCALING.bounty * rank));
-      state.bossRank = rank + 1;
-      const next = championFor(rank + 1);
-      addFeed(run, at, `${C.ENEMIES[bossForRank(rank)].name} slain! Next on the throne: ${next ? `a Champion: ${CHAMPIONS[next].name} ` : ""}${C.ENEMIES[bossForRank(rank + 1)].name} (rank ${rank + 2}).`, "good");
-    }
-    // A Champion pays double, and leaves a second crystal.
-    if (pending.wave.champion) {
-      bounty *= 2;
-      run.loot.items.push(randomCrystal(2, rng));
-      addFeed(run, at, `The Champion is broken! Double bounty and an extra crystal.`, "loot", true);
-    }
-    run.loot.gold += bounty;
-    run.bounty = bounty;
-    state.clears[region.id] = (state.clears[region.id] || 0) + 1;
-    // Every end boss leaves a Flawless crystal behind.
-    const crystal = randomCrystal(2, rng);
-    run.loot.items.push(crystal);
-    addFeed(run, at, `${region.name} conquered! +${bounty} gold bounty and a ${crystalInfo(crystal.key).fullName}.`, "good");
-    // The first time each boss falls to a party led by a level 10+ hero, a crate turns up.
-    const boss = pending.wave.enemies.find((enemy) => enemy.boss) || pending.wave.enemies[0];
-    if (earnPetCrate(state, boss.type, run.heroIds[0], rng)) {
-      addFeed(run, at, `Among ${boss.name}'s hoard: a weird crate with breathing holes. Something inside is scratching.`, "loot", true);
-    }
-    run.pending = null;
-    run.explored = true;
-    offerDeeper(state, at);
-    return;
-  }
-  closePending(run, at);
-  if (!livingParty(state).length) completeExpedition(state, "retreat", at);
-}
-
-// Qualities that kick in after a won fight: a Scavenger picks over the
-// fallen, a Field Surgeon patches everyone up.
-function afterVictory(state, qualities, at, rng) {
-  const run = state.expedition;
-  if (rng() < roadEffect(qualities, "scavengeOnWin")) {
-    const key = pick(["bandage", "bandage", "potion", "arrows"], rng);
-    const qty = key === "arrows" ? 6 : 1;
-    run.loot.items.push({ kind: "consumable", key, qty });
-    addFeed(run, at, `${firstName(qualities.who.scavengeOnWin, rng)} scavenges ${key === "arrows" ? `${qty} arrows` : `a ${CONSUMABLES[key].name}`} from the fallen.`, "loot");
-  }
-  const patch = roadEffect(qualities, "postFightHeal");
-  if (patch > 0) {
-    for (const hero of livingParty(state)) heal(hero, patch);
-    addFeed(run, at, `${firstName(qualities.who.postFightHeal, rng)} patches up the party's wounds.`, "good");
-  }
-}
-
-// Put recovered plain arrows back in a hero's quiver; any that don't fit go
-// into the trip's loot. Returns how many were picked up.
-function returnArrows(state, hero, count) {
-  let left = count;
-  for (const slot of hero.quickSlots) {
-    if (slot?.key !== "arrows") continue;
-    const room = Math.min(left, CONSUMABLES.arrows.stackCap - slot.qty);
-    slot.qty += room;
-    left -= room;
-  }
-  // No plain-arrow stack with room: an empty quick slot takes them.
-  const free = hero.quickSlots.findIndex((slot) => !slot || !(slot.qty > 0));
-  if (left > 0 && free >= 0) {
-    const moved = Math.min(left, CONSUMABLES.arrows.stackCap);
-    hero.quickSlots[free] = { key: "arrows", qty: moved };
-    left -= moved;
-  }
-  if (left > 0) state.expedition.loot.items.push({ kind: "consumable", key: "arrows", qty: left });
-  return count;
-}
-
-// A second chance (see startExpedition): the whole party is back on its feet
-// at half HP. An end boss has to be faced again; anything else has moved on.
-function secondChance(state, at) {
-  const run = state.expedition;
-  run.revives -= 1;
-  for (const id of run.heroIds) {
-    const hero = findHero(state, id);
-    if (hero) hero.combat.hp = Math.max(hero.combat.hp, Math.round(classlessMaxHp(hero) * 0.5));
-  }
-  addFeed(run, at, "A second chance! The party is back on its feet.", "good", true);
-  if (run.pending.kind === "boss") {
-    run.pending = { ...run.pending, promptAt: at, engagedAt: null };
-  } else {
-    closePending(run, at);
-  }
-}
-
-function halveLoot(run) {
-  // Falling past the trip's end loses everything found down there first.
-  if (run.depth && run.banked) {
-    run.loot.gold = Math.min(run.loot.gold, run.banked.gold);
-    run.loot.items = run.loot.items.slice(0, run.banked.items);
-  }
-  run.loot.gold = Math.floor(run.loot.gold * RETREAT_LOOT_SHARE);
-  run.loot.items = run.loot.items.slice(0, Math.floor(run.loot.items.length * RETREAT_LOOT_SHARE));
-}
-
 // Head home now with everything gathered so far (not mid-battle).
 export function recallExpedition(state, now) {
   const run = state.expedition;
@@ -1359,30 +977,6 @@ export function recallExpedition(state, now) {
   next.expedition.pending = null;
   completeExpedition(next, "recalled", now);
   return { ok: true, state: next };
-}
-
-function completeExpedition(state, outcome, at) {
-  const run = state.expedition;
-  const { loot, regionId, heroIds } = run;
-  for (const id of heroIds) {
-    const hero = findHero(state, id);
-    if (hero && hero.combat.hp <= 0) hero.combat.hp = 1;
-    if (hero) recordHistory(hero, "trips");
-  }
-  // Fortune adds its share when the gold reaches the guild.
-  const fortune = Math.round(loot.gold * legacyBonuses(state).gold);
-  if (fortune > 0) {
-    loot.gold += fortune;
-    addFeed(run, at, `Fortune: +${fortune} gold.`, "loot");
-  }
-  run.outcome = outcome;
-  state.gold += loot.gold;
-  bankLoot(state, loot.items);
-  state.lastReport = {
-    regionId, outcome, loot, stats: run.stats, morale: run.morale, wavesCleared: run.wavesCleared, depth: run.depth || 0, endedAt: at,
-    log: run.feed.map((entry) => entry.text),
-  };
-  state.expedition = null;
 }
 
 export function dismissReport(state) {
