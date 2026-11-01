@@ -36,6 +36,7 @@ import {
   offerDeeper, openPending, pick, randomBetween, returnArrows, road,
 } from "./expeditionRun";
 import { applyFightResult } from "./fightResults";
+import { autoChoice, riftShouldReturn, tooBatteredToGoOn, wantsToPushDeeper } from "./partyDecisions";
 
 // Moved to expeditionRun.js and fightResults.js (Phase 7); re-exported so
 // callers keep importing them from here.
@@ -47,16 +48,6 @@ export const MAX_PARTY_SIZE = 4;
 // heroes out exploring patch themselves up much more slowly between events.
 const REST_HEAL_FRACTION_PER_SECOND = 1 / 90;
 const EXPLORE_HEAL_FRACTION_PER_SECOND = 1 / 450;
-// When the party decides alone, it sneaks if the odds are at least this good,
-// and only challenges an end boss with at least this share of its HP left.
-const AUTO_SNEAK_AT = 0.6;
-const AUTO_BOSS_HP = 0.5;
-// An unattended Rift party heads home at 40% of its total HP.
-const RIFT_AUTO_RETURN_HP = 0.4;
-// An unattended party this badly hurt tries to sneak past everything, and
-// heads home with its loot after a fight that leaves it below the second line.
-const AUTO_CAUTIOUS_HP = 0.35;
-const AUTO_RETREAT_HP = 0.25;
 const RECENT_FLAVOR = 6;
 // Events can't shorten an expedition to less than this from now.
 const MIN_REMAINING_MS = 30_000;
@@ -356,14 +347,11 @@ function finishLeg(state, region, at, rng) {
   addFeed(run, at, `Deep spoils from leg ${run.depth}: +${bonus} gold and a ${cache.name}.`, "loot", true);
 }
 
-// Left alone at the end of a trip: press on only while healthy and whole.
+// Left alone at the end of a trip (partyDecisions.js decides which way).
 function decideDeeper(state, at, rng) {
   const run = state.expedition;
   const party = run.heroIds.map((id) => findHero(state, id)).filter(Boolean);
-  const gambler = party.some((hero) => hero.combat.hp > 0 && (hero.traits || []).some((trait) => DEEPER.gamblers.includes(trait)));
-  const whole = party.every((hero) => hero.combat.hp > 0);
-  if ((run.depth || 0) < DEEPER.autoMaxDepth && whole
-    && partyHpFraction(state) >= (gambler ? DEEPER.gamblerPushHp : DEEPER.autoPushHp)) pushDeeper(state, at, rng);
+  if (wantsToPushDeeper(party, run.depth, () => partyHpFraction(state))) pushDeeper(state, at, rng);
   else headHome(state, at);
 }
 
@@ -923,14 +911,17 @@ function decideAlone(state, region, { rng, onStep }) {
   const at = pending.engagedAt ?? pending.promptAt;
   if (pending.kind === "deeper") {
     decideDeeper(state, at, rng);
-  } else if (pending.kind === "story") {
-    resolveStory(state, region, STORIES[pending.story].auto({ partyHp: partyHpFraction(state), greedy: roadEffect(road(state), "greedy") > 0 }), at, rng);
-  } else if (pending.kind === "merchant") {
-    // Spending the guild's gold is the player's call, never the party's.
+    return;
+  }
+  // What the party chooses comes from partyDecisions.js; carrying it out is here.
+  const choice = autoChoice(pending, { partyHp: () => partyHpFraction(state), greedy: () => roadEffect(road(state), "greedy") > 0 });
+  if (pending.kind === "story") {
+    resolveStory(state, region, choice, at, rng);
+  } else if (choice === "decline") {
     tradeWithMerchant(state, false, at);
-  } else if (pending.kind === "sighting" && (pending.sneakChance >= AUTO_SNEAK_AT || partyHpFraction(state) < AUTO_CAUTIOUS_HP)) {
+  } else if (choice === "sneak") {
     attemptSneak(state, at, rng);
-  } else if (pending.kind === "boss" && partyHpFraction(state) < AUTO_BOSS_HP) {
+  } else if (choice === "leave") {
     leaveFight(state, region, at);
   } else {
     autoFight(state, region, at, rng, onStep);
@@ -942,15 +933,12 @@ function autoFight(state, region, at, rng, onStep) {
   const endless = pending.kind === "rift";
   const { result, sim, elapsed } = simulateEncounter(currentEncounterParty(state), pending.wave, {
     regionTier: region.tier, onStep, endless, rng,
-    shouldReturn: (engine) => {
-      const hp = engine.heroes.reduce((sum, hero) => sum + Math.max(0, hero.ref.hp), 0);
-      return hp / engine.heroes.reduce((sum, hero) => sum + hero.d.maxHp, 0) < RIFT_AUTO_RETURN_HP;
-    },
+    shouldReturn: riftShouldReturn,
   });
   state.expedition.stats.autoFightSeconds += Math.round(elapsed);
   applyFightResult(state, region, buildFightOutcome(result, sim), at, rng);
   // Left to themselves, a battered party doesn't push its luck.
-  if (state.expedition && !state.expedition.pending && partyHpFraction(state) < AUTO_RETREAT_HP) {
+  if (state.expedition && !state.expedition.pending && tooBatteredToGoOn(partyHpFraction(state))) {
     addFeed(state.expedition, at, "Too battered to go on, the party limps home with its loot.", "danger");
     completeExpedition(state, "recalled", at);
   }

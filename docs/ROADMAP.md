@@ -46,8 +46,8 @@ These were judged to work well. A PR that weakens one needs an explicit reason t
 | 3 | One fight-outcome builder for watched and unattended fights | F5 | Done (#30, merged `c6a07c7`) |
 | 4 | Injectable, seedable randomness | F7 | Done (#31, merged `af594dd`) |
 | 5 | Legacy reachability investigation (no edits) | F2, F9 | Done (#32, merged `50bdf0f`) |
-| 6 | Remove only verified legacy code, in small PRs | F2, F9 | In progress: 6A merged (#33); batch 1 (6B, 6C, 6D-1) merged (#34); batch 2 (6D-2, 6D-3, 6D-4) merged (#35); batch 3 (6D-5, Phase 7) in progress (#36) |
-| 7 | Move fight results and rewards out of `expedition.js` | F6 | Done, in review (#36); optional second step not started |
+| 6 | Remove only verified legacy code, in small PRs | F2, F9 | In progress: 6A merged (#33); batch 1 (6B, 6C, 6D-1) merged (#34); batch 2 (6D-2, 6D-3, 6D-4) merged (#35); batch 3 (6D-5, Phase 7) merged (#36) |
+| 7 | Move fight results and rewards out of `expedition.js` | F6 | Done (#36, merged `3aa2c7d`); second step (party decisions) in review (#37) |
 | 8 | Split `combat/engine.js`: A renderer, B enemy behavior, C hero abilities and spells, D the rest if justified | F1, F3 | Not started |
 | 9 | One definition per enemy; regional spawn data stays in regions | F3 | Not started |
 | 10 | Measure performance before any optimization | F8 | Not started |
@@ -200,7 +200,7 @@ The steps follow `docs/LEGACY_MANIFEST.md`. 6A was its own PR. From 6B on, Sam a
   2. [x] the revive API and sim morale (items 12, 13), batch 2, merged (#35, `05eb19e`). Removed `reviveHero`, `reviveFallenHeroes` and `getFallenHeroRevivalOffer` (used only by `reviveFallenHeroes`; not named in the manifest), the 3 remaining `sim.morale` writes (hero defeat, boss kill, other kills), the `clamp` helper only they used, and the sim's `morale` field. The Gravebinder Ring rise (`hero.revived`) is live gear and stays. The `config.js` exports these used (`paidRevivalCost`, `RECOVERY`, `REVIVE_PROTECT_S`, `MORALE`) stay until 6D-5 (item 19).
   3. [x] the `zombie` sprite (item 15), batch 2, merged (#35, `05eb19e`). No other `zombie` reference remained.
   4. [x] the legacy modules (items 7–10), batch 2, merged (#35, `05eb19e`). Deleted `logic.js`, `libraryResearch.js`, `equipment.js` and `perks.js` (1,975 lines). Before deleting, nothing in `src/` or `scripts/` imported them except each other.
-  5. [x] unused `config.js` exports (items 17–20), batch 3, in review (#36). Removed the 54 exports with no reference left after 6D-4; the 17 live exports (item 21) and the private `NORMAL_AFFINITIES` they use are unchanged. `config.js`: 424 → 150 lines.
+  5. [x] unused `config.js` exports (items 17–20), batch 3, merged (#36, `3aa2c7d`). Removed the 54 exports with no reference left after 6D-4; the 17 live exports (item 21) and the private `NORMAL_AFFINITIES` they use are unchanged. `config.js`: 424 → 150 lines.
 - [ ] Each PR: imports resolve, tests and build pass, scenarios run, watched combat and save loading still work.
 - Batch 1 evidence, per commit:
   - Full suite 449 tests pass after each commit (448 plus the save-fixture test). Production build passes.
@@ -220,13 +220,17 @@ The steps follow `docs/LEGACY_MANIFEST.md`. 6A was its own PR. From 6B on, Sam a
   - The cluster calls these from the rest of `expedition.js`: `addFeed`, `livingParty`, `road`, `changeMorale`, `heal`, `closePending`, `findHero`, `heroId`, `pick`, `randomBetween`, `firstName`, `riftBounty`, `completeExpedition` and `offerDeeper` (which needs `openPending`, `deeperDanger` and `DEEPER`). All of these are also used by the road, camp, stalker and story code that stays.
   - So a plain move of the cluster into a new module makes a circular import (each module would import the other). Avoiding it means also moving the shared run helpers, or passing `completeExpedition` and `offerDeeper` in. Sam chose a shared helpers module.
 - [x] Characterization tests before moving: `src/game/fightResults.characterization.test.js`, 15 cases. Eleven drive `resolveEncounter` with fixed outcomes through every `applyFightResult` branch (win, win with a hero down, defeat, a second chance on a road fight and on a boss, boss win, rotating boss win, legendary win, nemesis slain by its victim, Rift return, Rift overrun); four play whole unattended trips (gutter, boneyard, frostfang, rift) with one seeded rng. Each case first checks it reached its branch, then compares a hash of the whole guild state (hero and gear ids removed) with one recorded in CI on the unmoved code. Passed in CI on that code (464 tests), twice with the same hashes.
-- [x] Move without behavior change and without circular imports (batch 3, in review):
+- [x] Move without behavior change and without circular imports (batch 3, merged `3aa2c7d`):
   - `src/game/fightResults.js`: `applyFightResult`, `afterVictory`, `secondChance`, `settleNemeses`, `downedBy`, `riftBounty`, `AFTER_FIGHT_HEAL`.
   - `src/game/expeditionRun.js`: the helpers both need: `addFeed`, `livingParty`, `road`, `changeMorale`, `heal`, `openPending`, `closePending`, `offerDeeper`, `returnArrows`, `halveLoot`, `completeExpedition`, `heroId`, `findHero`, `pick`, `randomBetween`, `firstName`, `DEEPER`, `deeperDanger`, `deeperRegion`.
   - `expedition.js` (1,393 → 986 lines) imports both and re-exports `DEEPER`, `deeperDanger`, `deeperRegion` and `riftBounty`, so no caller changed.
   - Evidence: every original non-import line of `expedition.js` appears exactly once across the three files (compared as line multisets); the only new lines are imports, `export` keywords and two header comments. Every name used in each file is declared or imported there, and every imported name exists in its module. No import cycle through any of the three files. CI: 464 tests pass with all 15 characterization hashes unchanged; build passes.
   - Not run (npm registry unreachable from this session): the byte-identity probe, seeded active runs and the browser check.
-- [ ] Optional second step: the party's own decisions (`decideAlone`, `autoFight`, `AUTO_*`), only if the first move was clean.
+- [x] Optional second step: the party's own decisions (`decideAlone`, `autoFight`, `AUTO_*`), only if the first move was clean. In review (#37).
+  - Found: `decideAlone` sends each prompt to the same answer functions `choosePending` uses (`attemptSneak`, `leaveFight`, `resolveStory`, `tradeWithMerchant`, `pushDeeper`/`headHome`), which reach about 15 more helpers. Moving `decideAlone` and `autoFight` out by themselves would make a circular import. Sam chose to move only the policy.
+  - Characterization first: `src/game/partyDecisions.characterization.test.js`, 11 cases. Each leaves one prompt unanswered with nobody watching and lets `tick` decide: a sighting with good odds, badly hurt, or healthy with poor odds; an end boss worn down or healthy; a merchant; a story healthy and badly hurt; pushing deeper healthy, with a hero down, and worn down. Each checks its branch, then compares a state hash recorded in CI on the old code (two runs, same hashes).
+  - Moved to `src/game/partyDecisions.js`: `AUTO_SNEAK_AT`, `AUTO_BOSS_HP`, `AUTO_CAUTIOUS_HP`, `AUTO_RETREAT_HP`, `RIFT_AUTO_RETURN_HP`, and pure functions `autoChoice`, `wantsToPushDeeper`, `riftShouldReturn`, `tooBatteredToGoOn`. `decideAlone`, `decideDeeper` and `autoFight` stay in `expedition.js`, ask these, and carry out the answer. Party HP is passed as a function so it is worked out only where the old code did. `partyDecisions.js` imports only `adventure.js` and `expeditionRun.js`.
+  - Evidence: CI 475 tests pass; all 26 characterization hashes (15 fight results, 11 decisions) unchanged; build passes. Names and imports resolve in both files. Not run here: the byte-identity probe, seeded runs, browser.
 
 ### Phase 8: Split `combat/engine.js`
 
@@ -311,3 +315,5 @@ Decisions (Sam, 2026-11-01, reviewing Phase 5):
 | 2026-11-01 | Batch 2: 6D-2, 6D-3, 6D-4 | #35 | Imports resolve and syntax passes after each commit. Tests, build, probe, seeded runs and browser not run (npm registry unreachable from this session); CI covers tests and build on the head |
 | 2026-11-01 | Batch 2 merged | #35 | Merged `05eb19e` (squash) on CI alone (449 tests, build) |
 | 2026-11-01 | Batch 3: 6D-5 and Phase 7 | #36 | 6D-5: all `config.js` references resolve, CI 449 tests. Phase 7: 15 characterization cases recorded on the old code, then the move; CI 464 tests, hashes unchanged. Probe, seeded runs and browser not run |
+| 2026-11-01 | Batch 3 merged | #36 | Merged `3aa2c7d` (squash) on CI |
+| 2026-11-01 | Phase 7 second step: party decisions | #37 | 11 characterization cases recorded on the old code, then the policy moved to `partyDecisions.js`; CI 475 tests, all 26 hashes unchanged. Probe, seeded runs, browser not run |
