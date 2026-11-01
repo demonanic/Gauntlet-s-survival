@@ -240,7 +240,7 @@ export class Engine {
     this.nemesisSlain = null;
     this.nemesisFled = null;
     this.wavesCleared = 0;
-    this.xpGains = { heroes: {}, towers: {} };
+    this.xpGains = { heroes: {} };
     this.sim.vault = Array.isArray(this.sim.vault) ? this.sim.vault : [];
     this.time = 0;
     this.ended = false;
@@ -315,11 +315,6 @@ export class Engine {
       h.petGuard = stats?.guard || 0;
       return stats && { owner: h, name: h.model.pet.name, stats, x: h.x + 18, y: h.y + 14, cd: 1, supportCd: stats.support?.interval || 0, target: null };
     }).filter(Boolean);
-
-    // Encounters have no castle defenses. Shared targeting helpers still
-    // iterate these, so they stay as empty arrays.
-    this.towers = [];
-    this.barricades = [];
   }
 
   start() {
@@ -1291,7 +1286,7 @@ export class Engine {
     if (e.stunUntil && e.stunUntil > this.time) return;
     // Boss special: a targeted, proximity-based napalm bottle.
     // It no longer damages every hero simultaneously. The target is the nearest
-    // living hero or tower inside the boss's configured attack range.
+    // living hero inside the boss's configured attack range.
     if (e.boss) {
       e.abilityCd = (e.abilityCd == null ? 5 : e.abilityCd) - dt;
       // Gauntlet boss identities: the Abomination enrages once, below 35% HP.
@@ -1361,33 +1356,16 @@ export class Engine {
     if (e.type === "warlock") {
       e.abilityCd = (e.abilityCd == null ? 3 : e.abilityCd) - dt;
       if (e.abilityCd <= 0) {
-        // Warlocks are Mage Hunters: Mage first, then any living hero, then
-        // tower fallback. This gives the archetype a clear battlefield role
-        // and prevents the old tower-wrapper dereference crash.
+        // Warlocks are Mage Hunters: Mage first, then any living hero.
         const target =
           this._nearestMageEntity(e.x, e.y, 300) ||
-          this._nearestHeroEntity(e.x, e.y, 300) ||
-          this._nearestTower(e.x, e.y, 300);
+          this._nearestHeroEntity(e.x, e.y, 300);
 
         if (target?.kind === "hero") {
           this._enemyAttack(e, target);
           if (target.obj?.ref?.type === "mage") {
             this._float(target.obj.x, target.obj.y - 22, "MAGE HUNT", e.color);
           }
-          e.abilityCd = 4.5;
-        } else if (target?.kind === "tower") {
-          // _nearestTower() returns { kind, obj }; obj.ref is the persisted
-          // tower. The previous implementation incorrectly read target.ref.
-          const tower = target.obj;
-          const r = C.TOWER_RESOURCE[tower.ref.type];
-          const current = r.kind === "ammo" ? (tower.ref.ammo || 0) : (tower.ref.mana || 0);
-          const max = r.kind === "ammo" ? tower.d.maxAmmo : tower.d.maxMana;
-          const drain = Math.min(current, Math.max(5, Math.ceil(max * 0.18)));
-          if (r.kind === "ammo") tower.ref.ammo = Math.max(0, current - drain);
-          else tower.ref.mana = Math.max(0, current - drain);
-          tower.ref.warlockDebuff = 3;
-          this._float(tower.x, tower.y - 22, "DRAIN -" + drain, e.color);
-          this.effects.push({ kind: "immune", x: tower.x, y: tower.y, r: 15, life: 0.45, color: e.color });
           e.abilityCd = 4.5;
         } else {
           e.abilityCd = 1;
@@ -1403,12 +1381,12 @@ export class Engine {
     if (e.rootUntil > this.time) return;
     const moveSpeed = baseMoveSpeed * (e.slowUntil > this.time ? (e.slowMultiplier || 1) : 1);
 
-    // Floating enemies bypass barricades, preserving their distinct identity.
-    // Reapers and lieutenants can peel toward heroes; orcs pressure towers.
+    // Reapers, orcs, lieutenants, ghosts, Dark Elves and Warlocks peel toward
+    // the heroes they pick (_selectEnemyTacticalTarget).
     if (tactical && (e.type === "reaper" || e.type === "orc" || e.type === "lieutenant" || e.type === "ghost" || e.type === "darkElf" || e.type === "warlock")) {
       const target = tactical.obj;
       const dist = Math.hypot(target.x - e.x, target.y - e.y) || 1;
-      // Dark Elves are ranged tower hunters; Warlocks cast ranged bolts while
+      // Dark Elves shoot from range; Warlocks cast ranged bolts while
       // retaining their separate Mage-Hunter drain ability above.
       const ranged = e.type === "darkElf" || e.type === "warlock";
       const attackRange = e.type === "darkElf" ? 245 : e.type === "warlock" ? 225 : e.type === "reaper" ? 34 + BODY_PAD : 30 + BODY_PAD;
@@ -1441,10 +1419,8 @@ export class Engine {
       }
     }
 
-    // Existing wave objectives still matter when an enemy reaches a defender.
-    let blocker = null;
-    if (e.objective === "towers") blocker = this._nearestTower(e.x, e.y, 46);
-    if (!blocker) blocker = this._nearestHeroEntity(e.x, e.y, 30 + BODY_PAD);
+    // An enemy that reaches a hero attacks it.
+    const blocker = this._nearestHeroEntity(e.x, e.y, 30 + BODY_PAD);
     if (blocker) {
       if (e.atkCd <= 0) {
         this._enemyAttack(e, blocker);
@@ -1958,20 +1934,11 @@ export class Engine {
         best = { kind: "hero", obj: h };
       }
     }
-    for (const t of this.towers) {
-      if (t.ref.hp <= 0) continue;
-      const d = Math.hypot(t.x - x, t.y - y);
-      if (d <= bd) {
-        bd = d;
-        best = { kind: "tower", obj: t };
-      }
-    }
     return best;
   }
 
   _throwNapalm(e, target) {
     const obj = target.obj;
-    const d = obj.kind === "tower" ? obj.y : obj.y;
     this.projectiles.push({
       kind: "napalm",
       sourceId: "E" + e.type,
@@ -1979,7 +1946,7 @@ export class Engine {
       x: e.x,
       y: e.y,
       tx: obj.x,
-      ty: d,
+      ty: obj.y,
       target: obj,
       targetKind: target.kind,
       spd: 250,
@@ -2000,11 +1967,6 @@ export class Engine {
       if (!h.alive) continue;
       const d = Math.hypot(h.x - x, h.y - y);
       if (d <= splash) victims.push({ kind: "hero", obj: h, dist: d });
-    }
-    for (const t of this.towers) {
-      if (t.ref.hp <= 0) continue;
-      const d = Math.hypot(t.x - x, t.y - y);
-      if (d <= splash) victims.push({ kind: "tower", obj: t, dist: d });
     }
 
     // A bottle is a local area attack: only defenders standing in the
@@ -2028,15 +1990,6 @@ export class Engine {
         }
         this._resolveClasslessHeroDamage(h, dmg);
         this._float(h.x, h.y - 20, "-" + Math.round(dmg), p.color || "#FF6600");
-      } else {
-        const t = v.obj;
-        dmg *= 0.8; // soften enemy area damage against defensive structures
-        t.ref.hp = Math.max(0, t.ref.hp - dmg);
-        if (t.ref.hp <= 0) {
-          this.sim.morale = clamp(this.sim.morale + C.MORALE.towerDestroyed);
-          this.effects.push({ x: t.x, y: t.y, r: 30, life: 0.4, color: t.d.color });
-        }
-        this._float(t.x, t.y - 20, "-" + Math.round(dmg), "#FF6600");
       }
 
       // Persistent short fire-over-time visual on the actual victim.
@@ -2346,16 +2299,6 @@ export class Engine {
       this._resolveClasslessHeroDamage(h, damage);
       this._float(h.x, h.y - 20, "-" + Math.round(damage), p.color);
       if (damage > 0) this._triggerHeroReaction(h, "ally");
-    } else if (p.targetKind === "tower") {
-      const tower = obj;
-      if (tower.ref.hp <= 0) return;
-      const damage = p.dmg * 0.8;
-      tower.ref.hp = Math.max(0, tower.ref.hp - damage);
-      this._float(tower.x, tower.y - 20, "-" + Math.round(damage), p.color);
-      if (tower.ref.hp <= 0) {
-        this.sim.morale = clamp(this.sim.morale + C.MORALE.towerDestroyed);
-        this.effects.push({ x: tower.x, y: tower.y, r: 30, life: 0.4, color: tower.d.color });
-      }
     }
     this.effects.push({ kind: "impact", x: obj.x, y: obj.y, r: 9, life: 0.22, color: p.color });
   }
@@ -2368,36 +2311,25 @@ export class Engine {
       blocker = this._nearestDefender(e.x, e.y, attackRange);
       if (!blocker) return;
     }
-    if (blocker.kind === "tower") {
-      const t = blocker.obj;
-      const rawDamage = e.type === "darkElf" ? e.damage * 1.15 : e.damage;
-      const damage = rawDamage * 0.8; // towers take 20% less direct enemy damage
-      t.ref.hp = Math.max(0, t.ref.hp - damage);
-      if (t.ref.hp <= 0) {
-        this.sim.morale = clamp(this.sim.morale + C.MORALE.towerDestroyed);
-        this.effects.push({ x: t.x, y: t.y, r: 30, life: 0.4, color: t.d.color });
-      }
-    } else {
-      const h = blocker.obj;
-      if (e.type === "warlock") {
-        h.ref.shield = 0;
-      }
-      if (this.rng() < this._heroDodgeChance(h)) { this._float(h.x, h.y - 20, "DODGE", "#00F3FF"); return; }
-      // Gauntlet behavior families: predators maul the wounded; a Carrion
-      // Priest's sacrifice empowers its allies for a while.
-      const predator = e.families?.includes("predator") && h.ref.hp < h.d.maxHp * 0.5 ? 1.4 : 1;
-      const empowered = e.empoweredUntil > this.time ? 1.15 : 1;
-      const raw = e.damage * predator * empowered;
-      let dmg = this._classlessReducedDamage(h, raw);
-      h.lastHitBy = e;
-      if (h.ref.shield > 0) { const ab = Math.min(h.ref.shield, dmg); h.ref.shield -= ab; dmg -= ab; }
-      this._resolveClasslessHeroDamage(h, dmg);
-      if (dmg > 0) this._triggerHeroReaction(h, "ally");
-      if (dmg > 0 && h.d.gear?.thorns > 0 && e.hp > 0) this._bonusDamage(e, dmg * h.d.gear.thorns, "H" + h.i, "#F8FAFC");
-      if (e.boss) e.hp = Math.min(e.maxHp, e.hp + dmg * 0.5); // Demon Lord lifesteal
-      if (dmg > 0) this._vampiric(e);
-      this._float(h.x, h.y - 20, "-" + Math.round(dmg), "#FF3366");
+    const h = blocker.obj;
+    if (e.type === "warlock") {
+      h.ref.shield = 0;
     }
+    if (this.rng() < this._heroDodgeChance(h)) { this._float(h.x, h.y - 20, "DODGE", "#00F3FF"); return; }
+    // Gauntlet behavior families: predators maul the wounded; a Carrion
+    // Priest's sacrifice empowers its allies for a while.
+    const predator = e.families?.includes("predator") && h.ref.hp < h.d.maxHp * 0.5 ? 1.4 : 1;
+    const empowered = e.empoweredUntil > this.time ? 1.15 : 1;
+    const raw = e.damage * predator * empowered;
+    let dmg = this._classlessReducedDamage(h, raw);
+    h.lastHitBy = e;
+    if (h.ref.shield > 0) { const ab = Math.min(h.ref.shield, dmg); h.ref.shield -= ab; dmg -= ab; }
+    this._resolveClasslessHeroDamage(h, dmg);
+    if (dmg > 0) this._triggerHeroReaction(h, "ally");
+    if (dmg > 0 && h.d.gear?.thorns > 0 && e.hp > 0) this._bonusDamage(e, dmg * h.d.gear.thorns, "H" + h.i, "#F8FAFC");
+    if (e.boss) e.hp = Math.min(e.maxHp, e.hp + dmg * 0.5); // Demon Lord lifesteal
+    if (dmg > 0) this._vampiric(e);
+    this._float(h.x, h.y - 20, "-" + Math.round(dmg), "#FF3366");
   }
 
   _fire(sourceId, src, target, d, isHero, { extra = false } = {}) {
@@ -3071,9 +3003,6 @@ export class Engine {
     if (sid[0] === "H") {
       const i = +sid.slice(1);
       this.xpGains.heroes[i] = (this.xpGains.heroes[i] || 0) + xp;
-    } else if (sid[0] === "T") {
-      const slot = +sid.slice(1);
-      this.xpGains.towers[slot] = (this.xpGains.towers[slot] || 0) + xp;
     }
   }
 
@@ -3085,40 +3014,6 @@ export class Engine {
     }
     return best;
   }
-  _selectTowerTarget(tower) {
-    const cfg = tower.d;
-    const pool = this.active.filter((e) => Math.hypot(e.x - tower.x, e.y - tower.y) <= cfg.range);
-    if (!pool.length) return null;
-    if (cfg.targetPriority === "elite_boss") {
-      return pool.reduce((best, e) => {
-        if (!best) return e;
-        const rank = e.boss ? 3 : e.tier === "elite" ? 2 : 1;
-        const bestRank = best.boss ? 3 : best.tier === "elite" ? 2 : 1;
-        return rank > bestRank || (rank === bestRank && e.maxHp > best.maxHp) ? e : best;
-      }, null);
-    }
-    if (cfg.targetPriority === "vulnerable") {
-      const viable = pool.filter((e) => C.affinityMultiplier(e, cfg.damageType) > 0);
-      if (!viable.length) return null;
-      return viable.reduce((best, e) => {
-        if (!best) return e;
-        const score = C.affinityMultiplier(e, cfg.damageType);
-        const bestScore = C.affinityMultiplier(best, cfg.damageType);
-        if (score !== bestScore) return score > bestScore ? e : best;
-        return e.hp < best.hp ? e : best;
-      }, null);
-    }
-    if (cfg.targetPriority === "cluster") {
-      return pool.reduce((best, e) => {
-        const radius = cfg.splash || 55;
-        const score = this.active.filter((other) => other !== e && Math.hypot(other.x - e.x, other.y - e.y) <= radius).length;
-        const bestScore = best ? this.active.filter((other) => other !== best && Math.hypot(other.x - best.x, other.y - best.y) <= radius).length : -1;
-        return score > bestScore ? e : best;
-      }, null);
-    }
-    return pool.reduce((best, e) => !best || Math.hypot(e.x - tower.x, e.y - tower.y) < Math.hypot(best.x - tower.x, best.y - tower.y) ? e : best, null);
-  }
-
   // targeting tactics driven by the hero's attack configuration
   _selectTarget(h) {
     {
@@ -3139,15 +3034,7 @@ export class Engine {
       return nearest;
     }
   }
-  _nearestTower(x, y, r) {
-    let best = null, bd = r;
-    for (const t of this.towers) {
-      if (t.ref.hp <= 0) continue;
-      const d = Math.hypot(t.x - x, t.y - y);
-      if (d <= bd) { bd = d; best = t; }
-    }
-    return best ? { kind: "tower", obj: best } : null;
-  }
+
   _nearestHeroEntity(x, y, r) {
     let best = null, bd = r;
     for (const h of this.heroes) if (h.alive && !this._isHeroUntargetable(h)) {
@@ -3181,25 +3068,24 @@ export class Engine {
     }
 
     if (e.type === "orc") {
-      return this._nearestTower(e.x, e.y, 150) || this._nearestHeroEntity(e.x, e.y, 110);
+      return this._nearestHeroEntity(e.x, e.y, 110);
     }
 
     if (e.type === "lieutenant") {
-      return this._nearestHeroEntity(e.x, e.y, 150) || this._nearestTower(e.x, e.y, 120);
+      return this._nearestHeroEntity(e.x, e.y, 150);
     }
 
     if (e.type === "ghost") {
-      return this._nearestHeroEntity(e.x, e.y, 120) || this._nearestTower(e.x, e.y, 120);
+      return this._nearestHeroEntity(e.x, e.y, 120);
     }
 
     if (e.type === "darkElf") {
-      return this._nearestTower(e.x, e.y, 300) || this._nearestHeroEntity(e.x, e.y, 140);
+      return this._nearestHeroEntity(e.x, e.y, 140);
     }
 
     if (e.type === "warlock") {
       return this._nearestMageEntity(e.x, e.y, 300)
-        || this._nearestHeroEntity(e.x, e.y, 300)
-        || this._nearestTower(e.x, e.y, 300);
+        || this._nearestHeroEntity(e.x, e.y, 300);
     }
 
     return null;
@@ -3320,9 +3206,7 @@ export class Engine {
   _checkEnd() {
     if (this.ended) return;
 
-    // Absolute defeat conditions. Towers are supporting defenses, but they are
-    // not themselves a victory condition: once the entire hero squad is dead,
-    // the wave is lost even if some towers remain.
+    // Absolute defeat: the entire hero squad is dead.
     const anyHero = this.heroes.some((h) => h.alive);
     if (!anyHero || this.forcedDefeat) {
       this.ended = true;
