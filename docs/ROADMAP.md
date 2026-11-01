@@ -46,8 +46,8 @@ These were judged to work well. A PR that weakens one needs an explicit reason t
 | 3 | One fight-outcome builder for watched and unattended fights | F5 | Done (#30, merged `c6a07c7`) |
 | 4 | Injectable, seedable randomness | F7 | Done (#31, merged `af594dd`) |
 | 5 | Legacy reachability investigation (no edits) | F2, F9 | Done (#32, merged `50bdf0f`) |
-| 6 | Remove only verified legacy code, in small PRs | F2, F9 | In progress: 6A merged (#33); batch 1 (6B, 6C, 6D-1) merged (#34); batch 2 (6D-2, 6D-3, 6D-4) in review |
-| 7 | Move fight results and rewards out of `expedition.js` | F6 | Not started |
+| 6 | Remove only verified legacy code, in small PRs | F2, F9 | In progress: 6A merged (#33); batch 1 (6B, 6C, 6D-1) merged (#34); batch 2 (6D-2, 6D-3, 6D-4) merged (#35); batch 3 (6D-5, Phase 7) in progress (#36) |
+| 7 | Move fight results and rewards out of `expedition.js` | F6 | In progress: dependency map done; module split awaits Sam's call |
 | 8 | Split `combat/engine.js`: A renderer, B enemy behavior, C hero abilities and spells, D the rest if justified | F1, F3 | Not started |
 | 9 | One definition per enemy; regional spawn data stays in regions | F3 | Not started |
 | 10 | Measure performance before any optimization | F8 | Not started |
@@ -195,12 +195,12 @@ The steps follow `docs/LEGACY_MANIFEST.md`. 6A was its own PR. From 6B on, Sam a
   - Commit 1: `normalizeClasslessHero` drops a stray `cls` (Sam's decision). New save-fixture test: a save with `cls` on a hero loads as `ok`, every hero is classless, and the hero fights. With the fix removed the test fails.
   - Commit 2: the engine's class-hero branches are gone: legacy derived stats and mana, `perks.js` abilities and `MAGE_SPELLS`, legacy targeting, legacy hit and death handling, the legacy weapon sprite, and the `classless` flags. `useHeroAbility`, `_applyHit`, `getHeroSpellStatus` and `heroMovementSpeed` now take the classless path directly. The constructor throws a clear `TypeError` for a hero not built with the hero model. `engine.js` no longer imports `logic.js` or `perks.js`.
 - [x] **6C: replace the legacy test fixtures** (item 6), batch 1, merged (#34). The engine, battle-result and progression tests build plain objects and hero-model heroes. No test imports `logic.js`. The two class-hero guard tests stay, with a small class-shaped hero.
-- [ ] **6D: delete dead code:**
+- [x] **6D: delete dead code:**
   1. [x] towers, the unused sim fields and `xpGains.towers` (items 11, 14, 16), batch 1, merged (#34). Removed the tower and barricade arrays, every tower branch (Warlock drain, napalm splash, bolts, direct attacks), `_nearestTower`, `_selectTowerTarget`, tower XP, and the sim's `towers`, `barricades` and `buildings`. This also removed the 3 tower-loss morale writes (item 13).
-  2. [x] the revive API and sim morale (items 12, 13), batch 2, in review. Removed `reviveHero`, `reviveFallenHeroes` and `getFallenHeroRevivalOffer` (used only by `reviveFallenHeroes`; not named in the manifest), the 3 remaining `sim.morale` writes (hero defeat, boss kill, other kills), the `clamp` helper only they used, and the sim's `morale` field. The Gravebinder Ring rise (`hero.revived`) is live gear and stays. The `config.js` exports these used (`paidRevivalCost`, `RECOVERY`, `REVIVE_PROTECT_S`, `MORALE`) stay until 6D-5 (item 19).
-  3. [x] the `zombie` sprite (item 15), batch 2, in review. No other `zombie` reference remained.
-  4. [x] the legacy modules (items 7–10), batch 2, in review. Deleted `logic.js`, `libraryResearch.js`, `equipment.js` and `perks.js` (1,975 lines). Before deleting, nothing in `src/` or `scripts/` imported them except each other.
-  5. unused `config.js` exports (items 17–20).
+  2. [x] the revive API and sim morale (items 12, 13), batch 2, merged (#35, `05eb19e`). Removed `reviveHero`, `reviveFallenHeroes` and `getFallenHeroRevivalOffer` (used only by `reviveFallenHeroes`; not named in the manifest), the 3 remaining `sim.morale` writes (hero defeat, boss kill, other kills), the `clamp` helper only they used, and the sim's `morale` field. The Gravebinder Ring rise (`hero.revived`) is live gear and stays. The `config.js` exports these used (`paidRevivalCost`, `RECOVERY`, `REVIVE_PROTECT_S`, `MORALE`) stay until 6D-5 (item 19).
+  3. [x] the `zombie` sprite (item 15), batch 2, merged (#35, `05eb19e`). No other `zombie` reference remained.
+  4. [x] the legacy modules (items 7–10), batch 2, merged (#35, `05eb19e`). Deleted `logic.js`, `libraryResearch.js`, `equipment.js` and `perks.js` (1,975 lines). Before deleting, nothing in `src/` or `scripts/` imported them except each other.
+  5. [x] unused `config.js` exports (items 17–20), batch 3, in review (#36). Removed the 54 exports with no reference left after 6D-4; the 17 live exports (item 21) and the private `NORMAL_AFFINITIES` they use are unchanged. `config.js`: 424 → 150 lines.
 - [ ] Each PR: imports resolve, tests and build pass, scenarios run, watched combat and save loading still work.
 - Batch 1 evidence, per commit:
   - Full suite 449 tests pass after each commit (448 plus the save-fixture test). Production build passes.
@@ -215,7 +215,10 @@ The steps follow `docs/LEGACY_MANIFEST.md`. 6A was its own PR. From 6B on, Sam a
 
 ### Phase 7: Fight results out of `expedition.js`
 
-- [ ] Dependency map of `applyFightResult`, `afterVictory`, `returnArrows`, `secondChance` and related helpers.
+- [x] Dependency map of `applyFightResult`, `afterVictory`, `returnArrows`, `secondChance` and related helpers (batch 3, measured from the code at `05eb19e`):
+  - The fight-result cluster is `applyFightResult` (lines 1133–1286), `afterVictory`, `secondChance`, `halveLoot`, `returnArrows`, `settleNemeses` and `downedBy`. Outside callers: `applyFightResult` ← `autoFight`, `resolveEncounter`; `returnArrows` ← `reachEnd`, `tendCamp`. The rest are called only from inside the cluster.
+  - The cluster calls these from the rest of `expedition.js`: `addFeed`, `livingParty`, `road`, `changeMorale`, `heal`, `closePending`, `findHero`, `heroId`, `pick`, `randomBetween`, `firstName`, `riftBounty`, `completeExpedition` and `offerDeeper` (which needs `openPending`, `deeperDanger` and `DEEPER`). All of these are also used by the road, camp, stalker and story code that stays.
+  - So a plain move of the cluster into a new module makes a circular import (each module would import the other). Avoiding it means also moving the shared run helpers, or passing `completeExpedition` and `offerDeeper` in. That choice is Sam's (rule 7).
 - [ ] Characterization tests before moving.
 - [ ] Move without behavior change and without circular imports.
 - [ ] Optional second step: the party's own decisions (`decideAlone`, `autoFight`, `AUTO_*`), only if the first move was clean.
@@ -300,4 +303,6 @@ Decisions (Sam, 2026-11-01, reviewing Phase 5):
 | 2026-11-01 | Phase 6A merged; batching approved | #33 | Merged `018271f`. Sam approved batches of about three steps (rule 10) |
 | 2026-11-01 | Batch 1: 6B, 6C, 6D-1 | #34 | 449 tests pass and build passes after each commit; unseeded play byte-identical; seeded active runs identical; a `cls` save now loads and fights |
 | 2026-11-01 | Batch 1 merged | #34 | Merged `ef819c4` (squash). The watched fight after 6D-1 was not run before merge |
-| 2026-11-01 | Batch 2: 6D-2, 6D-3, 6D-4 | (draft) | Imports resolve and syntax passes after each commit. Tests, build, probe, seeded runs and browser not run (npm registry unreachable from this session); CI covers tests and build on the head |
+| 2026-11-01 | Batch 2: 6D-2, 6D-3, 6D-4 | #35 | Imports resolve and syntax passes after each commit. Tests, build, probe, seeded runs and browser not run (npm registry unreachable from this session); CI covers tests and build on the head |
+| 2026-11-01 | Batch 2 merged | #35 | Merged `05eb19e` (squash) on CI alone (449 tests, build) |
+| 2026-11-01 | Batch 3: 6D-5; Phase 7 dependency map | #36 | 6D-5: all `config.js` references resolve; CI on each pushed commit. Phase 7 move paused: a plain move is circular, split needs Sam's call |

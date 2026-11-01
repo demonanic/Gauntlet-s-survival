@@ -2,7 +2,7 @@
 
 Read this first. Then read `docs/ROADMAP.md` (the living checklist) and `docs/LEGACY_MANIFEST.md`. Those two files are the source of truth. This file only tells you how to start.
 
-Last updated: 2026-11-01. At that point batch 1 of Phase 6 was merged (#34) and batch 2 was in review as a draft PR.
+Last updated: 2026-11-01. At that point batches 1 and 2 of Phase 6 were merged (#34, #35) and batch 3 was draft PR #36.
 
 ## The project
 
@@ -32,10 +32,8 @@ Last updated: 2026-11-01. At that point batch 1 of Phase 6 was merged (#34) and 
 
 ## What's next
 
-- **Now:** batch 2 is in review. Run its missing checks per commit (tests, build, byte-identity probe, seeded `ranks` and `bosses` runs, browser), answer review comments and fix CI.
-- **Still owed:** a watched-fight browser check after 6D-1 (now on `main`) and after batch 2. Make a fresh save: start a trip in `npm run dev` and wait for an encounter prompt.
-- **Batch 2** (in review): 6D-2 revive API and `sim.morale`; 6D-3 `zombie` sprite; 6D-4 delete `logic.js`, `libraryResearch.js`, `equipment.js` and `perks.js`.
-- **Batch 3:** 6D-5 (prune the unused `config.js` exports, manifest items 17–20) and Phase 7 (move fight results out of `expedition.js`).
+- **Now:** batch 3 is draft PR #36. 6D-5 is done. Phase 7's dependency map is in the roadmap; the move waits for Sam's call on how to avoid a circular import.
+- **Still owed:** a watched-fight browser check after 6D-1 and batches 2–3, plus the byte-identity probe and seeded runs for batches 2–3 (the sessions that made them could not install dependencies).
 - **After that:** Phases 8 (A–D, split `engine.js`), 9, 10 and 11. The recommendation was to resume features (Endgame B/C/D) after Phase 7 and interleave phases 8–11.
 - **Sam's earlier decisions:**
   - The error boundary goes in its own reliability PR, not in Phase 6.
