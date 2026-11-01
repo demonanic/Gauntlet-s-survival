@@ -17,7 +17,7 @@ import {
 } from "./game/guild";
 import { buyLegacyUpgrade, renownForRetiring, retireHero } from "./game/legacy";
 import { answerBond } from "./game/bonds";
-import { learnElement } from "./combat/spells";
+import { chooseBeast, learnElement } from "./combat/spells";
 import {
   buyConsumable, buyCrystal, equipGear, extractCrystal, fletchArrows, fuseCrystals, infuseCrystal, loadQuickSlot, reforgeGear,
   salvageGear, sellGear, setSupplyStyle, unequipGear, unloadQuickSlot, upgradeGear,
@@ -234,6 +234,7 @@ export default function App() {
           onPurchase={(nodeId) => editHero(purchaseClasslessNode(perkHero, nodeId), perkHero)}
           onAllocate={(stat) => editHero(allocateClasslessStat(perkHero, stat), perkHero)}
           onLearnElement={(element) => editHero(learnElement(perkHero, element), perkHero)}
+          onChooseBeast={(beast) => editHero(chooseBeast(perkHero, beast), perkHero)}
           onClose={() => setPerkHeroId(null)}
         />
       )}

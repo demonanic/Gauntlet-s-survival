@@ -6,7 +6,7 @@
 // accumulates XP gains, returned to the UI at wave end.
 import { drawGearMarks, heroGearMarks } from "./heroLook";
 import { heroLuck, luckEffects } from "./luck";
-import { ELEMENTS, MAGIC, SHIELD_CAP, castSuccessChance, knownSpells, maxMana as spellMaxMana, proficiency, spellPower, spellRadius, supportPower } from "./spells";
+import { BEASTS, CONTROL, ELEMENTS, MAGIC, SHIELD_CAP, castSuccessChance, heroBeast, knownSpells, maxMana as spellMaxMana, proficiency, spellPower, spellRadius, supportPower } from "./spells";
 import { SpellVfx } from "./spellVfx";
 import { BONDS, memorialDamage } from "../game/bonds";
 import * as C from "./config";
@@ -198,7 +198,9 @@ function laneX(i) { return (W / LANES) * (i + 0.5); }
 
 export const LAYOUT = { W, H, HERO_Y, FLOOR_Y };
 // The order an unattended caster weighs its support spells in.
-const SUPPORT_PRIORITY = Object.freeze(["lifeline", "heal", "renew", "barrier", "aegis", "empower"]);
+const SUPPORT_PRIORITY = Object.freeze(["lifeline", "heal", "veil", "renew", "barrier", "aegis", "empower", "summon"]);
+// Spells that hold foes (Shadow, Wild Magic, Dominate), cast at a foe.
+const CONTROL_SHAPES = Object.freeze(new Set(["terror", "confusion", "ensnare", "thornfield", "dominate"]));
 
 export class Engine {
   constructor(canvas, sim, wave, callbacks = {}) {
@@ -373,6 +375,8 @@ export class Engine {
   // swords, weapon range for everything else.
   _isValidClasslessTarget(h, enemy) {
     if (!h || !enemy || enemy.hp <= 0 || !this.active.includes(enemy)) return false;
+    if (enemy.dominatedUntil > this.time) return false; // fighting for the party
+
     const reach = h.d.rangeMode === "melee" ? this._meleeReach(h, enemy) : h.d.range;
     return Math.hypot(enemy.x - h.x, enemy.y - h.y) <= reach;
   }
@@ -1263,6 +1267,10 @@ export class Engine {
     if (e.champion) this._championTick(e, dt);
     e.atkCd -= dt * (e.attackSlowUntil > this.time ? (e.attackSlowMultiplier || 1) : 1) * (e.attackSpeed || 1);
     if (e.stunUntil && e.stunUntil > this.time) return;
+    // Shadow and Mind control: a frightened foe flees; a confused or
+    // dominated one fights its own side.
+    if (e.fearUntil > this.time) { this._flee(e, dt); return; }
+    if (e.dominatedUntil > this.time || e.confusedUntil > this.time) { this._turncoat(e, dt); return; }
     // Boss special: a targeted, proximity-based napalm bottle.
     // It no longer damages every hero simultaneously. The target is the nearest
     // living hero inside the boss's configured attack range.
@@ -1699,6 +1707,12 @@ export class Engine {
   // partner's side, the tortoise plants itself between its partner and the
   // nearest foe and taunts. A downed familiar does nothing more this fight.
   _updatePets(dt) {
+    // Summoned beasts leave when their time is up or they fall.
+    const leaving = this.pets.filter((pet) => pet.summoned && (pet.down || this.time >= pet.until || !pet.owner.alive));
+    if (leaving.length) {
+      for (const pet of leaving) this.vfx?.beastFade(pet);
+      this.pets = this.pets.filter((pet) => !leaving.includes(pet));
+    }
     for (const pet of this.pets) {
       const owner = pet.owner;
       const startX = pet.x;
@@ -1765,6 +1779,15 @@ export class Engine {
       }
       if (!attack) continue;
       pet.cd -= dt;
+      // A spirit wolf draws attacks too.
+      if (pet.body.taunt) {
+        pet.tauntCd -= dt;
+        if (pet.tauntCd <= 0) {
+          const drawn = foes.filter((enemy) => !enemy.boss && Math.hypot(enemy.x - pet.x, enemy.y - pet.y) <= pet.body.taunt.radius);
+          for (const enemy of drawn) { enemy.tauntedBy = pet; enemy.tauntUntil = this.time + pet.body.taunt.seconds; }
+          pet.tauntCd = drawn.length ? pet.body.taunt.every : 0.5;
+        }
+      }
       const valid = pet.target && pet.target.hp > 0 && this.active.includes(pet.target);
       if (!valid || species === "hawk" || (species === "imp" && pet.cd <= 0)) {
         if (species === "wolf") {
@@ -1816,7 +1839,7 @@ export class Engine {
       pet.down = true;
       pet.target = null;
       // Its help stops with it: guard, heals and shields, marks.
-      pet.owner.petGuard = 0;
+      if (!pet.summoned) pet.owner.petGuard = 0;
       for (const enemy of this.active) if (enemy.tauntedBy === pet) enemy.tauntUntil = 0;
       this._float(pet.x, pet.y - 20, `${pet.name} is down`, "#94A3B8");
       this.effects.push({ kind: "death", x: pet.x, y: pet.y, r: 10, life: 0.5, color: pet.stats.color });
@@ -1849,6 +1872,28 @@ export class Engine {
       target.petMarkBonus = attack.mark;
     }
     if (attack.slow > 0) this._slowEnemy(target, attack.slow, 2);
+    // Spirit beasts: a tiger's opening pounce, a wasp's poison, a spider's
+    // web, a dragon's breath over everything in front of it.
+    if (attack.pounce > 0 && !pet.pounced) { pet.pounced = true; this._bonusDamage(target, damage * (attack.pounce - 1), sourceId, color); }
+    if (attack.poison > 0) this._applyDot(target, damage * attack.poison, 4, "#39FF14", sourceId);
+    if (attack.web && this.time >= (pet.webCd || 0)) {
+      pet.webCd = this.time + attack.web.every;
+      target.rootUntil = Math.max(target.rootUntil || 0, this.time + (target.boss ? attack.web.seconds * 0.3 : attack.web.seconds));
+      this.vfx?.aura("root", target, attack.web.seconds, 1);
+    }
+    if (attack.cone > 0) {
+      const facing = Math.atan2(target.y - pet.y, target.x - pet.x);
+      for (const other of this.active) {
+        if (other === target || other.hp <= 0) continue;
+        const d = Math.hypot(other.x - pet.x, other.y - pet.y);
+        const off = Math.abs(Math.atan2(Math.sin(Math.atan2(other.y - pet.y, other.x - pet.x) - facing), Math.cos(Math.atan2(other.y - pet.y, other.x - pet.x) - facing)));
+        if (d <= attack.cone && off <= 0.6) {
+          this._bonusDamage(other, damage, sourceId, color);
+          if (attack.burn > 0) this._applyDot(other, damage * attack.burn, 3, "#FF6600", sourceId);
+        }
+      }
+      this.vfx?.breath(pet, target, attack.cone);
+    }
     if (attack.burn > 0) this._applyDot(target, damage * attack.burn, 3, "#FF6600", sourceId);
     if (attack.bleed > 0) this._applyDot(target, damage * attack.bleed, 3, "#DC2626", sourceId);
     if (attack.lifelink > 0) this._classlessHeal(owner, damage * attack.lifelink);
@@ -2831,6 +2876,8 @@ export class Engine {
       for (const victim of victims) this._spellHit(h, victim, damage, spell.element, sourceId, false);
       if (this.vfx) this.vfx.area(spell.element, foe.x, foe.y, radius, rank);
       else this.effects.push({ kind: "spell_area", x: foe.x, y: foe.y, r: radius, life: 0.6, color: spell.color, vfxSize: 52 });
+    } else if (CONTROL_SHAPES.has(spell.shape)) {
+      this._castControl(h, spell, foe, damage, sourceId, rank);
     } else if (spell.shape === "linger") {
       this.vfx?.bolt(spell.element, h, foe, rank);
       if (this._spellImmune(foe)) return true;
@@ -2913,6 +2960,12 @@ export class Engine {
         if (!auto) return h;
         return this.active.some((enemy) => enemy.hp > 0 && enemy.boss) || this._partyHpFraction() < 0.6 ? h : null;
       }
+      case "veil": return lowest(near.filter((ally) => !this._isHeroUntargetable(ally) && (!auto || (frac(ally) < 0.4 && underAttack(ally)))));
+      case "summon": {
+        const mine = this.pets.some((pet) => pet.summoned && pet.owner === h && !pet.down);
+        if (mine || !this.active.some((enemy) => enemy.hp > 0)) return null;
+        return !auto || h.mana - spell.cost >= CONTROL.manaReserve ? h : null;
+      }
       default: return null;
     }
   }
@@ -2970,6 +3023,13 @@ export class Engine {
         ally.empowerSpeed = spell.speed * (power / spell.power);
         this.vfx?.aura("empower", ally, spell.seconds, rank);
       }
+    } else if (spell.shape === "veil") {
+      target.untargetableUntil = Math.max(target.untargetableUntil || 0, this.time + spell.seconds);
+      const state = target.classlessCombatState;
+      if (state) state.vanishDamagePending = Math.max(state.vanishDamagePending || 0, power);
+      this.vfx?.aura("veil", target, spell.seconds, rank, () => this._isHeroUntargetable(target));
+    } else if (spell.shape === "summon") {
+      this._summonBeast(h, spell, power, rank);
     } else if (spell.shape === "aegis") {
       for (const ally of party) {
         ally.aegisUntil = this.time + spell.seconds;
@@ -2978,6 +3038,130 @@ export class Engine {
       }
     }
     return true;
+  }
+
+  // ---- control (Shadow, Wild Magic, Dominate) --------------------------------
+
+  // Is this foe already held by a control spell? (No wasted casts on it.)
+  _controlled(e) {
+    return e.rootUntil > this.time || e.fearUntil > this.time || e.confusedUntil > this.time || e.dominatedUntil > this.time;
+  }
+
+  // How long `spell` holds `e`: elites half, bosses `spell.boss` (0: immune);
+  // Dominate never takes bosses, elites, nemeses or legends.
+  _controlSeconds(e, spell) {
+    if (spell.shape === "dominate" && (e.boss || e.tier === "elite" || e.legendary || e.nemesisId)) return 0;
+    if (e.boss) return spell.boss ?? 0;
+    return e.tier === "elite" ? spell.seconds * CONTROL.elite : spell.seconds;
+  }
+
+  _castControl(h, spell, foe, damage, sourceId, rank) {
+    const source = "H" + h.i;
+    if (spell.shape === "terror") {
+      const victims = this.active.filter((enemy) => enemy.hp > 0 && Math.hypot(enemy.x - foe.x, enemy.y - foe.y) <= spell.radius);
+      this.vfx?.area("shadow", foe.x, foe.y, spell.radius, rank);
+      for (const victim of victims) {
+        this._spellHit(h, victim, damage, spell.element, sourceId, false);
+        if (victim.hp <= 0 || this._spellImmune(victim)) continue;
+        const seconds = this._controlSeconds(victim, spell);
+        if (victim.boss) victim.stunUntil = Math.max(victim.stunUntil || 0, this.time + seconds);
+        else victim.fearUntil = Math.max(victim.fearUntil || 0, this.time + seconds);
+        this.vfx?.aura("fear", victim, seconds, rank);
+      }
+      return;
+    }
+    if (spell.shape === "thornfield") {
+      const radius = spellRadius(h.model, spell.id || "thornfield");
+      const victims = this.active.filter((enemy) => enemy.hp > 0 && Math.hypot(enemy.x - foe.x, enemy.y - foe.y) <= radius);
+      this.vfx?.area("wild", foe.x, foe.y, radius, rank);
+      for (const victim of victims) {
+        this._spellHit(h, victim, damage, spell.element, sourceId, false);
+        if (victim.hp <= 0 || this._spellImmune(victim)) continue;
+        this._applyDot(victim, damage * spell.bleed, 3, "#DC2626", sourceId);
+        const seconds = this._controlSeconds(victim, spell);
+        victim.rootUntil = Math.max(victim.rootUntil || 0, this.time + seconds);
+        this.vfx?.aura("root", victim, seconds, rank);
+      }
+      return;
+    }
+    this.vfx?.bolt(spell.element, h, foe, rank);
+    if (spell.shape === "ensnare") this._spellHit(h, foe, damage, spell.element, sourceId, true);
+    if (foe.hp <= 0 || this._spellImmune(foe)) return;
+    const seconds = this._controlSeconds(foe, spell);
+    if (!(seconds > 0)) { this._float(foe.x, foe.y - 18, "RESISTS", spell.color); return; }
+    if (spell.shape === "ensnare") {
+      foe.rootUntil = Math.max(foe.rootUntil || 0, this.time + seconds);
+      this.vfx?.aura("root", foe, seconds, rank);
+    } else if (spell.shape === "confusion") {
+      foe.confusedUntil = this.time + seconds;
+      foe.controlSource = source;
+      this._float(foe.x, foe.y - 18, "CONFUSED", spell.color);
+      this.vfx?.aura("confuse", foe, seconds, rank);
+    } else if (spell.shape === "dominate") {
+      foe.dominatedUntil = this.time + seconds;
+      foe.controlSource = source;
+      if (h.manualTarget === foe) h.manualTarget = null;
+      for (const ally of this.heroes) if (ally.currentTarget === foe) ally.currentTarget = null;
+      this._float(foe.x, foe.y - 18, "DOMINATED", spell.color);
+      this.vfx?.aura("dominate", foe, seconds, rank);
+    }
+  }
+
+  // A frightened foe runs from the nearest hero and doesn't attack.
+  _flee(e, dt) {
+    if (e.rootUntil > this.time) return;
+    const hero = this.heroes.filter((h) => h.alive).reduce((best, h) =>
+      (!best || Math.hypot(h.x - e.x, h.y - e.y) < Math.hypot(best.x - e.x, best.y - e.y) ? h : best), null);
+    if (!hero) return;
+    const d = Math.hypot(e.x - hero.x, e.y - hero.y) || 1;
+    const speed = e.speed * (e.slowUntil > this.time ? (e.slowMultiplier || 1) : 1);
+    e.x = Math.max(10, Math.min(W - 10, e.x + ((e.x - hero.x) / d) * speed * dt));
+    e.y = Math.max(10, Math.min(FLOOR_Y - 10, e.y + ((e.y - hero.y) / d) * speed * dt));
+  }
+
+  // A confused or dominated foe turns on its own side: it closes on the
+  // nearest other foe and hits it (credited to the caster).
+  _turncoat(e, dt) {
+    const prey = this.active.filter((other) => other !== e && other.hp > 0 && !(other.dominatedUntil > this.time))
+      .reduce((best, other) => (!best || Math.hypot(other.x - e.x, other.y - e.y) < Math.hypot(best.x - e.x, best.y - e.y) ? other : best), null);
+    if (!prey) return;
+    const d = Math.hypot(prey.x - e.x, prey.y - e.y) || 1;
+    if (d > 30 + BODY_PAD) {
+      if (e.rootUntil > this.time) return;
+      const speed = e.speed * (e.slowUntil > this.time ? (e.slowMultiplier || 1) : 1);
+      e.x += ((prey.x - e.x) / d) * speed * dt;
+      e.y += ((prey.y - e.y) / d) * speed * dt;
+      return;
+    }
+    if (e.atkCd > 0) return;
+    e.atkCd = 1;
+    this._bonusDamage(prey, e.damage, e.controlSource || "H0", "#C4B5FD");
+  }
+
+  // Summon Spirit Beast: a temporary unit fighting beside the caster (a pet
+  // that leaves after `spell.seconds` or when downed). Its kind comes from the
+  // caster's trait (heroBeast); it hits off the caster's attack.
+  _summonBeast(h, spell, power, rank) {
+    const kind = heroBeast(h.model);
+    const beast = BEASTS[kind];
+    const count = beast.count || 1;
+    const maxHp = Math.max(1, Math.round((h.d.maxHp * spell.hp) / count));
+    for (let i = 0; i < count; i += 1) {
+      const pet = {
+        owner: h, name: beast.name, summoned: true, until: this.time + spell.seconds, level: rank * 2,
+        stats: { species: kind, color: beast.color, guard: 0, attack: {
+          range: beast.range, moveSpeed: beast.moveSpeed || 0, interval: beast.interval,
+          damage: (h.d.attack || 0) * beast.damage * power, mark: 0, burn: beast.burn || 0, bleed: 0, slow: 0,
+          lifelink: beast.lifelink || 0, poison: beast.poison || 0, pounce: beast.pounce || 0, web: beast.web || null, cone: beast.cone || 0,
+        } },
+        body: { hp: spell.hp / count, weight: 1, airborne: !!beast.airborne, taunt: beast.taunt || null },
+        hp: maxHp, maxHp, down: false, hurtAt: -99, strikeAt: -99, face: 1, moving: false,
+        x: h.x + 22 + i * 10, y: h.y + 10 + i * 6, cd: 0.2, supportCd: 0, tauntCd: 0.5, webCd: 0, pounced: false, target: null,
+      };
+      this.pets.push(pet);
+      this.vfx?.beastSpawn(pet, rank);
+    }
+    this._float(h.x, h.y - 30, beast.name.toUpperCase(), beast.color);
   }
 
   // Healing over time (Renewal) and Barrier running out, each frame.
@@ -3029,6 +3213,47 @@ export class Engine {
 
   // On auto, a caster uses its best ready spell: the big ones first, an area
   // spell on a crowd, a curse on a fresh target, else a bolt.
+  // The control spell an unattended caster would cast now, and at whom.
+  _autoControl(h, ready) {
+    const spells = ready.filter((spell) => CONTROL_SHAPES.has(spell.shape));
+    if (!spells.length) return null;
+    const near = (spell) => this.active.filter((enemy) => enemy.hp > 0 && !this._controlled(enemy) && !this._spellImmune(enemy)
+      && Math.hypot(enemy.x - h.x, enemy.y - h.y) <= (spell.range || 300));
+    const by = (spell) => spells.find((entry) => entry.shape === spell);
+    const dominate = by("dominate");
+    if (dominate && h.mana - dominate.cost >= CONTROL.manaReserve) {
+      const foe = near(dominate).filter((enemy) => this._controlSeconds(enemy, dominate) > 0).sort((a, b) => b.damage - a.damage)[0];
+      if (foe) return { spell: dominate, foe };
+    }
+    const confusion = by("confusion");
+    if (confusion) {
+      const foe = near(confusion).filter((enemy) => !enemy.boss).sort((a, b) => (b.tier === "elite") - (a.tier === "elite") || b.maxHp - a.maxHp)[0];
+      if (foe) return { spell: confusion, foe };
+    }
+    const terror = by("terror");
+    if (terror) {
+      const pressing = this.active.filter((enemy) => enemy.hp > 0 && !this._controlled(enemy)
+        && this.heroes.some((ally) => ally.alive && Math.hypot(enemy.x - ally.x, enemy.y - ally.y) <= 120));
+      if (pressing.length >= 3) {
+        const foe = pressing.sort((a, b) => Math.hypot(a.x - h.x, a.y - h.y) - Math.hypot(b.x - h.x, b.y - h.y))[0];
+        if (Math.hypot(foe.x - h.x, foe.y - h.y) <= terror.range) return { spell: terror, foe };
+      }
+    }
+    const thornfield = by("thornfield");
+    if (thornfield) {
+      const radius = spellRadius(h.model, thornfield.id);
+      const foe = near(thornfield).find((enemy) => near(thornfield).filter((other) => Math.hypot(other.x - enemy.x, other.y - enemy.y) <= radius).length >= 2);
+      if (foe) return { spell: thornfield, foe };
+    }
+    const ensnare = by("ensnare");
+    if (ensnare) {
+      const hurt = this.heroes.filter((ally) => ally.alive).sort((a, b) => a.ref.hp / a.d.maxHp - b.ref.hp / b.d.maxHp)[0];
+      const foe = hurt && near(ensnare).sort((a, b) => Math.hypot(a.x - hurt.x, a.y - hurt.y) - Math.hypot(b.x - hurt.x, b.y - hurt.y))[0];
+      if (foe && Math.hypot(foe.x - hurt.x, foe.y - hurt.y) < 160) return { spell: ensnare, foe };
+    }
+    return null;
+  }
+
   _autoCast(h) {
     if (h.castCd > 0 || !this.active.some((enemy) => enemy.hp > 0)) return;
     const ready = this._classlessSpellStatus(h).filter((spell) => spell.available);
@@ -3039,7 +3264,10 @@ export class Engine {
       const ally = spell && this._supportTarget(h, spell, true);
       if (ally) { this.castHeroSpell(h.i, spell.id, ally); return; }
     }
-    const target = [h.currentTarget].find((enemy) => enemy?.hp > 0) || this._nearestEnemy(h.x, h.y, 340);
+    // Control: only on foes nothing holds yet, and only when it pays off.
+    const control = this._autoControl(h, ready);
+    if (control) { this.castHeroSpell(h.i, control.spell.id, control.foe); return; }
+    const target = [h.currentTarget].find((enemy) => enemy?.hp > 0 && !(enemy.dominatedUntil > this.time)) || this._nearestEnemy(h.x, h.y, 340);
     if (!target) return;
     const inRange = ready.filter((spell) => Math.hypot(target.x - h.x, target.y - h.y) <= spell.range);
     const crowd = (radius) => this.active.filter((enemy) => enemy.hp > 0 && Math.hypot(enemy.x - target.x, enemy.y - target.y) <= radius).length;

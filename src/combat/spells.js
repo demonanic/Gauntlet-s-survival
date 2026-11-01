@@ -16,8 +16,10 @@ export const ELEMENTS = Object.freeze({
   mind: { name: "Mind", color: "#A855F7" },
   restoration: { name: "Restoration", color: "#A7F3D0" },
   warding: { name: "Warding", color: "#FFB547" },
+  shadow: { name: "Shadow", color: "#8EA3C7" },
+  wild: { name: "Wild Magic", color: "#9BE15D" },
 });
-export const SCHOOLS = Object.freeze(["fire", "ice", "poison", "electric", "mind", "restoration", "warding"]);
+export const SCHOOLS = Object.freeze(["fire", "ice", "poison", "electric", "mind", "restoration", "warding", "shadow", "wild"]);
 // Schools whose spells help the party instead of hurting a foe (owner-approved,
 // Nov 2026). Their spells need no enemy target.
 export const SUPPORT_SCHOOLS = Object.freeze(["restoration", "warding"]);
@@ -75,7 +77,64 @@ export const SPELLS = Object.freeze({
   barrier: { name: "Barrier", element: "warding", shape: "barrier", power: 0.15, mana: 14, cooldown: 7, range: 300, seconds: 10, unlock: 1, support: true },
   empower: { name: "Empower", element: "warding", shape: "empower", power: 0.12, speed: 0.1, mana: 24, cooldown: 20, radius: 220, seconds: 8, unlock: 2, support: true },
   aegis: { name: "Aegis", element: "warding", shape: "aegis", power: 0.15, mana: 28, cooldown: 24, radius: 220, seconds: 6, unlock: 4, support: true },
+  // Shadow, Wild Magic and Dominate (owner-approved, Nov 2026). Control spells:
+  // `seconds` for ordinary foes; elites get half (`CONTROL.elite`), bosses `boss`.
+  veil: { name: "Veil", element: "shadow", shape: "veil", power: 0.4, mana: 16, cooldown: 12, range: 300, seconds: 3, unlock: 1, support: true },
+  terror: { name: "Terror", element: "shadow", shape: "terror", power: 0.4, mana: 22, cooldown: 14, range: 300, radius: 80, seconds: 2.5, boss: 0.5, unlock: 2 },
+  confusion: { name: "Confusion", element: "shadow", shape: "confusion", power: 0, mana: 24, cooldown: 16, range: 300, seconds: 4, boss: 0, unlock: 4 },
+  ensnare: { name: "Ensnare", element: "wild", shape: "ensnare", power: 0.5, mana: 12, cooldown: 7, range: 300, seconds: 2, boss: 0.5, unlock: 1 },
+  thornfield: { name: "Thornfield", element: "wild", shape: "thornfield", power: 0.6, mana: 22, cooldown: 12, range: 280, radius: 70, seconds: 1.5, boss: 0.4, bleed: 0.3, unlock: 2 },
+  summon_beast: { name: "Summon Spirit Beast", element: "wild", shape: "summon", power: 1, mana: 34, cooldown: 30, seconds: 10, hp: 0.3, unlock: 4, support: true },
+  dominate: { name: "Dominate", element: "mind", shape: "dominate", power: 0, mana: 40, cooldown: 40, range: 300, seconds: 6, boss: 0, unlock: 5 },
 });
+
+// How long controls hold on tougher foes, and the mana an unattended caster
+// keeps back before a big spell (Dominate, a summon) so it can still heal or shield.
+export const CONTROL = Object.freeze({ elite: 0.5, manaReserve: 20 });
+
+// The spirit beast a hero summons, from their trait (owner-approved, Nov 2026).
+// The Spellbook can pick another (hero.magic.beast). At Wild Magic V it's a dragon.
+export const BEASTS = Object.freeze({
+  tiger: { name: "Tiger", color: "#FFB547", range: 28, interval: 1, damage: 0.6, pounce: 1.5, moveSpeed: 190 },
+  wolf: { name: "Wolf", color: "#CBD5E1", range: 26, interval: 0.9, damage: 0.45, moveSpeed: 185, taunt: { every: 4, seconds: 2, radius: 80 } },
+  hawk: { name: "Hawk", color: "#FBBF24", range: 200, interval: 0.8, damage: 0.35, airborne: true },
+  bat: { name: "Bat", color: "#C4B5FD", range: 30, interval: 0.8, damage: 0.35, lifelink: 0.5, moveSpeed: 200, airborne: true },
+  rat: { name: "Rat Swarm", color: "#D6B38A", range: 22, interval: 0.6, damage: 0.15, count: 3, moveSpeed: 170 },
+  wasp: { name: "Wasp", color: "#FDE047", range: 30, interval: 0.9, damage: 0.3, poison: 0.4, moveSpeed: 210, airborne: true },
+  spider: { name: "Spider", color: "#A78BFA", range: 32, interval: 1, damage: 0.3, web: { every: 4, seconds: 1 }, moveSpeed: 160 },
+  dragon: { name: "Dragon", color: "#FF6A1A", range: 90, interval: 2, damage: 0.7, cone: 90, burn: 0.3, moveSpeed: 150, airborne: true },
+});
+export const BEAST_KEYS = Object.freeze(Object.keys(BEASTS).filter((key) => key !== "dragon"));
+const BEAST_BY_TRAIT = Object.freeze({
+  brawny: "tiger", berserker: "tiger",
+  stalwart: "wolf", ironhide: "wolf", steadfast: "wolf", charismatic: "wolf", inspiring: "wolf", optimist: "wolf",
+  nimble: "hawk", swift: "hawk", tracker: "hawk", trailwise: "hawk",
+  loud: "bat", paranoid: "bat",
+  scavenger: "rat", greedy: "rat", frail: "rat",
+  reckless: "wasp",
+  bloodhound: "spider", medic: "spider",
+  // Traits not in the approved list, given the closest fit (Sam can change these):
+  keenEye: "hawk", keenEared: "bat", nightEyes: "bat", lightSleeper: "bat", quickHands: "spider",
+  sureFooted: "wolf", fastLearner: "wolf", treasureHunter: "rat", glassCannon: "wasp",
+});
+
+// The beast this hero summons now.
+export function heroBeast(hero) {
+  if (proficiency(hero, "wild") >= 5) return "dragon";
+  const chosen = heroMagic(hero).beast;
+  if (BEASTS[chosen] && chosen !== "dragon") return chosen;
+  for (const trait of hero?.traits || []) if (BEAST_BY_TRAIT[trait]) return BEAST_BY_TRAIT[trait];
+  return "wolf";
+}
+
+// Pick another beast in the Spellbook (null goes back to the trait's). Returns a copy.
+export function chooseBeast(hero, beast) {
+  if (beast != null && !BEAST_KEYS.includes(beast)) return { ok: false, reason: "invalid_beast" };
+  const next = structuredClone(hero);
+  next.magic = { ...emptyMagic(), ...heroMagic(hero), beast: beast || undefined };
+  if (!beast) delete next.magic.beast;
+  return { ok: true, hero: next };
+}
 
 // What each element's spells do besides damage.
 export const ELEMENT_EFFECTS = Object.freeze({
@@ -87,6 +146,8 @@ export const ELEMENT_EFFECTS = Object.freeze({
   arcane: "pure arcane damage",
   restoration: "heals allies; spell heals ignore the regeneration limit",
   warding: "shields and strengthens allies",
+  shadow: "hides allies; frightens and confuses foes",
+  wild: "roots foes; calls a spirit beast",
 });
 
 // Shields from Barrier stack up to this share of a hero's max HP.
