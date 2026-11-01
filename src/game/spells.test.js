@@ -218,3 +218,44 @@ describe("battle screen feedback", () => {
     expect(engine.callouts).toEqual([]);
   });
 });
+
+describe("spell effects in battle", () => {
+  // A context that accepts every drawing call (a live battle's canvas).
+  const liveCanvas = () => {
+    const gradient = { addColorStop() {} };
+    const ctx = new Proxy({}, {
+      get: (target, prop) => (prop in target ? target[prop] : prop.toString().startsWith("create") ? () => gradient : prop === "measureText" ? () => ({ width: 10 }) : () => {}),
+      set: (target, prop, value) => { target[prop] = value; return true; },
+    });
+    return { getContext: () => ctx };
+  };
+  const build = (canvas, hero, enemies) => {
+    const engine = new Engine(canvas, createEncounterSim([hero], 1), buildWildEncounter(getRegion("gutter"), 0, () => 0.5, { waves: 1 }), {});
+    engine.spawnQueue = [];
+    engine.active = enemies;
+    const h = engine.heroes[0];
+    h.x = 300; h.y = 420;
+    return { engine, h };
+  };
+
+  test("headless fights make no effects; live ones do, without changing the fight", () => {
+    const hero = caster({ nodes: ["A1", "A2"], elements: ["fire"] });
+    const headless = build({ getContext: () => null }, structuredClone(hero), [foe(), foe("goblin", 330, 220)]);
+    const live = build(liveCanvas(), structuredClone(hero), [foe(), foe("goblin", 330, 220)]);
+    expect(headless.engine.vfx).toBe(null);
+    expect(live.engine.vfx).toBeTruthy();
+    for (const { engine } of [headless, live]) withRoll(0, () => engine.castHeroSpell(0, "ember_bolt", engine.active[0]));
+    expect(live.engine.active.map((enemy) => enemy.hp)).toEqual(headless.engine.active.map((enemy) => enemy.hp));
+    expect(live.engine.active[0].dots).toEqual(headless.engine.active[0].dots);
+    expect(live.engine.vfx.particles.length).toBeGreaterThan(0);
+    expect(live.engine.vfx.auras.map((aura) => aura.element)).toEqual(["fire"]);
+  });
+
+  test("a fizzle shows the fizzle effect instead of a plain floater in a live battle", () => {
+    const { engine } = build(liveCanvas(), caster(), [foe()]);
+    withRoll(0.99, () => engine.castHeroSpell(0, "arcane_bolt", engine.active[0]));
+    expect(engine.floaters.some((floater) => floater.text === "FIZZLE")).toBe(false);
+    for (let i = 0; i < 20; i += 1) engine.vfx.update(1 / 60);
+    expect(engine.vfx.particles.some((particle) => particle.kind === "fizzleText")).toBe(true);
+  });
+});

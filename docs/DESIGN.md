@@ -567,7 +567,7 @@ Owner-approved design (canvas "Gauntlet battle ability UI"):
 Owner-approved direction; each step is its own PR, built in this order:
 
 1. Battle screen above (done).
-2. **A distinct effect per element, and a new fizzle.** Each element differs in colour,
+2. **A distinct effect per element, and a new fizzle** (done: `combat/spellVfx.js`). Each element differs in colour,
    shape and motion: Arcane stars and glyph rings, orbiting; Fire round flames and
    embers, flickering up; Ice angular shards, spinning, cracking on impact; Poison blobs
    and bubbles, arcing and dripping; Lightning zig-zag lines, instant with jitter; Mind
@@ -578,6 +578,13 @@ Owner-approved direction; each step is its own PR, built in this order:
    breaks into a grey puff with a wobbling FIZZLE. Visual only. Effects stay fully vivid
    unless the frame rate drops (below about 50 fps for a second), then particles thin
    out step by step and come back when it recovers; they never touch the fight.
+   Built as planned. Also: statuses show on the foe (fire flames and an ember glow,
+   poison haze and bubbles, ice a frost crust and snowflakes, mind dizzy stars and a
+   spiral); area spells erupt across their circle, and lightning's strikes down as
+   bolts; Meteor shows a tightening target ring, then a rock streaks in 0.22 s before
+   it lands. The engine makes a `SpellVfx` only when it has a real canvas, updates it
+   in the live frame loop at game speed (paused during hit-stop), and the module uses
+   its own random numbers, never `Math.random` or the fight's rng (tested).
 3. **Restoration and Warding**, new schools chosen like elements, three spells each
    (start, proficiency II, IV): Mend, Renewal, Lifeline; Barrier, Empower, Aegis.
    Restoration: soft green-white motes; Warding: gold hexagon shells (1 to 3 layers).
