@@ -16,6 +16,7 @@ import { HERO_SPRITE_ATLAS, selectHeroSpriteFrame } from "./heroSprite";
 import { getEquippedHeroWeaponType, HERO_WEAPON_ASSETS } from "./heroWeapon";
 import { CONSUMABLES, QUICK_ITEM_COOLDOWN, healThreshold, heroGearStats, heroUsesArrows, heroWeaponProfile } from "./gear";
 import { petStats } from "./pets";
+import { BIG_MOVES, BIG_SPELLS, HIT_STOP_SECONDS, branchColor } from "./abilityLook";
 import { heroTraitEffects } from "./traits";
 import { isNeonIdentityColor } from "./heroModel";
 import { heroSpriteFilter } from "./heroPalette";
@@ -226,6 +227,10 @@ export class Engine {
     this.actionCompletions = [];
     this.fallen = [];           // Gauntlet: corpses a necromancer can raise
     this.floaters = [];
+    // Presentation only (live battles): move-name callouts over heroes and a
+    // brief hit-stop on big hits. Neither touches the fight itself.
+    this.callouts = [];
+    this.hitStop = 0;
     this.effects = [];
     this.killed = 0;
     // Gauntlet nemeses: which creature downed each hero (by hero index), and
@@ -384,7 +389,7 @@ export class Engine {
       const sharedStrike = { id: capability.id, name: "Shared Strike",
         desc: `${baselineDamage} raw direct-hit weapon damage at baseline (150%); 12s cooldown; no resource cost.`,
         damage: baselineDamage, cooldownSeconds: capability.cooldownSeconds * h.d.cooldownMultiplier,
-        resourceCost: capability.resourceCost, color: h.d.color,
+        resourceCost: capability.resourceCost, color: h.d.color, branch: "Basic",
         cooldown, available: h.alive && cooldown <= 0 && !!target && this._classlessCanPayActiveCost(h), targetMode: "enemy", range: h.d.range,
         reason: !h.alive ? "unavailable" : cooldown > 0 ? "cooldown" : !this._classlessCanPayActiveCost(h) ? "health_cost" : target ? null : "no_target" };
       return [sharedStrike, ...getUnlockedClasslessAbilities(h.model).map((definition) => {
@@ -406,7 +411,7 @@ export class Engine {
         const damage = Number.isFinite(definition.damageMultiplier)
           ? Math.round(h.d.attack * definition.damageMultiplier) : undefined;
         const canPayHealthCost = this._classlessCanPayActiveCost(h);
-        return { id: definition.id, name: definition.name, desc: definition.description,
+        return { id: definition.id, name: definition.name, desc: definition.description, branch: definition.branch,
           cooldown: abilityCooldown, cooldownSeconds, resourceCost: definition.resourceCost,
           damage, color: h.d.color, active: activeRemaining > 0, activeRemaining,
           available: validation.ok && canPayHealthCost, targetMode: definition.targetMode,
@@ -473,9 +478,15 @@ export class Engine {
 
   useHeroAbility(index, abilityId, targetOrPoint = null) {
     if (!this.heroes[index]) return false;
-    return abilityId === HERO_BASELINE.sharedStrike.id
+    const result = abilityId === HERO_BASELINE.sharedStrike.id
       ? this.useSharedStrike(index, targetOrPoint?.enemy || targetOrPoint)
       : this.executeClasslessAbility(index, abilityId, targetOrPoint);
+    if (result === true || result?.ok) {
+      const branch = abilityId === HERO_BASELINE.sharedStrike.id ? "Basic" : getUnlockedClasslessAbilities(this.heroes[index].model).find((item) => item.id === abilityId)?.branch;
+      const name = abilityId === HERO_BASELINE.sharedStrike.id ? "Shared Strike" : getUnlockedClasslessAbilities(this.heroes[index].model).find((item) => item.id === abilityId)?.name;
+      this._callout(this.heroes[index], `${(name || "").toUpperCase()}!`, branchColor(branch), BIG_MOVES.has(abilityId));
+    }
+    return result;
   }
 
   executeClasslessAbility(index, abilityId, targetOrPoint = null) {
@@ -942,9 +953,15 @@ export class Engine {
       let dt = (now - this.last) / 1000;
       this.last = now;
       if (dt > 0.05) dt = 0.05;
-      // Fast-forward in normal-sized steps so 4x/8x play matches 1x physics.
-      const steps = Math.max(1, Math.ceil(this.speed));
-      for (let i = 0; i < steps && !this.ended; i += 1) this.update((dt * this.speed) / steps);
+      this._tickCallouts(dt);
+      if (this.hitStop > 0) {
+        // A big hit freezes the frame for a moment; the fight just waits.
+        this.hitStop = Math.max(0, this.hitStop - dt);
+      } else {
+        // Fast-forward in normal-sized steps so 4x/8x play matches 1x physics.
+        const steps = Math.max(1, Math.ceil(this.speed));
+        for (let i = 0; i < steps && !this.ended; i += 1) this.update((dt * this.speed) / steps);
+      }
       this.render();
       if (!this.ended) requestAnimationFrame(this._loop);
     } catch (err) {
@@ -2619,6 +2636,7 @@ export class Engine {
     return knownSpells(h.model).map((spell) => {
       const cooldown = Math.max(0, h.spellCooldowns[spell.id] || 0);
       return { ...spell, color: ELEMENTS[spell.element].color, cost: spell.mana, cooldownSeconds: spell.cooldown, cooldown,
+        cooldownTotal: spell.cooldown * h.d.cooldownMultiplier,
         mana: Math.round(h.mana), maxMana: h.maxMana, success: castSuccessChance(h.model, spell.element),
         available: h.alive && cooldown <= 0 && h.mana >= spell.mana && !this.ended };
     });
@@ -2626,7 +2644,8 @@ export class Engine {
 
   // Cast a spell now (the player's tap, or the hero on auto). Mana and the
   // cooldown are spent whether it works or fizzles. Returns true if cast.
-  castHeroSpell(index, spellId, target = null) {
+  // `announce`: the player tapped it, so its name flashes over the caster.
+  castHeroSpell(index, spellId, target = null, { announce = false } = {}) {
     const h = this.heroes[index];
     const spell = h && this._classlessSpellStatus(h).find((entry) => entry.id === spellId);
     if (!spell?.available) return false;
@@ -2644,6 +2663,7 @@ export class Engine {
       this._float(h.x, h.y - 26, "FIZZLE", "#94A3B8");
       return true;
     }
+    if (announce) this._callout(h, spell.name.toUpperCase(), spell.color, BIG_SPELLS.has(spellId));
     (this.spellSuccesses[h.i] ||= {})[spellId] = ((this.spellSuccesses[h.i] || {})[spellId] || 0) + 1;
     const staff = getEquippedHeroWeaponType(h.model) === "staff";
     const damage = (h.d.attack || 0) * spellPower(h.model, spellId, { staff });
@@ -3130,6 +3150,43 @@ export class Engine {
 
   _float(x, y, text, color) { this.floaters.push({ x, y, text, color, life: 0.7 }); }
 
+  // A move or spell name that pops up over its hero (live battles only: it
+  // ages in the frame loop, which headless fights never run). `big` adds a
+  // short hit-stop.
+  _callout(hero, text, color, big = false) {
+    if (!hero || !text) return;
+    this.callouts = this.callouts.filter((callout) => callout.hero !== hero).slice(-3);
+    this.callouts.push({ hero, text, color, age: 0, life: 1.1 });
+    if (big) this.hitStop = Math.max(this.hitStop, HIT_STOP_SECONDS);
+  }
+
+  _tickCallouts(dt) {
+    for (const callout of this.callouts) callout.age += dt;
+    this.callouts = this.callouts.filter((callout) => callout.age < callout.life);
+  }
+
+  _drawCallouts(ctx) {
+    for (const callout of this.callouts) {
+      const { hero, text, color, age, life } = callout;
+      const grow = Math.min(1, age / 0.12);
+      const scale = age < 0.12 ? 0.6 + 0.55 * grow : age < 0.2 ? 1.15 - (age - 0.12) * 1.9 : 1;
+      const alpha = age > life - 0.3 ? Math.max(0, (life - age) / 0.3) : 1;
+      ctx.save();
+      ctx.font = "900 13px Unbounded, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      const width = ctx.measureText(text).width + 16;
+      const x = Math.max(width / 2 + 2, Math.min(W - width / 2 - 2, hero.x));
+      const y = Math.max(16, hero.y - 48 - age * 10);
+      ctx.translate(x, y); ctx.scale(scale, scale);
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = "rgba(5,8,10,0.9)"; ctx.strokeStyle = color; ctx.lineWidth = 2;
+      ctx.shadowColor = color; ctx.shadowBlur = 10;
+      ctx.beginPath(); ctx.rect(-width / 2, -11, width, 22); ctx.fill(); ctx.stroke();
+      ctx.shadowBlur = 6; ctx.fillStyle = color; ctx.fillText(text, 0, 1);
+      ctx.restore();
+    }
+  }
+
   _hud() {
     if (!this.cb.onHud) return;
     this.cb.onHud({
@@ -3570,6 +3627,7 @@ export class Engine {
       ctx.save(); ctx.globalAlpha = Math.max(0, f.life * 1.4);
       ctx.fillStyle = f.color; ctx.fillText(f.text, f.x, f.y); ctx.restore();
     }
+    this._drawCallouts(ctx);
   }
 
   // A small neon familiar, shaped by species, outlined in its partner's color.

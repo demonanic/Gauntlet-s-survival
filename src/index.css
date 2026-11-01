@@ -22,3 +22,13 @@ body {
 .font-display { font-family: "Unbounded", sans-serif; }
 .font-mono-g { font-family: "JetBrains Mono", monospace; }
 .text-glow-cyan { text-shadow: 0 0 12px rgba(0, 243, 255, 0.8); }
+
+/* Battle dock: a special move that is ready pulses in its branch colour (--glow). */
+@keyframes battle-move-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  50% { box-shadow: 0 0 14px 2px var(--glow); }
+}
+.battle-move-ready { animation: battle-move-pulse 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .battle-move-ready { animation: none; box-shadow: 0 0 10px 1px var(--glow); }
+}

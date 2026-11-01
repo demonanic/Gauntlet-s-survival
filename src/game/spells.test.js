@@ -180,3 +180,41 @@ describe("spells on the road", () => {
     expect(parseGuild(JSON.parse(JSON.stringify(state))).heroes[0].magic).toEqual(state.heroes[0].magic);
   });
 });
+
+describe("battle screen feedback", () => {
+  test("a tapped spell flashes its name over the caster; an auto cast or a fizzle does not", () => {
+    const target = foe();
+    const { engine, h } = engineWith(caster({ nodes: ["A1", "A3"] }), [target]);
+    withRoll(0, () => engine.castHeroSpell(0, "arcane_bolt", target));
+    expect(engine.callouts).toEqual([]);
+    h.spellCooldowns.arcane_bolt = 0;
+    withRoll(0.99, () => engine.castHeroSpell(0, "arcane_bolt", target, { announce: true }));
+    expect(engine.callouts).toEqual([]);
+    h.spellCooldowns.arcane_bolt = 0;
+    withRoll(0, () => engine.castHeroSpell(0, "arcane_bolt", target, { announce: true }));
+    expect(engine.callouts).toMatchObject([{ hero: h, text: "ARCANE BOLT" }]);
+    expect(engine.hitStop).toBe(0);
+    h.mana = h.maxMana;
+    withRoll(0, () => engine.castHeroSpell(0, "arcane_channel", target, { announce: true }));
+    expect(engine.callouts.map((callout) => callout.text)).toEqual(["ARCANE CHANNEL"]);
+    expect(engine.hitStop).toBeGreaterThan(0);
+  });
+
+  test("spell status carries the cooldown the cast actually sets", () => {
+    const target = foe();
+    const { engine, h } = engineWith(caster(), [target]);
+    const bolt = engine.getHeroSpellStatus(0).find((spell) => spell.id === "arcane_bolt");
+    withRoll(0, () => engine.castHeroSpell(0, "arcane_bolt", target));
+    expect(h.spellCooldowns.arcane_bolt).toBeCloseTo(bolt.cooldownTotal);
+  });
+
+  test("callouts age only in the live frame loop, so headless updates leave the fight unchanged", () => {
+    const target = foe();
+    const { engine, h } = engineWith(caster(), [target]);
+    engine._callout(h, "TEST", "#fff", true);
+    engine.update(0.5);
+    expect(engine.callouts[0].age).toBe(0);
+    engine._tickCallouts(2);
+    expect(engine.callouts).toEqual([]);
+  });
+});

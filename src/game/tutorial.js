@@ -92,7 +92,7 @@ export const TUTORIAL_STEPS = Object.freeze([
   {
     id: "battle",
     title: "Battle",
-    text: "Heroes fight on their own. Tap an ability to use it, or a hero card and then the field to move them. They use bandages and potions by themselves when they're hurt.",
+    text: "Heroes fight on their own. Tap a hero below the battle to see their special moves and spells, and tap a move to use it. Tap that hero again, then the field, to move them. They use bandages and potions by themselves when they're hurt.",
     target: "[data-testid='battle-canvas']",
     // Below the battle header, so its speed and return buttons stay reachable.
     placement: "under-header",
