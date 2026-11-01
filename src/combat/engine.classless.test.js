@@ -773,3 +773,27 @@ describe("bounded classless combat adapter", () => {
       .toBe("impactCrescent08");
   });
 });
+
+describe("battle screen feedback for special moves", () => {
+  test("a move that fires flashes its name in its branch colour; big strikes add a hit-stop", () => {
+    const hero = createHeroModel({ id: "callout-build" });
+    hero.progression.ownedNodeIds = ["P1", "P2", "P3", "T1", "T2a"];
+    const engine = new Engine({ getContext: () => null }, testSim({ heroes: [hero] }), { enemies: [], total: 1 });
+    const target = enemy("callout target", engine.heroes[0].x + 30, engine.heroes[0].y, { hp: 150, maxHp: 500 });
+    engine.active = [target];
+    const random = jest.spyOn(Math, "random").mockReturnValue(0.5);
+    expect(engine.getHeroAbilityStatus(0).find((ability) => ability.id === "P3")).toMatchObject({ branch: "Precision" });
+    expect(engine.getHeroAbilityStatus(0)[0]).toMatchObject({ id: HERO_BASELINE.sharedStrike.id, branch: "Basic" });
+    expect(engine.useHeroAbility(0, "P3", target)).toMatchObject({ ok: true });
+    expect(engine.callouts).toMatchObject([{ text: "EXECUTION!", color: "#FFE600" }]);
+    expect(engine.hitStop).toBeGreaterThan(0);
+    engine.hitStop = 0;
+    expect(engine.useHeroAbility(0, "T2a")).toMatchObject({ ok: true });
+    expect(engine.callouts).toMatchObject([{ text: "RALLY!", color: "#39FF14" }]);
+    expect(engine.hitStop).toBe(0);
+    // A move that can't fire says nothing.
+    expect(engine.useHeroAbility(0, "P3", target)).toMatchObject({ ok: false });
+    expect(engine.callouts).toHaveLength(1);
+    random.mockRestore();
+  });
+});
