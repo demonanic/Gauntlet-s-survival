@@ -1,7 +1,7 @@
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import { Engine } from "../combat/engine";
 import { CONSUMABLES, crystalInfo, healThreshold, heroGearStats, itemSockets } from "../combat/gear";
-import { PET_SPECIES, PET_SPECIES_KEYS, PET_XP, petStats } from "../combat/pets";
+import { PET_BODIES, PET_SPECIES, PET_SPECIES_KEYS, PET_XP, petMaxHp, petStats } from "../combat/pets";
 import { heroGearMarks } from "../combat/heroLook";
 import { heroRoadEffects, partyRoadEffects } from "../combat/traits";
 import { buildWildEncounter, createEncounterSim } from "./encounters";
@@ -282,5 +282,82 @@ describe("gear on the sprite", () => {
     expect(marks.filter((mark) => mark.slot === "head").every((mark) => mark.color === "#A855F7")).toBe(true);
     expect(marks.filter((mark) => mark.slot === "chest").every((mark) => mark.color === "#FF3366")).toBe(true);
     expect(marks.some((mark) => mark.slot === "weapon")).toBe(false);
+  });
+});
+
+describe("familiars as units", () => {
+  const withPet = (species) => { const hero = plainHero(); hero.pet = createPet(species, fixed(0.5)); return hero; };
+
+  test("each familiar has HP from its partner's, by species, growing with its level", () => {
+    const engine = arena([withPet("tortoise"), withPet("wolf"), withPet("sprite")]);
+    const [tortoise, wolf, sprite] = engine.pets;
+    const partnerMax = engine.heroes[0].d.maxHp;
+    expect(tortoise.maxHp).toBe(Math.round(partnerMax * PET_BODIES.tortoise.hp));
+    expect(tortoise.maxHp).toBeGreaterThan(wolf.maxHp);
+    expect(wolf.maxHp).toBeGreaterThan(sprite.maxHp);
+    const veteran = { ...createPet("wolf", fixed(0.5)), level: 5 };
+    expect(petMaxHp(veteran, 100)).toBe(Math.round(100 * 0.25 * 1.2));
+  });
+
+  test("an enemy in reach can maul a familiar; a downed one stops helping", () => {
+    const engine = arena([withPet("tortoise")]);
+    const [h] = engine.heroes;
+    const pet = engine.pets[0];
+    expect(h.petGuard).toBeGreaterThan(0);
+    pet.x = h.x + 60; pet.y = h.y;
+    const brute = dummy(pet.x + 10, pet.y, { damage: 40, atkCd: 0, speed: 0 });
+    for (let i = 0; i < 40 && !pet.down; i += 1) { brute.atkCd = 0; engine._enemyHitPet(brute, pet); }
+    expect(pet.down).toBe(true);
+    expect(h.petGuard).toBe(0);
+    // Its shell shrugged off 40% of every blow.
+    expect(Math.ceil(pet.maxHp / (40 * 0.6))).toBeLessThanOrEqual(40);
+    const shield = h.ref.shield || 0;
+    run(engine, 10);
+    expect(h.ref.shield || 0).toBe(shield);
+  });
+
+  test("melee enemies pick a familiar in reach like a hero, and a half-weight one as if twice as far", () => {
+    const engine = arena([withPet("wolf")]);
+    const pet = engine.pets[0];
+    expect(engine._nearestPetInReach(pet.x + 20, pet.y, 50)).toMatchObject({ pet, weighted: 20 });
+    const hawkEngine = arena([withPet("hawk")]);
+    const hawk = hawkEngine.pets[0];
+    expect(hawkEngine._nearestPetInReach(hawk.x + 20, hawk.y, 50).weighted).toBe(40);
+  });
+
+  test("melee blows miss a hawk half the time", () => {
+    const engine = arena([withPet("hawk")]);
+    const hawk = engine.pets[0];
+    const foe = dummy(hawk.x + 10, hawk.y, { damage: 5 });
+    const roll = vi.spyOn(Math, "random").mockReturnValue(0.3);
+    engine._enemyHitPet(foe, hawk);
+    expect(hawk.hp).toBe(hawk.maxHp);
+    roll.mockReturnValue(0.7);
+    engine._enemyHitPet(foe, hawk);
+    expect(hawk.hp).toBeLessThan(hawk.maxHp);
+    roll.mockRestore();
+  });
+
+  test("the tortoise taunts nearby foes, but not bosses", () => {
+    const engine = arena([withPet("tortoise")]);
+    const pet = engine.pets[0];
+    const near = dummy(pet.x + 30, pet.y);
+    const boss = dummy(pet.x + 40, pet.y, { boss: true });
+    engine.active = [near, boss];
+    pet.tauntCd = 0;
+    engine._updatePets(STEP);
+    expect(near.tauntedBy).toBe(pet);
+    expect(near.tauntUntil).toBeGreaterThan(engine.time);
+    expect(boss.tauntedBy).toBeUndefined();
+  });
+
+  test("the wolf hunts the most wounded foe anywhere on the field", () => {
+    const engine = arena([withPet("wolf")]);
+    const [h] = engine.heroes;
+    const close = dummy(h.x + 40, h.y - 60);
+    const far = dummy(h.x + 200, h.y - 600, { hp: 1000 });
+    engine.active = [close, far];
+    engine._updatePets(STEP);
+    expect(engine.pets[0].target).toBe(far);
   });
 });
