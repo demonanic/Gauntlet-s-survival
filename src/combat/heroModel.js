@@ -151,6 +151,10 @@ export function withHeroAppearance(hero, appearanceId) {
 export function normalizeClasslessHero(input) {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new TypeError("Invalid classless hero");
   const hero = JSON.parse(JSON.stringify(input));
+  // Gauntlet never writes a class; a stray `cls` (a hand-edited or foreign
+  // save) would have sent the hero down Demonanic's class-hero path, which no
+  // longer exists. Every hero is classless.
+  delete hero.cls;
   const identity = hero.identity && typeof hero.identity === "object" ? hero.identity : {};
   const combat = hero.combat && typeof hero.combat === "object" ? hero.combat : {};
   const progression = hero.progression && typeof hero.progression === "object" ? hero.progression : {};
