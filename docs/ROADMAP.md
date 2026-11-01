@@ -161,14 +161,14 @@ The full manifest, with evidence for every item, is in `docs/LEGACY_MANIFEST.md`
   - **Legacy modules:** `logic.js`, `libraryResearch.js`, `equipment.js` and `perks.js` reach the app only through 6 names that `engine.js` imports (`heroDerived`, `makeSingleEnemy`, `rollEquipmentDrop`, `unlockedAbilities`, `getAbility`, `MAGE_SPELLS`), plus `createNewState` and `createHero` in three test files.
   - **Engine:** every class-hero branch, the adapters (`classlessHeroRef`, `classlessHeroDerived`, which are live), both sim fallbacks, towers, the revive API, `sim.morale` and the `zombie` sprite.
   - **`config.js`:** all 71 exports: 17 live, 36 used only by the legacy modules, 5 used only from unreachable engine code, 1 used only by another legacy export, 12 unused.
-- [x] `_applyHit`'s non-classless body: it only damages enemies, and every hero hit is marked classless unless the hero itself is not classless. It ran 0 times in all tests, balance, ranks and a watched fight (scenarios pending). It is reachable only through a hero with a `cls` field.
+- [x] `_applyHit`'s non-classless body: it only damages enemies, and every hero hit is marked classless unless the hero itself is not classless. It ran 0 times in all tests, balance, ranks, scenarios and a watched fight. It is reachable only through a hero with a `cls` field.
 - [x] References checked: static imports, named and `C.NAME` references, tests and tools. There are no dynamic `import()` calls and no computed `C[...]` lookups. Name collisions (for example `recruitHero`, `spend`) were checked against the actual imports.
 - [x] Saves: no save Gauntlet wrote can hold a class hero. Since the first commit, heroes are created only with `createHeroModel`, and no commit writes `cls` from the game, UI or screens. A hand-edited save with `cls` on a hero does load (the loader keeps unknown fields), but the first fight then crashes in the legacy `heroDerived`. A watched fight blanks the page (there is no error boundary); an unattended fight throws out of `tick()`. So the class path doesn't work today, and removing it can't break anything that works.
 - [x] Runtime evidence (instrumented copy):
   - full test suite (31 files, 447 tests);
   - `balance --runs 2 --hours 4` (two idle and two active playthroughs: full campaign plus 4 h endgame, boss rank 9, nemeses);
   - `ranks --fights 2 --active` (boss ranks 1–31);
-  - `scenarios --trips 4`, idle with common gear and active with rare gear, every group (still running at the first commit; result added when it finishes);
+  - `scenarios --trips 4`, idle with common gear and active with rare gear, all 7 groups each;
   - a watched fight in the browser.
 
   Only one legacy path ran: the `rollEquipmentDrop` fallback, twice, in `engine.classless.test.js`, whose hand-built sims have no `rollDrop`.
@@ -263,3 +263,4 @@ New questions for Sam are listed here until answered.
 | 2026-11-01 | Phase 4 review | #31 | Review passed (Sam). README wording for unseeded runs made general (no variance figure). No code change |
 | 2026-11-01 | Phase 4 merged | #31 | Merged `af594dd`; 447 tests pass on `main`; live site redeployed |
 | 2026-11-01 | Phase 5 legacy reachability (no edits) | #32 | Manifest in `docs/LEGACY_MANIFEST.md`; legacy class, tower, revive and fallback paths never ran in tests, tools or a watched fight; a crafted `cls` save crashes |
+| 2026-11-01 | Phase 5 scenario evidence | #32 | Both instrumented scenario runs (idle common, active rare; all 7 groups) recorded 0 legacy hits |

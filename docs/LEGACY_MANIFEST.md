@@ -23,13 +23,13 @@ Investigated at `af594dd` (`main` after Phase 4).
    - **Tests:** the full suite, 31 files and 447 tests.
    - **`npm run balance -- --runs 2 --hours 4`:** two idle and two active playthroughs, each a full campaign plus 4 hours of endgame, reaching boss rank 9, with nemeses created.
    - **`npm run ranks -- --fights 2 --active`:** boss ranks 1–31.
-   - **`npm run scenarios -- --trips 4`**, idle with common gear and active with rare gear, every group. *Still running when this was first committed; its result is added below when it finishes.*
+   - **`npm run scenarios -- --trips 4`**, twice (idle with common gear, and active with rare gear), each running all 7 groups: ecology, bosses, party make-ups, qualities, familiars and crystals, stat points, revives.
    - **Browser:** a watched fight played in `npm run dev`.
    - **A crafted save:** one hero given a `cls` field, played both watched and unattended.
 
 ## Runtime results
 
-| Instrumented path | Tests (447) | Balance and ranks | Watched fight | Crafted `cls` save |
+| Instrumented path | Tests (447) | Balance, ranks, scenarios | Watched fight | Crafted `cls` save |
 | --- | --- | --- | --- | --- |
 | Engine class-hero path (`isClasslessHero` false) | 0 | 0 | 0 | 2, then crash |
 | `_applyHit` non-classless body | 0 | 0 | 0 | not reached (crashed first) |
