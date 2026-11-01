@@ -120,4 +120,4 @@ Every Phase 6 PR keeps the Phase 2 enemy-coverage, Phase 3 fight-outcome and Pha
 | 6D-2 | 12, 13 | Merged (#35): the revive API (with `getFallenHeroRevivalOffer`), the remaining `sim.morale` writes and the sim's `morale` field are gone |
 | 6D-3 | 15 | Merged (#35): the `zombie` sprite branch is gone |
 | 6D-4 | 7–10 | Merged (#35): `logic.js`, `libraryResearch.js`, `equipment.js` and `perks.js` are deleted |
-| 6D-5 | 17–20 | Done, in review (batch 3, #36): the 54 unused `config.js` exports are gone; the 17 live ones stay |
+| 6D-5 | 17–20 | Merged (#36): the 54 unused `config.js` exports are gone; the 17 live ones stay |

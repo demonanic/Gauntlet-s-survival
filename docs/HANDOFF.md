@@ -2,7 +2,7 @@
 
 Read this first. Then read `docs/ROADMAP.md` (the living checklist) and `docs/LEGACY_MANIFEST.md`. Those two files are the source of truth. This file only tells you how to start.
 
-Last updated: 2026-11-01. At that point batches 1 and 2 of Phase 6 were merged (#34, #35) and batch 3 was draft PR #36.
+Last updated: 2026-11-01. At that point Phases 6 and 7 were merged (#34–#36) and Phase 7's second step was draft PR #37.
 
 ## The project
 
@@ -32,9 +32,9 @@ Last updated: 2026-11-01. At that point batches 1 and 2 of Phase 6 were merged (
 
 ## What's next
 
-- **Now:** batch 3 (6D-5 and Phase 7) is draft PR #36, waiting for Sam's review. Fight results now live in `game/fightResults.js`, on shared helpers in `game/expeditionRun.js`. Phase 7's optional second step (`decideAlone`, `autoFight`, `AUTO_*`) is not started.
+- **Now:** Phases 6 and 7 are merged (#34–#36). Phase 7's second step (party decisions, `game/partyDecisions.js`) is draft PR #37, waiting for Sam's review. Next is Phase 8 or features (Sam's call).
 - **Still owed:** a watched-fight browser check after 6D-1 and batches 2–3, plus the byte-identity probe and seeded runs for batches 2–3 (the sessions that made them could not install dependencies).
-- **Tests:** 464 at batch 3 (449 plus 15 fight-result characterization cases).
+- **Tests:** 475 (449 plus 15 fight-result and 11 party-decision characterization cases).
 - **After that:** Phases 8 (A–D, split `engine.js`), 9, 10 and 11. The recommendation was to resume features (Endgame B/C/D) after Phase 7 and interleave phases 8–11.
 - **Sam's earlier decisions:**
   - The error boundary goes in its own reliability PR, not in Phase 6.
