@@ -11,6 +11,8 @@
 //   poison    blobs and bubbles, arcing, dripping rank: thicker trail, more drips
 //   electric  zig-zag lines, instant, jittering  rank: more forks (1–4)
 //   mind      rings and waves, pulsing           rank: faster pulse
+//   restoration soft motes and leaves, drifting up rank: more motes, brighter bloom
+//   warding   hexagon shells, snapping into place  rank: more shell layers (1–3)
 
 export const ELEMENT_LOOKS = Object.freeze({
   arcane: { color: "#E879F9", light: "#FCE7FF" },
@@ -19,7 +21,12 @@ export const ELEMENT_LOOKS = Object.freeze({
   poison: { color: "#39FF14", light: "#C8FFB0" },
   electric: { color: "#FFE600", light: "#FFFFFF" },
   mind: { color: "#A855F7", light: "#E9D5FF" },
+  restoration: { color: "#A7F3D0", light: "#F0FFF7" },
+  warding: { color: "#FFB547", light: "#FFE7B0" },
 });
+
+// Lingering effects the engine can attach to a foe or a hero.
+const AURA_KINDS = new Set(["fire", "poison", "ice", "mind", "renewal", "lifeline", "barrier", "empower", "aegis"]);
 
 // Below this frame rate (sustained) effects thin out; they come back once it recovers.
 export const VFX_QUALITY = Object.freeze({ slowFps: 50, recoverFps: 57, window: 1, steps: [1, 0.7, 0.45, 0.25], maxParticles: 700 });
@@ -48,6 +55,11 @@ export function rankLook(element, rank) {
     look.jitter = 7 + 7 * t;
   } else if (element === "mind") {
     look.pulse = 1.6 + 4.4 * t; // waves per second
+  } else if (element === "restoration") {
+    look.motes = Math.round(6 + 8 * t);
+    look.bloom = 0.45 + 0.55 * t;
+  } else if (element === "warding") {
+    look.layers = r >= 5 ? 3 : r >= 3 ? 2 : 1;
   } else {
     look.rings = r >= 5 ? 3 : r >= 3 ? 2 : 1;
   }
@@ -158,7 +170,49 @@ export class SpellVfx {
       for (let i = 0; i < 3; i += 1) {
         this._add({ kind: "ripple", x, y: y - 16, r0: 4, r1: 30, delay: i / look.pulse, color, life: 0.5 + i / look.pulse });
       }
+    } else if (element === "restoration") {
+      // Motes gather in toward the caster's hands.
+      for (let i = 0; i < this._count(look.motes); i += 1) {
+        const a = R() * TAU;
+        const d = 22 + R() * 14;
+        this._add({ kind: "mote", x: x + Math.cos(a) * d, y: y - 8 + Math.sin(a) * d * 0.6, vx: -Math.cos(a) * d * 2.2, vy: -Math.sin(a) * d * 1.3,
+          size: 3 + R() * 2.5, color: R() < 0.5 ? light : color, life: 0.42 });
+      }
+    } else if (element === "warding") {
+      this._add({ kind: "hex", x, y: y - 8, r: 12, grow: 1.4, color, life: 0.35, width: 2 });
     }
+  }
+
+  // A heal or a shield lands on a hero.
+  supportBurst(element, target, rank = 1) {
+    const look = rankLook(element, rank);
+    const { color, light } = ELEMENT_LOOKS[element] || ELEMENT_LOOKS.restoration;
+    const R = this.rand;
+    const x = target.x;
+    const y = target.y;
+    if (element === "restoration") {
+      this._add({ kind: "bloom", x, y: y - 8, r: 18 + 16 * look.bloom, color: light, life: 0.45 });
+      for (let i = 0; i < this._count(look.motes); i += 1) {
+        this._add({ kind: "mote", x: x + (R() - 0.5) * 22, y: y + 4 - R() * 10, vx: (R() - 0.5) * 14, vy: -30 - R() * 30,
+          size: 2.5 + R() * 2.5, color: R() < 0.5 ? light : color, life: 0.7 + R() * 0.4 });
+      }
+      for (let i = 0; i < this._count(3); i += 1) {
+        this._add({ kind: "leaf", x: x + (R() - 0.5) * 20, y: y - 4, vx: (R() - 0.5) * 22, vy: -24 - R() * 16, rot: R() * TAU, spin: (R() - 0.5) * 5,
+          size: 3 + R() * 1.5, color: "#5EE6A0", life: 0.9 });
+      }
+    } else {
+      for (let i = 0; i < look.layers; i += 1) {
+        this._add({ kind: "hex", x, y: y - 8, r: 30 + i * 6, shrinkTo: 16 + i * 5, color: i % 2 ? light : color, life: 0.3 + i * 0.06, width: 2.2 });
+      }
+    }
+  }
+
+  // Lifeline catches a falling hero: a golden heartbeat.
+  lifelineSave(target) {
+    for (let i = 0; i < 2; i += 1) {
+      this._add({ kind: "ring", x: target.x, y: target.y, r0: 6, r1: 46, color: "#FFD36B", life: 0.55 + i * 0.25, delay: i * 0.22, width: 4 });
+    }
+    this._add({ kind: "bloom", x: target.x, y: target.y - 8, r: 40, color: "#FFF1C2", life: 0.4 });
   }
 
   // A single-target bolt from the caster to its target (the damage itself is
@@ -294,12 +348,15 @@ export class SpellVfx {
     }
   }
 
-  // A lingering status on a foe: burning, poisoned, frozen (slowed), dazed (stunned).
-  aura(element, target, seconds, rank = 1) {
-    if (!target || !(seconds > 0) || !["fire", "poison", "ice", "mind"].includes(element)) return;
+  // A lingering effect: on a foe, burning, poisoned, frozen (slowed) or dazed
+  // (stunned); on a hero, Renewal, Lifeline, Barrier, Empower or Aegis.
+  // `keep` (optional) ends it early once it returns false.
+  aura(element, target, seconds, rank = 1, keep = null) {
+    if (!target || !(seconds > 0) || !AURA_KINDS.has(element)) return;
+    const school = ["renewal", "lifeline"].includes(element) ? "restoration" : ["barrier", "empower", "aegis"].includes(element) ? "warding" : element;
     const existing = this.auras.find((aura) => aura.target === target && aura.element === element);
-    if (existing) { existing.until = Math.max(existing.until, this.time + seconds); existing.rank = Math.max(existing.rank, rank); return; }
-    this.auras.push({ element, target, until: this.time + seconds, rank, look: rankLook(element, rank), next: 0, spin: this.rand() * TAU });
+    if (existing) { existing.until = Math.max(existing.until, this.time + seconds); existing.rank = Math.max(existing.rank, rank); existing.keep = keep || existing.keep; return; }
+    this.auras.push({ element, school, target, until: this.time + seconds, rank, look: rankLook(school, rank), next: 0, spin: this.rand() * TAU, keep, born: this.time });
   }
 
   // A failed cast: it starts in its element's style, sputters, and puffs out.
@@ -339,7 +396,9 @@ export class SpellVfx {
     for (const fire of fired) fire();
     for (const beam of this.beams) beam.age += dt;
     this.beams = this.beams.filter((beam) => beam.age < beam.life);
-    this.auras = this.auras.filter((aura) => aura.until > this.time && aura.target.hp > 0 && !aura.target._dead);
+    const ending = this.auras.filter((aura) => !this._auraLasts(aura));
+    for (const aura of ending) if (aura.element === "barrier") this._shatter(aura.target, aura.look.layers);
+    this.auras = this.auras.filter((aura) => this._auraLasts(aura));
     for (const aura of this.auras) this._tickAura(aura, dt);
   }
 
@@ -368,6 +427,22 @@ export class SpellVfx {
     }
   }
 
+  _auraLasts(aura) {
+    const t = aura.target;
+    const standing = t.alive !== undefined ? t.alive : t.hp > 0 && !t._dead;
+    return aura.until > this.time && standing && (!aura.keep || aura.keep());
+  }
+
+  // A Barrier breaking: its hexagon shell cracks into falling shards.
+  _shatter(target, layers = 1) {
+    const R = this.rand;
+    for (let i = 0; i < this._count(8 + layers * 4); i += 1) {
+      const a = R() * TAU;
+      this._add({ kind: "shard", x: target.x + Math.cos(a) * 18, y: target.y - 8 + Math.sin(a) * 18, vx: Math.cos(a) * 60, vy: Math.sin(a) * 60 - 10,
+        rot: R() * TAU, spin: (R() - 0.5) * 12, size: 2.5 + R() * 2, color: i % 2 ? ELEMENT_LOOKS.warding.light : ELEMENT_LOOKS.warding.color, life: 0.5, gravity: 180 });
+    }
+  }
+
   _tickAura(aura, dt) {
     aura.next -= dt;
     aura.spin += dt * (aura.element === "mind" ? aura.look.pulse * 1.2 : 1);
@@ -385,8 +460,17 @@ export class SpellVfx {
     } else if (aura.element === "ice") {
       aura.next = 0.22 / this.quality;
       this._add({ kind: "flake", x: t.x + (R() - 0.5) * w * 2, y: t.y - 14 - R() * 10, vx: (R() - 0.5) * 6, vy: 10 + R() * 8, rot: R() * TAU, spin: 1.5, size: 2.5 + R() * 1.5, color: ELEMENT_LOOKS.ice.light, life: 0.9 });
+    } else if (aura.element === "renewal") {
+      aura.next = 0.12 / (this.quality * (0.6 + aura.look.bloom));
+      this._add({ kind: "mote", x: t.x + (R() - 0.5) * 22, y: t.y + 4, vx: (R() - 0.5) * 6, vy: -22 - R() * 14, size: 2 + R() * 2, color: R() < 0.5 ? ELEMENT_LOOKS.restoration.light : ELEMENT_LOOKS.restoration.color, life: 0.8 });
+      if (R() < 0.25) this._add({ kind: "leaf", x: t.x + (R() - 0.5) * 18, y: t.y, vx: (R() - 0.5) * 12, vy: -18, rot: R() * TAU, spin: 3, size: 2.6, color: "#5EE6A0", life: 0.9 });
+    } else if (aura.element === "empower") {
+      // A glint runs along the weapon and gold sparks rise off the hero.
+      aura.next = 0.22 / this.quality;
+      this._add({ kind: "star", x: t.x + 9 + (R() - 0.5) * 6, y: t.y - 18 + (R() - 0.5) * 6, r: 6, points: 4, color: ELEMENT_LOOKS.warding.light, life: 0.35, grow: 1.1, spin: 6 });
+      this._add({ kind: "mote", x: t.x + (R() - 0.5) * 18, y: t.y + 4, vx: (R() - 0.5) * 6, vy: -34 - R() * 16, size: 1.8 + R() * 1.2, color: ELEMENT_LOOKS.warding.color, life: 0.6 });
     } else {
-      aura.next = 1e9; // drawn directly (circling stars), nothing to spawn
+      aura.next = 1e9; // drawn directly each frame, nothing to spawn
     }
   }
 
@@ -400,7 +484,53 @@ export class SpellVfx {
     }
     for (const beam of this.beams) this._drawBeam(ctx, beam);
     ctx.restore();
-    for (const aura of this.auras) if (aura.element === "mind") this._drawDazed(ctx, aura);
+    for (const aura of this.auras) {
+      if (aura.element === "mind") this._drawDazed(ctx, aura);
+      else if (["lifeline", "barrier", "aegis"].includes(aura.element)) this._drawWard(ctx, aura);
+    }
+  }
+
+  // Hero effects drawn each frame: Lifeline's golden ring, Barrier's hexagon
+  // shell (1–3 layers), Aegis's dome.
+  _drawWard(ctx, aura) {
+    const t = aura.target;
+    const left = aura.until - this.time;
+    const fadeOut = Math.min(1, left / 0.4);
+    const snap = Math.min(1, (this.time - aura.born) / 0.15);
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    if (aura.element === "lifeline") {
+      const beat = (Math.sin(this.time * 7) + 1) / 2;
+      ctx.strokeStyle = rgba("#FFD36B", (0.45 + 0.35 * beat) * fadeOut); ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.ellipse(t.x, t.y + 8, 15 + beat * 2, 6 + beat, 0, 0, TAU); ctx.stroke();
+    } else if (aura.element === "barrier") {
+      const { color, light } = ELEMENT_LOOKS.warding;
+      for (let i = 0; i < aura.look.layers; i += 1) {
+        const r = (21 + i * 5) * (0.6 + 0.4 * snap);
+        const flicker = 0.8 + 0.2 * Math.sin(this.time * 9 + i * 2);
+        ctx.shadowColor = color; ctx.shadowBlur = 8;
+        ctx.strokeStyle = rgba(i % 2 ? light : color, 0.95 * flicker * fadeOut); ctx.lineWidth = 2.2;
+        ctx.fillStyle = rgba(color, (i === 0 ? 0.1 : 0.04) * fadeOut);
+        ctx.beginPath();
+        for (let k = 0; k <= 6; k += 1) {
+          const a = (k / 6) * TAU + aura.spin * 0.3 + i * 0.5 + this.time * (i % 2 ? -0.6 : 0.6);
+          const px = t.x + Math.cos(a) * r;
+          const py = t.y - 6 + Math.sin(a) * r;
+          if (k) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+        }
+        ctx.fill(); ctx.stroke();
+      }
+    } else if (aura.element === "aegis") {
+      const { color, light } = ELEMENT_LOOKS.warding;
+      const r = 24 * (0.5 + 0.5 * snap);
+      const g = ctx.createRadialGradient(t.x, t.y, 0, t.x, t.y, r);
+      g.addColorStop(0, rgba(color, 0)); g.addColorStop(1, rgba(color, 0.22 * fadeOut));
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.ellipse(t.x, t.y + 6, r, r * 1.25, 0, Math.PI, TAU); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = rgba(light, 0.7 * fadeOut); ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.ellipse(t.x, t.y + 6, r, r * 1.25, 0, Math.PI, TAU); ctx.stroke();
+    }
+    ctx.restore();
   }
 
   _drawParticle(ctx, p) {
@@ -422,6 +552,42 @@ export class SpellVfx {
         g.addColorStop(1, rgba(p.edge, 0));
         ctx.fillStyle = g;
         ctx.beginPath(); ctx.ellipse(p.x, p.y, r * 0.8, r * 1.25, 0, 0, TAU); ctx.fill();
+        break;
+      }
+      case "mote": {
+        const r = p.size * (0.7 + 0.5 * fade);
+        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 2);
+        g.addColorStop(0, rgba(p.color, fade)); g.addColorStop(1, rgba(p.color, 0));
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, r * 2, 0, TAU); ctx.fill();
+        break;
+      }
+      case "leaf": {
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot || 0);
+        ctx.fillStyle = rgba(p.color, 0.85 * fade);
+        ctx.beginPath(); ctx.ellipse(0, 0, p.size * 1.6, p.size * 0.7, 0, 0, TAU); ctx.fill();
+        ctx.strokeStyle = rgba("#E8FFF2", 0.6 * fade); ctx.lineWidth = 0.8;
+        ctx.beginPath(); ctx.moveTo(-p.size * 1.4, 0); ctx.lineTo(p.size * 1.4, 0); ctx.stroke();
+        ctx.restore();
+        break;
+      }
+      case "bloom": {
+        const r = p.r * (0.6 + 0.6 * Math.sqrt(k));
+        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
+        g.addColorStop(0, rgba("#FFFFFF", 0.55 * fade)); g.addColorStop(0.5, rgba(p.color, 0.35 * fade)); g.addColorStop(1, rgba(p.color, 0));
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, TAU); ctx.fill();
+        break;
+      }
+      case "hex": {
+        const r = p.shrinkTo != null ? p.r + (p.shrinkTo - p.r) * Math.min(1, k * 2) : p.r * (1 + (p.grow || 0) * k);
+        ctx.strokeStyle = rgba(p.color, fade); ctx.lineWidth = p.width || 2;
+        ctx.beginPath();
+        for (let i = 0; i <= 6; i += 1) {
+          const a = (i / 6) * TAU + Math.PI / 6;
+          const px = p.x + Math.cos(a) * r;
+          const py = p.y + Math.sin(a) * r;
+          if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+        }
+        ctx.stroke();
         break;
       }
       case "smoke": case "mist": {
