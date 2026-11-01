@@ -4,7 +4,7 @@ import * as C from "../combat/config";
 import { Engine } from "../combat/engine";
 import {
   MAGIC, RANK_CASTS, castSuccessChance, canCast, elementSlot, knownSpells, learnElement, maxMana, proficiency,
-  recordCasts, spellPower,
+  recordCasts, spellPower, supportPower,
 } from "../combat/spells";
 import { buildWildEncounter, createEncounterSim } from "./encounters";
 import { createGuild, currentEncounterParty, resolveEncounter, startExpedition } from "./guild";
@@ -257,5 +257,107 @@ describe("spell effects in battle", () => {
     expect(engine.floaters.some((floater) => floater.text === "FIZZLE")).toBe(false);
     for (let i = 0; i < 20; i += 1) engine.vfx.update(1 / 60);
     expect(engine.vfx.particles.some((particle) => particle.kind === "fizzleText")).toBe(true);
+  });
+});
+
+describe("Restoration and Warding", () => {
+  const healer = (school = "restoration", casts = {}) => caster({ nodes: ["A1", "A2"], elements: [school], casts });
+  const fighter = () => { const hero = caster({ nodes: [] }); hero.identity = { ...hero.identity, id: "fighter" }; return hero; };
+  const party = (heroes, enemies = [foe()]) => {
+    const engine = new Engine({ getContext: () => null }, createEncounterSim(heroes, 1), buildWildEncounter(getRegion("gutter"), 0, () => 0.5, { waves: 1 }), {});
+    engine.spawnQueue = [];
+    engine.active = enemies;
+    engine.heroes.forEach((h, i) => { h.x = 280 + i * 40; h.y = 420; });
+    return engine;
+  };
+
+  test("they are learned like elements, and their spells unlock at I, II and IV", () => {
+    const learned = learnElement(caster({ nodes: ["A1", "A2"] }), "restoration");
+    expect(learned.ok).toBe(true);
+    expect(knownSpells(learned.hero).map((spell) => spell.id)).toContain("mend");
+    expect(knownSpells(learned.hero).map((spell) => spell.id)).not.toContain("renewal");
+    const seasoned = healer("restoration", { mend: RANK_CASTS[3] });
+    expect(knownSpells(seasoned).map((spell) => spell.id)).toEqual(expect.arrayContaining(["mend", "renewal", "lifeline"]));
+    expect(knownSpells(healer("warding")).map((spell) => spell.id)).toContain("barrier");
+  });
+
+  test("support power scales with spell rank, Intelligence and a staff", () => {
+    expect(supportPower(healer(), "mend")).toBeCloseTo(0.18 * 1.1);
+    expect(supportPower(healer(), "mend", { staff: true })).toBeCloseTo(0.18 * 1.1 * 1.2);
+    expect(supportPower(healer("restoration", { mend: RANK_CASTS[1] }), "mend")).toBeCloseTo(0.18 * 1.1 * 1.1);
+    expect(supportPower(caster({ nodes: ["A1", "A2"], elements: ["restoration"], intelligence: 20 }), "mend")).toBeCloseTo(0.18 * 1.1 * 1.12);
+  });
+
+  test("Mend heals the most-hurt ally, and can't be cast when nobody is hurt", () => {
+    const engine = party([healer(), fighter()]);
+    const [caster0, ally] = engine.heroes;
+    expect(engine.getHeroSpellStatus(0).find((spell) => spell.id === "mend")).toMatchObject({ available: false, noTarget: true });
+    ally.ref.hp = ally.d.maxHp * 0.4;
+    caster0.ref.hp = caster0.d.maxHp * 0.9;
+    expect(engine.getHeroSpellStatus(0).find((spell) => spell.id === "mend").available).toBe(true);
+    withRoll(0, () => expect(engine.castHeroSpell(0, "mend")).toBe(true));
+    expect(ally.ref.hp).toBeCloseTo(ally.d.maxHp * (0.4 + supportPower(caster0.model, "mend", { staff: true })));
+    expect(engine.spellSuccesses).toEqual({ 0: { mend: 1 } });
+  });
+
+  test("Barrier shields up to the cap and runs out; Aegis cuts damage; Empower speeds and strengthens", () => {
+    const engine = party([healer("warding", { barrier: RANK_CASTS[3] }), fighter()]);
+    const [h, ally] = engine.heroes;
+    ally.ref.hp = ally.d.maxHp * 0.5;
+    h.ref.hp = h.d.maxHp;
+    withRoll(0, () => engine.castHeroSpell(0, "barrier", ally));
+    expect(ally.ref.shield).toBeGreaterThan(0);
+    expect(ally.ref.shield).toBeLessThanOrEqual(ally.d.maxHp * 0.3);
+    // A second Barrier skips the ally who has one and goes to the caster.
+    const barrier = engine.getHeroSpellStatus(0).find((spell) => spell.id === "barrier");
+    expect(engine._supportTarget(h, barrier, false)).toBe(h);
+    engine.time += 11;
+    engine._tickSupport(ally, 0.01);
+    expect(ally.ref.shield).toBe(0);
+
+    const raw = 100;
+    const before = engine._classlessReducedDamage(ally, raw);
+    h.spellCooldowns = {};
+    h.mana = h.maxMana;
+    withRoll(0, () => engine.castHeroSpell(0, "aegis"));
+    expect(engine._classlessReducedDamage(ally, raw)).toBeLessThan(before);
+    withRoll(0, () => engine.castHeroSpell(0, "empower"));
+    expect(ally.empowerUntil).toBeGreaterThan(engine.time);
+    expect(ally.empowerDamage).toBeGreaterThan(0.12);
+  });
+
+  test("Renewal heals over time; Lifeline catches a killing blow once", () => {
+    const engine = party([healer("restoration", { mend: RANK_CASTS[3] }), fighter()]);
+    const [h, ally] = engine.heroes;
+    ally.ref.hp = ally.d.maxHp * 0.3;
+    withRoll(0, () => engine.castHeroSpell(0, "renewal"));
+    const hp = ally.ref.hp;
+    engine._tickSupport(ally, 1);
+    expect(ally.ref.hp).toBeGreaterThan(hp);
+
+    withRoll(0, () => engine.castHeroSpell(0, "lifeline", ally));
+    expect(ally.lifelineUntil).toBeGreaterThan(engine.time);
+    ally.ref.hp = 5;
+    engine._resolveClasslessHeroDamage(ally, 500);
+    expect(ally.alive).toBe(true);
+    expect(ally.ref.hp).toBeGreaterThan(1);
+    ally.ref.hp = 5;
+    engine._resolveClasslessHeroDamage(ally, 500);
+    expect(ally.alive).toBe(false);
+    void h;
+  });
+
+  test("on auto a healer waits until the help is needed", () => {
+    const engine = party([healer(), fighter()]);
+    const [h, ally] = engine.heroes;
+    ally.ref.hp = ally.d.maxHp * 0.8;
+    withRoll(0, () => engine._autoCast(h));
+    expect(h.spellCooldowns.mend || 0).toBe(0);
+    // (It cast a bolt at the foe instead; let its next cast come.)
+    h.castCd = 0;
+    ally.ref.hp = ally.d.maxHp * 0.4;
+    withRoll(0, () => engine._autoCast(h));
+    expect(h.spellCooldowns.mend).toBeGreaterThan(0);
+    expect(ally.ref.hp).toBeGreaterThan(ally.d.maxHp * 0.4);
   });
 });

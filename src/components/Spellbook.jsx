@@ -22,7 +22,8 @@ export default function Spellbook({ hero, onLearnElement }) {
       <div className="mb-1 font-mono-g text-[10px] text-fuchsia-200">SPELLBOOK · {maxMana(hero)} mana</div>
       <p className="mb-2 font-mono-g text-[9px] text-slate-400">
         Casts can fizzle (mana spent, nothing happens). Only successful casts rank a spell up (I–V at 15/45/100/200)
-        and raise its element's proficiency, which teaches that element's area spell (II) and curse (IV). Intelligence,
+        and raise its element's proficiency, which teaches that element's second spell (II) and third (IV). Restoration
+        and Warding help the party instead of hurting foes. Intelligence,
         a little Luck and proficiency make casts land; a staff adds {Math.round(MAGIC.staffPower * 100)}% spell power.
       </p>
       {elements.map((element) => {

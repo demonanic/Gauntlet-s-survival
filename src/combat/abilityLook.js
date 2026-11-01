@@ -39,6 +39,12 @@ export const ICON_PATHS = Object.freeze({
   burst: "M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8",
   linger: "M12 3a9 9 0 1 0 9 9M12 7a5 5 0 1 0 5 5M12 11a1 1 0 1 0 1 1",
   meteor: "M4 4l8 8M8 3l6 6M3 8l6 6M17 14a3 3 0 1 1-3 3a3 3 0 0 1 3-3z",
+  mend: "M12 5v14M5 12h14",
+  renew: "M5 19c0-8 6-14 14-14c0 8-6 14-14 14zM5 19l7-7",
+  lifeline: "M3 12h4l2-5l4 10l2-5h6",
+  barrier: "M12 3l8 4.5v9L12 21l-8-4.5v-9z",
+  empower: "M12 3l3 6h-6zM12 9v12M8 15h8",
+  aegis: "M3 18a9 9 0 0 1 18 0zM12 9v-6",
 });
 
 // Icon per special move (Shared Strike is every hero's basic move).
@@ -49,7 +55,10 @@ export const MOVE_ICONS = Object.freeze({
 });
 
 // Icon per spell shape.
-export const SPELL_SHAPE_ICONS = Object.freeze({ bolt: "bolt", area: "burst", linger: "linger", meteor: "meteor" });
+export const SPELL_SHAPE_ICONS = Object.freeze({
+  bolt: "bolt", area: "burst", linger: "linger", meteor: "meteor",
+  heal: "mend", renew: "renew", lifeline: "lifeline", barrier: "barrier", empower: "empower", aegis: "aegis",
+});
 
 // Moves and spells that hit hard enough to freeze the frame for a moment.
 export const HIT_STOP_SECONDS = 0.09;

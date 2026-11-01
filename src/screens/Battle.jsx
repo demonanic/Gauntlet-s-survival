@@ -316,7 +316,7 @@ function ActionPanel({ hero, index, abilities, spells, quickSlots, moving, locke
                   disabled={!spell.available || locked}
                   onClick={() => engine?.castHeroSpell(index, spell.id, null, { announce: true })}
                   className="relative flex min-h-[52px] items-center gap-2 overflow-hidden rounded-lg border-2 bg-[#0d1017] px-2 py-1.5 text-left"
-                  style={{ borderColor: spell.color, opacity: short ? 0.45 : 1 }}
+                  style={{ borderColor: spell.color, opacity: short || spell.noTarget ? 0.45 : 1 }}
                   title={`${spell.name} · ${spell.cost} mana · ${Math.round(spell.success * 100)}% to land`}
                   data-testid={`battle-spell-${index}-${spell.id}`}
                 >
@@ -325,7 +325,7 @@ function ActionPanel({ hero, index, abilities, spells, quickSlots, moving, locke
                   <span className="relative flex min-w-0 flex-col gap-0.5">
                     <span className="truncate font-mono-g text-[11px] font-bold" style={{ color: spell.color }}>{spell.name}</span>
                     <span className="font-mono-g text-[9px] text-slate-400">
-                      {short ? `Needs ${spell.cost} mana` : cooling ? `Ready in ${Math.ceil(spell.cooldown)}s` : `${spell.cost} mana · ${Math.round(spell.success * 100)}%`}
+                      {short ? `Needs ${spell.cost} mana` : cooling ? `Ready in ${Math.ceil(spell.cooldown)}s` : spell.noTarget ? "No one needs it" : `${spell.cost} mana · ${Math.round(spell.success * 100)}%`}
                     </span>
                   </span>
                 </button>
