@@ -192,7 +192,25 @@ stash has one and their gear isn't already immune.
 Five species with a role: Wolf (melee hunter), Hawk (ranged, marks prey: its partner
 deals +10% to it; road: spot ambushes, stalkers), Imp (ranged, burn), Sprite (heals its
 partner 3% max HP every 3s; road: morale), Stonebark Tortoise (partner takes 6% less
-damage, 5% max HP shield every 8s). Pets can't be targeted. One quality at birth (Fierce,
+damage, 5% max HP shield every 8s).
+
+In battle each familiar is a unit of its own (owner-approved, Nov 2026; `PET_BODIES`):
+HP is a share of its partner's max HP, +5% per pet level (wolf 25%, hawk 15% and
+airborne so melee misses half the time, imp 18%, sprite 15%, tortoise 45% with a shell
+that shrugs off 40%). A downed familiar sits out the rest of the fight, back at full HP
+for the next, and its help stops with it (guard, heals, shields, the hawk's mark).
+Enemies still go for heroes first; a melee enemy with a familiar in reach picks it as it
+would a hero (hawk, imp and sprite count as twice as far away). Every 8 s the tortoise
+taunts foes within 90 (not bosses) for 3 s. No leash: the wolf hunts the most wounded
+foe anywhere, the hawk dives at its partner's target, the imp picks unburnt foes, the
+sprite heals at its partner's side and darts from foes, the tortoise stands between its
+partner and the nearest foe. Drawn animated (`familiarSprites.js`). Measured (temporary
+CI test, 24 seeded boss fights, four heroes with a level 6 wolf, tortoise, hawk and
+sprite, common gear one tier low): Boneyard LV4 won 15/24 without familiars, 22/24 with
+them before this change and 24/24 after (party HP left 28%, 56%, 74%; 1 familiar
+downed per fight). Frostfang LV7 and Ashen LV10 were lost in all three setups, but the
+Ashen fight lasted 184 s with the old familiars and 226 s now (2.75 downed). So far
+they help more as units, by taking blows meant for heroes. One quality at birth (Fierce,
 Quick, Loyal, Keen Nose, Lucky, Brave); levels 1–10 from 50% of their partner's fight XP;
 a choice of two mods at levels 3, 6 and 9. Attack damage grows 12% per pet level and 8%
 per partner level; kills count for the partner. A pet's road effects join its partner's
@@ -605,7 +623,7 @@ Owner-approved direction; each step is its own PR, built in this order:
    Restoration, 20/24 with Warding; Frostfang LV6 0/24, 14/24, 2/24; Ashen LV9 0/24,
    4/24, 0/24. Restoration nearly removes knockouts in fights a party can win. Sam
    tests these in play before any tuning.
-4. **Familiars as real units:** their own HP (enemies can hit them; downed for the rest
+4. **Familiars as real units** (done; see Familiars above): their own HP (enemies can hit them; downed for the rest
    of the fight, never lost), their own targets and a simple role per species, and
    animated sprites. Balance re-measured (`npm run scenarios -- --group companions`).
 5. **Shadow and Wild Magic, plus Dominate.** Shadow: Veil (invisibility), Terror (fear),
