@@ -3837,15 +3837,6 @@ export class Engine {
       neon(1.4);
       for (let y = 5; y <= 11; y += 3) { ctx.beginPath(); ctx.moveTo(-5, y); ctx.lineTo(5, y); ctx.stroke(); }
       neon(2); ctx.beginPath(); ctx.moveTo(8, 9); ctx.lineTo(15, -8); ctx.stroke();
-    } else if (e.type === "zombie") {
-      // Slumped humanoid silhouette with a torn shoulder and reaching arm.
-      ctx.fillStyle = "#171429";
-      ctx.beginPath(); ctx.arc(0, -6, 8.5, 0, Math.PI * 2); ctx.fill(); outline();
-      ctx.fillStyle = "#0E1420";
-      ctx.beginPath(); ctx.moveTo(-7, 1); ctx.lineTo(7, 1); ctx.lineTo(9, 12); ctx.lineTo(-9, 12); ctx.closePath(); ctx.fill(); outline();
-      eye(-3, -5, 2); eye(3, -3, 1.2);
-      neon(2.3); ctx.beginPath(); ctx.moveTo(8, 5); ctx.lineTo(16, 1); ctx.lineTo(19, 6); ctx.stroke();
-      neon(1.2); ctx.beginPath(); ctx.moveTo(-5, 4); ctx.lineTo(-10, 10); ctx.stroke();
     } else if (e.type === "orc") {
       // Broad armored brute with tusks and a heavy axe.
       ctx.fillStyle = "#101A16";
