@@ -6,7 +6,8 @@
 // accumulates XP gains, returned to the UI at wave end.
 import { drawGearMarks, heroGearMarks } from "./heroLook";
 import { heroLuck, luckEffects } from "./luck";
-import { ELEMENTS, MAGIC, castSuccessChance, knownSpells, maxMana as spellMaxMana, spellPower, spellRadius } from "./spells";
+import { ELEMENTS, MAGIC, castSuccessChance, knownSpells, maxMana as spellMaxMana, proficiency, spellPower, spellRadius } from "./spells";
+import { SpellVfx } from "./spellVfx";
 import { BONDS, memorialDamage } from "../game/bonds";
 import * as C from "./config";
 import { HERO_BASELINE, statDefense } from "./heroModel";
@@ -231,6 +232,9 @@ export class Engine {
     // brief hit-stop on big hits. Neither touches the fight itself.
     this.callouts = [];
     this.hitStop = 0;
+    // Spell effects per element (spellVfx.js): only when drawing to a real
+    // canvas, so headless fights never make or update them.
+    this.vfx = this.ctx ? new SpellVfx() : null;
     this.effects = [];
     this.killed = 0;
     // Gauntlet nemeses: which creature downed each hero (by hero index), and
@@ -954,10 +958,12 @@ export class Engine {
       this.last = now;
       if (dt > 0.05) dt = 0.05;
       this._tickCallouts(dt);
+      this.vfx?.noteFrame(dt);
       if (this.hitStop > 0) {
         // A big hit freezes the frame for a moment; the fight just waits.
         this.hitStop = Math.max(0, this.hitStop - dt);
       } else {
+        this.vfx?.update(dt * this.speed);
         // Fast-forward in normal-sized steps so 4x/8x play matches 1x physics.
         const steps = Math.max(1, Math.ceil(this.speed));
         for (let i = 0; i < steps && !this.ended; i += 1) this.update((dt * this.speed) / steps);
@@ -2660,7 +2666,8 @@ export class Engine {
     h.visualActionStartedAt = this.time;
     h.visualActionUntil = this.time + 0.3;
     if (!(this.rng() < spell.success)) {
-      this._float(h.x, h.y - 26, "FIZZLE", "#94A3B8");
+      if (this.vfx) this.vfx.fizzle(spell.element, h.x, h.y);
+      else this._float(h.x, h.y - 26, "FIZZLE", "#94A3B8");
       return true;
     }
     if (announce) this._callout(h, spell.name.toUpperCase(), spell.color, BIG_SPELLS.has(spellId));
@@ -2668,11 +2675,20 @@ export class Engine {
     const staff = getEquippedHeroWeaponType(h.model) === "staff";
     const damage = (h.d.attack || 0) * spellPower(h.model, spellId, { staff });
     const sourceId = "H" + h.i;
-    this.effects.push({ kind: "spell_area", x: foe.x, y: foe.y, r: 18, life: 0.4, color: spell.color, vfxSize: 40 });
+    const rank = proficiency(h.model, spell.element);
+    if (this.vfx) this.vfx.cast(spell.element, h.x, h.y, rank);
+    else this.effects.push({ kind: "spell_area", x: foe.x, y: foe.y, r: 18, life: 0.4, color: spell.color, vfxSize: 40 });
     if (spell.shape === "meteor") {
       this.meteors.push({ x: foe.x, y: foe.y, at: this.time + spell.delay, damage, radius: spellRadius(h.model, spellId),
         max: spell.maxTargets, color: spell.color, sourceId });
-      this.effects.push({ kind: "spell_area", x: foe.x, y: foe.y, r: spellRadius(h.model, spellId), life: spell.delay, color: spell.color, vfxSize: 52 });
+      if (this.vfx) {
+        const radius = spellRadius(h.model, spellId);
+        this.vfx.meteorWarning(foe.x, foe.y, radius, spell.delay);
+        // The rock starts falling just before the meteor lands.
+        this.vfx._add({ kind: "delay", life: Math.max(0, spell.delay - 0.22), fire: () => this.vfx.meteorImpact(foe.x, foe.y, radius, rank) });
+      } else {
+        this.effects.push({ kind: "spell_area", x: foe.x, y: foe.y, r: spellRadius(h.model, spellId), life: spell.delay, color: spell.color, vfxSize: 52 });
+      }
       this._float(foe.x, foe.y - 30, "METEOR!", spell.color);
       return true;
     }
@@ -2680,13 +2696,17 @@ export class Engine {
       const radius = spellRadius(h.model, spellId);
       const victims = this.active.filter((enemy) => enemy.hp > 0 && Math.hypot(enemy.x - foe.x, enemy.y - foe.y) <= radius);
       for (const victim of victims) this._spellHit(h, victim, damage, spell.element, sourceId, false);
-      this.effects.push({ kind: "spell_area", x: foe.x, y: foe.y, r: radius, life: 0.6, color: spell.color, vfxSize: 52 });
+      if (this.vfx) this.vfx.area(spell.element, foe.x, foe.y, radius, rank);
+      else this.effects.push({ kind: "spell_area", x: foe.x, y: foe.y, r: radius, life: 0.6, color: spell.color, vfxSize: 52 });
     } else if (spell.shape === "linger") {
+      this.vfx?.bolt(spell.element, h, foe, rank);
       if (this._spellImmune(foe)) return true;
       this._applyDot(foe, damage * 2, spell.seconds, spell.color, sourceId);
       this._spellElement(h, foe, damage, spell.element, sourceId, true);
+      this.vfx?.aura(spell.element, foe, spell.seconds, rank);
       this._float(foe.x, foe.y - 18, spell.name.toUpperCase(), spell.color);
     } else {
+      this.vfx?.bolt(spell.element, h, foe, rank);
       this._spellHit(h, foe, damage, spell.element, sourceId, true);
       // Chain Spark: elemental bolts jump to more foes.
       if (spell.element !== "arcane" && h.d.classlessEffects?.chainSpark) {
@@ -2697,6 +2717,7 @@ export class Engine {
             .sort((a, b) => Math.hypot(a.x - from.x, a.y - from.y) - Math.hypot(b.x - from.x, b.y - from.y))[0];
           if (!next || Math.hypot(next.x - from.x, next.y - from.y) > 140) break;
           hit.add(next);
+          this.vfx?.arc(spell.element, from, next, rank);
           this._spellHit(h, next, damage * MAGIC.chainShare, spell.element, sourceId, false);
           from = next;
         }
@@ -2722,13 +2743,20 @@ export class Engine {
   // What each element does besides damage; lingering spells hit harder.
   _spellElement(h, enemy, damage, element, sourceId, strong) {
     const scale = strong ? 1.5 : 1;
-    if (element === "fire") this._applyDot(enemy, damage * 0.3 * scale, 3, ELEMENTS.fire.color, sourceId);
-    else if (element === "poison") this._applyDot(enemy, damage * 0.4 * scale, 5, ELEMENTS.poison.color, sourceId);
-    else if (element === "ice") this._slowEnemy(enemy, 0.3 * scale, 2.5);
-    else if (element === "mind") enemy.stunUntil = Math.max(enemy.stunUntil || 0, this.time + (enemy.boss ? 0.2 : 0.6) * scale);
-    else if (element === "electric") {
+    const rank = this.vfx ? proficiency(h.model, element) : 1;
+    if (element === "fire") { this._applyDot(enemy, damage * 0.3 * scale, 3, ELEMENTS.fire.color, sourceId); this.vfx?.aura("fire", enemy, 3, rank); }
+    else if (element === "poison") { this._applyDot(enemy, damage * 0.4 * scale, 5, ELEMENTS.poison.color, sourceId); this.vfx?.aura("poison", enemy, 5, rank); }
+    else if (element === "ice") { this._slowEnemy(enemy, 0.3 * scale, 2.5); this.vfx?.aura("ice", enemy, 2.5, rank); }
+    else if (element === "mind") {
+      const seconds = (enemy.boss ? 0.2 : 0.6) * scale;
+      enemy.stunUntil = Math.max(enemy.stunUntil || 0, this.time + seconds);
+      this.vfx?.aura("mind", enemy, seconds, rank);
+    } else if (element === "electric") {
       const arc = this.active.find((other) => other !== enemy && other.hp > 0 && Math.hypot(other.x - enemy.x, other.y - enemy.y) <= 120);
-      if (arc && !arc.magicImmune) this._bonusDamage(arc, damage * 0.5 * scale, sourceId, ELEMENTS.electric.color);
+      if (arc && !arc.magicImmune) {
+        this.vfx?.arc("electric", enemy, arc, rank);
+        this._bonusDamage(arc, damage * 0.5 * scale, sourceId, ELEMENTS.electric.color);
+      }
     }
   }
 
@@ -3621,6 +3649,8 @@ export class Engine {
       }
       ctx.restore();
     }
+    // spell effects (live battles)
+    this.vfx?.draw(ctx);
     // floaters
     ctx.textAlign = "center"; ctx.font = "bold 11px JetBrains Mono, monospace";
     for (const f of this.floaters) {
