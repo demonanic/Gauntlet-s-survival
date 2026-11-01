@@ -626,15 +626,30 @@ Owner-approved direction; each step is its own PR, built in this order:
 4. **Familiars as real units** (done; see Familiars above): their own HP (enemies can hit them; downed for the rest
    of the fight, never lost), their own targets and a simple role per species, and
    animated sprites. Balance re-measured (`npm run scenarios -- --group companions`).
-5. **Shadow and Wild Magic, plus Dominate.** Shadow: Veil (invisibility), Terror (fear),
-   Confusion. Wild Magic: Ensnare (root), Thornfield, Summon Spirit Beast. Mind gains
-   Dominate (an ordinary foe fights for the party for 6 s; never bosses, elites or
-   nemeses). Bosses resist control (shortened, as stuns are now). The spirit beast comes
-   from the hero's trait: Tiger (Brawny, Berserker), Wolf (Stalwart, Ironhide,
+5. **Shadow and Wild Magic, plus Dominate** (done: `SPELLS`, `CONTROL` and `BEASTS` in
+   spells.js, `_castControl` and `_summonBeast` in the engine). Shadow (start, II, IV):
+   Veil, the most-hunted ally can't be targeted for 3 s (16 mana, 12 s); Terror, foes
+   within 80 flee for 2.5 s (22, 14 s); Confusion, one foe attacks its own side for 4 s
+   (24, 16 s). Wild Magic: Ensnare, a 2 s root (12, 7 s); Thornfield, a 70-radius patch
+   that roots 1.5 s and bleeds (22, 12 s); Summon Spirit Beast, a 10 s spirit unit with
+   30% of the caster's max HP (34, 30 s). Mind V: Dominate, an ordinary foe fights for
+   the party for 6 s (40, 40 s). Controls last half as long on elites; bosses take half
+   of Terror, Ensnare and Thornfield, and are immune to Confusion and Dominate, as are
+   nemeses. Auto keeps 20 mana back before Dominate or a summon. Spirit beasts: Tiger
+   (pounce), Wolf (taunt), Hawk (ranged, flies), Bat (lifelink), Rat swarm (three),
+   Wasp (poison), Spider (webs), Dragon (fire cone, at Wild Magic V). The beast comes from
+   the hero's trait as below, unlisted traits included (Keen Eye: Hawk; Keen-Eared,
+   Night Eyes, Light Sleeper: Bat; Quick Hands: Spider; Sure-Footed, Fast Learner: Wolf;
+   Treasure Hunter: Rat; Glass Cannon: Wasp; none: Wolf), or the Spellbook pick.
+   Trait map: Tiger (Brawny, Berserker), Wolf (Stalwart, Ironhide,
    Steadfast, Charismatic, Inspiring, Optimist), Hawk (Nimble, Swift, Tracker,
    Trailwise), Bat (Loud, Paranoid), Rat swarm (Scavenger, Greedy, Frail), Wasp
-   (Reckless), Spider (Bloodhound, Field Medic); a Dragon at Wild Magic V. The player
-   can pick another in the Spellbook. It uses the familiar unit system from step 4.
+   (Reckless), Spider (Bloodhound, Field Medic).
+   Measured (same temporary CI setup as step 3, proficiency IV, Mind at V): Boneyard
+   LV4 won 16/24 Arcane-only, 18/24 Shadow, 18/24 Wild Magic, 16/24 Mind; heroes down
+   per fight 2.13, 1.58, 1.54, 1.96. Frostfang LV6 0, 1, 0, 0 of 24; Ashen LV9 0 for
+   all. Control helps a little where a party can already win; it does not carry a
+   party the way Restoration does. Sam tests in play before any tuning.
 
 All spells cast on auto too, with guardrails: never into nothing (no heal at full HP, no
 root on a rooted foe), a mana reserve before Dominate or a summon, no wasted controls on
