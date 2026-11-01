@@ -225,7 +225,6 @@ export function createEncounterSim(party, regionTier, wave = null, { rng = defau
   const sim = {
     heroes: structuredClone(party),
     wave: regionTier,
-    morale: 50,
     gold: 0,
     vault: [],
     kills: { total: 0, byType: {} },

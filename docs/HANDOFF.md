@@ -2,14 +2,15 @@
 
 Read this first. Then read `docs/ROADMAP.md` (the living checklist) and `docs/LEGACY_MANIFEST.md`. Those two files are the source of truth. This file only tells you how to start.
 
-Last updated: 2026-11-01. At that point batch 1 of Phase 6 was in review as draft PR #34.
+Last updated: 2026-11-01. At that point batch 1 of Phase 6 was merged (#34) and batch 2 was in review as a draft PR.
 
 ## The project
 
 - **What it is:** Gauntlet's Survival, a React 19 + Vite idle game (`demonanic/Gauntlet-s-survival`). The owner is Sam.
 - **Where the work stands:** Sam is running an architecture roadmap phase by phase. It came from an audit with findings F1–F9.
   - Phases 0–5 and 6A are merged.
-  - Batch 1 (6B, 6C, 6D-1) is in review (#34).
+  - Batch 1 (6B, 6C, 6D-1) is merged (#34, `ef819c4`).
+  - Batch 2 (6D-2, 6D-3, 6D-4) is in review as a draft PR. Its tests, build, probe, seeded runs and browser check still need to run (the session that made it could not install dependencies).
 - **Where the code lives:**
   - Game rules: `src/game`.
   - Combat: `src/combat`. `engine.js` is the one engine for both watched fights (`screens/Battle.jsx`) and unattended fights (`game/simulate.js`).
@@ -31,12 +32,9 @@ Last updated: 2026-11-01. At that point batch 1 of Phase 6 was in review as draf
 
 ## What's next
 
-- **Now:** wait for Sam's review of #34. Answer review comments and fix CI on that PR.
-- **Still owed for #34:** a watched-fight browser check after 6D-1. The old fixture save had expired, so make a fresh one: start a trip in `npm run dev` and wait for an encounter prompt.
-- **Batch 2** (only after Sam says go):
-  - 6D-2: the revive API (`reviveHero`, `reviveFallenHeroes`) and the `sim.morale` writes.
-  - 6D-3: the `zombie` sprite branch.
-  - 6D-4: delete `logic.js`, `libraryResearch.js`, `equipment.js` and `perks.js`.
+- **Now:** batch 2 is in review. Run its missing checks per commit (tests, build, byte-identity probe, seeded `ranks` and `bosses` runs, browser), answer review comments and fix CI.
+- **Still owed:** a watched-fight browser check after 6D-1 (now on `main`) and after batch 2. Make a fresh save: start a trip in `npm run dev` and wait for an encounter prompt.
+- **Batch 2** (in review): 6D-2 revive API and `sim.morale`; 6D-3 `zombie` sprite; 6D-4 delete `logic.js`, `libraryResearch.js`, `equipment.js` and `perks.js`.
 - **Batch 3:** 6D-5 (prune the unused `config.js` exports, manifest items 17–20) and Phase 7 (move fight results out of `expedition.js`).
 - **After that:** Phases 8 (A–D, split `engine.js`), 9, 10 and 11. The recommendation was to resume features (Endgame B/C/D) after Phase 7 and interleave phases 8–11.
 - **Sam's earlier decisions:**

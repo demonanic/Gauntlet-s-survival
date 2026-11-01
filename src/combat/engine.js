@@ -721,59 +721,6 @@ export class Engine {
     return true;
   }
 
-  reviveHero(index) {
-    const h = this.heroes[index];
-    if (!h || h.alive || h.ref.hp > 0) return false;
-    const cost = C.paidRevivalCost(h.ref.level);
-    if (this.sim.gold < cost) return false;
-
-    this.sim.gold -= cost;
-    h.ref.hp = Math.max(1, Math.round(h.d.maxHp * (C.RECOVERY.reviveHpPercent / 100)));
-    h.alive = true;
-    h.protect = C.REVIVE_PROTECT_S;
-    h.manual = false;
-    h.ref.manual = false;
-    h.manualTarget = null;
-    h.manualPoint = null;
-    h.rallyPoint = null;
-    h.retreating = false;
-    h.x = h.home.x;
-    h.y = h.home.y;
-    return true;
-  }
-
-  getFallenHeroRevivalOffer() {
-    if (this.ended || this.heroes.filter((hero) => hero.alive).length !== 1) return null;
-    const fallen = this.heroes.filter((hero) => !hero.alive && hero.ref.hp <= 0);
-    if (!fallen.length) return null;
-    return {
-      cost: fallen.reduce((total, hero) => total + C.paidRevivalCost(hero.ref.level), 0),
-      heroIds: fallen.map((hero) => hero.ref.id),
-    };
-  }
-
-  reviveFallenHeroes() {
-    const offer = this.getFallenHeroRevivalOffer();
-    if (!offer || this.sim.gold < offer.cost) return false;
-    const fallenIds = new Set(offer.heroIds);
-    this.sim.gold -= offer.cost;
-    for (const hero of this.heroes) {
-      if (!fallenIds.has(hero.ref.id)) continue;
-      hero.ref.hp = Math.max(1, Math.round(hero.d.maxHp * (C.RECOVERY.reviveHpPercent / 100)));
-      hero.alive = true;
-      hero.protect = C.REVIVE_PROTECT_S;
-      hero.manual = false;
-      hero.ref.manual = false;
-      hero.manualTarget = null;
-      hero.manualPoint = null;
-      hero.rallyPoint = null;
-      hero.retreating = false;
-      hero.x = hero.home.x;
-      hero.y = hero.home.y;
-    }
-    return { ...offer };
-  }
-
   commandHeroMoveTo(index, x, y) {
     const h = this.heroes[index];
     if (!h || !h.alive) return false;
@@ -2140,7 +2087,6 @@ export class Engine {
       hero.alive = false;
       this._heroDowned(hero);
       this.effects.push({ kind: "death", x: hero.x, y: hero.y, r: 12, life: 0.55, color: "#F02DCA" });
-      this.sim.morale = clamp(this.sim.morale + C.MORALE.heroDefeat);
     }
     return remaining;
   }
@@ -2984,7 +2930,6 @@ export class Engine {
         const share = (e.dmgBy[sid] / totalDmg) * tier.xp;
         this._awardXp(sid, share);
       }
-      this.sim.morale = clamp(this.sim.morale + C.MORALE.bossKill);
     } else {
       let best = null, bestDmg = -1;
       for (const sid in e.dmgBy) if (e.dmgBy[sid] > bestDmg) { bestDmg = e.dmgBy[sid]; best = sid; }
@@ -2992,8 +2937,6 @@ export class Engine {
         if (this.heroes[i].alive) this._awardXp("H" + i, Math.round(tier.xp * 0.35));
       }
       if (best) this._awardXp(best, tier.xp);
-      const m = e.tier === "elite" ? C.MORALE.eliteKill : e.tier === "specialized" ? C.MORALE.specialistKill : C.MORALE.heroKill;
-      if (best && best[0] === "H") this.sim.morale = clamp(this.sim.morale + m);
     }
     if (!silent) this.effects.push({ x: e.x, y: e.y, r: e.boss ? 60 : 20, life: 0.4, color: e.color });
     if (this.cb.onKill) this.cb.onKill();
@@ -3894,15 +3837,6 @@ export class Engine {
       neon(1.4);
       for (let y = 5; y <= 11; y += 3) { ctx.beginPath(); ctx.moveTo(-5, y); ctx.lineTo(5, y); ctx.stroke(); }
       neon(2); ctx.beginPath(); ctx.moveTo(8, 9); ctx.lineTo(15, -8); ctx.stroke();
-    } else if (e.type === "zombie") {
-      // Slumped humanoid silhouette with a torn shoulder and reaching arm.
-      ctx.fillStyle = "#171429";
-      ctx.beginPath(); ctx.arc(0, -6, 8.5, 0, Math.PI * 2); ctx.fill(); outline();
-      ctx.fillStyle = "#0E1420";
-      ctx.beginPath(); ctx.moveTo(-7, 1); ctx.lineTo(7, 1); ctx.lineTo(9, 12); ctx.lineTo(-9, 12); ctx.closePath(); ctx.fill(); outline();
-      eye(-3, -5, 2); eye(3, -3, 1.2);
-      neon(2.3); ctx.beginPath(); ctx.moveTo(8, 5); ctx.lineTo(16, 1); ctx.lineTo(19, 6); ctx.stroke();
-      neon(1.2); ctx.beginPath(); ctx.moveTo(-5, 4); ctx.lineTo(-10, 10); ctx.stroke();
     } else if (e.type === "orc") {
       // Broad armored brute with tusks and a heavy axe.
       ctx.fillStyle = "#101A16";
@@ -4037,7 +3971,6 @@ function pickLane(engine) {
   // Encounter squads fan out across the top edge; there are no lanes to defend.
   return Math.floor(engine.rng() * LANES);
 }
-function clamp(v) { return Math.max(0, Math.min(100, v)); }
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
   ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r);
