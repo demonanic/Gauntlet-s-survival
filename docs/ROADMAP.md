@@ -46,7 +46,7 @@ These were judged to work well. A PR that weakens one needs an explicit reason t
 | 3 | One fight-outcome builder for watched and unattended fights | F5 | Done (#30, merged `c6a07c7`) |
 | 4 | Injectable, seedable randomness | F7 | Done (#31, merged `af594dd`) |
 | 5 | Legacy reachability investigation (no edits) | F2, F9 | Done (#32, merged `50bdf0f`) |
-| 6 | Remove only verified legacy code, in small PRs | F2, F9 | In progress: 6A done, in review |
+| 6 | Remove only verified legacy code, in small PRs | F2, F9 | In progress: 6A done, in review (#33) |
 | 7 | Move fight results and rewards out of `expedition.js` | F6 | Not started |
 | 8 | Split `combat/engine.js`: A renderer, B enemy behavior, C hero abilities and spells, D the rest if justified | F1, F3 | Not started |
 | 9 | One definition per enemy; regional spawn data stays in regions | F3 | Not started |
@@ -284,4 +284,4 @@ Decisions (Sam, 2026-11-01, reviewing Phase 5):
 | 2026-11-01 | Phase 5 legacy reachability (no edits) | #32 | Manifest in `docs/LEGACY_MANIFEST.md`; legacy class, tower, revive and fallback paths never ran in tests, tools or a watched fight; a crafted `cls` save crashes |
 | 2026-11-01 | Phase 5 scenario evidence | #32 | Both instrumented scenario runs (idle common, active rare; all 7 groups) recorded 0 legacy hits |
 | 2026-11-01 | Phase 5 merged | #32 | Merged `50bdf0f`; both open decisions settled |
-| 2026-11-01 | Phase 6A sim fallbacks removed | Pending | 448 tests pass, build passes, unseeded play byte-identical to `50bdf0f`, watched fight checked |
+| 2026-11-01 | Phase 6A sim fallbacks removed | #33 | 448 tests pass, build passes, unseeded play byte-identical to `50bdf0f`, watched fight checked |
