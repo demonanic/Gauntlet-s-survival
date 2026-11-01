@@ -9,8 +9,6 @@ import { heroLuck, luckEffects } from "./luck";
 import { ELEMENTS, MAGIC, castSuccessChance, knownSpells, maxMana as spellMaxMana, spellPower, spellRadius } from "./spells";
 import { BONDS, memorialDamage } from "../game/bonds";
 import * as C from "./config";
-import { heroDerived } from "./logic";
-import { unlockedAbilities, getAbility, MAGE_SPELLS } from "./perks";
 import { HERO_BASELINE, statDefense } from "./heroModel";
 import { classlessCombatEffects, classlessMaxHp } from "./classlessCombatEffects";
 import { getUnlockedClasslessAbilities, validateClasslessAbilityUse } from "./classlessAbilities";
@@ -56,10 +54,6 @@ const FLOOR_Y = H - 6;     // bottom edge of the arena
 // The bible does not specify a Phantom Strike placement offset. Reuse the
 // existing 30-unit hero/defender interaction radius as the reversible offset.
 const PHANTOM_STRIKE_BEHIND_OFFSET = 30;
-
-function isClasslessHero(hero) {
-  return !!hero && !hero.cls && !!hero.combat?.basicAttack;
-}
 
 function classlessHeroRef(hero) {
   return {
@@ -135,16 +129,11 @@ function classlessHeroDerived(hero) {
     bloodPriceBonus: effects.bloodPriceBonus,
     bloodPriceCost: effects.bloodPriceCost,
     color: hero.appearance?.identityColor || "#22D3EE",
-    classless: true,
   };
 }
 
-function heroMovementSpeed(hero, legacyBase, currentTime, applyLegacyModifiers = false) {
-  if (hero.classless) return hero.d.movementSpeed;
-  const modifier = applyLegacyModifiers
-    ? hero.d.moveSpeedMultiplier * (hero.speedRushUntil > currentTime ? 1.5 : 1)
-    : 1;
-  return legacyBase * modifier;
+function heroMovementSpeed(hero) {
+  return hero.d.movementSpeed;
 }
 
 const LANES = 5;
@@ -261,16 +250,19 @@ export class Engine {
 
     // hero runtime
     const n = sim.heroes.length || 1;
+    // Every hero uses the hero model (combat/heroModel.js); save loading drops
+    // any Demonanic class field, so there is no class-hero path.
+    for (const h of sim.heroes) {
+      if (!h?.combat?.basicAttack) throw new TypeError("Engine heroes must use the hero model (createHeroModel)");
+    }
     this.heroes = sim.heroes.map((h, i) => {
-      const classless = isClasslessHero(h);
-      const ref = classless ? classlessHeroRef(h) : h;
-      const d = classless ? classlessHeroDerived(h) : heroDerived(h);
+      const ref = classlessHeroRef(h);
+      const d = classlessHeroDerived(h);
       const x = W * ((i + 0.5) / n);
       return {
         i,
         ref,
         model: h,
-        classless,
         x,
         y: HERO_Y,
         home: { x, y: HERO_Y },
@@ -303,22 +295,22 @@ export class Engine {
         quickCd: 0,
         ammoShots: 0,
         ammoBonus: 0,
-        maxMana: classless ? spellMaxMana(h) : Math.round(70 + (h.level || 1) * 5 + (d.intelligence || 10) * 1.5),
-        mana: classless ? spellMaxMana(h) : Math.round(70 + (h.level || 1) * 5 + (d.intelligence || 10) * 1.5),
+        maxMana: spellMaxMana(h),
+        mana: spellMaxMana(h),
         castCd: 0,
         currentTarget: null,
         speedRushUntil: 0,
-        classlessCombatState: classless ? { lastDamageAt: 0, sustainSecond: -1, sustainRestored: 0,
+        classlessCombatState: { lastDamageAt: 0, sustainSecond: -1, sustainRestored: 0,
           nextRegenAt: 5, lastStandUntil: 0, lastStandReadyAt: 0, survivalUntil: 0,
           survivalReadyAt: 0, covenantUntil: 0, decoy: false, mirrorReadyAt: 0,
           nextDisruptAt: 0, nextRootAt: 0, lastDealtAt: 0, momentumTarget: null,
           momentumStacks: 0, ambushTargets: new Set(), vanishDamagePending: 0,
-          echoReadyAt: 0 } : null,
+          echoReadyAt: 0 },
       };
     });
 
     // Gauntlet familiars: one per hero that has a pet. They can't be hurt.
-    this.pets = this.heroes.filter((h) => h.classless && h.model.pet).map((h) => {
+    this.pets = this.heroes.filter((h) => h.model.pet).map((h) => {
       const stats = petStats(h.model.pet, h.model.progression?.level || 1);
       h.petGuard = stats?.guard || 0;
       return stats && { owner: h, name: h.model.pet.name, stats, x: h.x + 18, y: h.y + 14, cd: 1, supportCd: stats.support?.interval || 0, target: null };
@@ -346,19 +338,15 @@ export class Engine {
 
   setTargetSelection(index) {
     const h = this.heroes[index];
-    this.targetingHero = h?.alive && (h.classless ? h.d.rangeMode === "midline" : h.d.range >= 130) ? index : null;
+    this.targetingHero = h?.alive && h.d.rangeMode === "midline" ? index : null;
     return this.targetingHero !== null;
   }
 
   getRangedTargetStatus(index) {
     const h = this.heroes[index];
-    if (!h?.alive || !(h.classless ? h.d.rangeMode === "midline" : h.d.range >= 130)) return null;
-    const damageType = h.classless ? null : h.ref.cls === "mage" ? C.DAMAGE_TYPES.ARCANE
-      : h.ref.cls === "archer" ? C.DAMAGE_TYPES.ARCHER_RANGED
-      : h.ref.cls === "rouge" ? C.DAMAGE_TYPES.ROUGE_MELEE
-      : C.DAMAGE_TYPES.KNIGHT_MELEE;
+    if (!h?.alive || h.d.rangeMode !== "midline") return null;
     const targets = this.active
-      .filter((enemy) => h.classless ? this._isValidClasslessTarget(h, enemy) : this._isValidRangedTarget(h, enemy, damageType))
+      .filter((enemy) => this._isValidClasslessTarget(h, enemy))
       .map((enemy) => ({
         type: enemy.type,
         name: enemy.name || enemy.type,
@@ -370,17 +358,10 @@ export class Engine {
     return { heroName: h.ref.name, range: Math.round(h.d.range), targets };
   }
 
-  _isValidRangedTarget(h, enemy, damageType) {
-    return enemy?.hp > 0 &&
-      Math.hypot(enemy.x - h.x, enemy.y - h.y) <= h.d.range &&
-      C.affinityMultiplier(enemy, damageType) > 0 &&
-      !(h.d.magic && enemy.magicImmune);
-  }
-
   // In range to be hit: melee reach (from the edge of the target's body) for
   // swords, weapon range for everything else.
   _isValidClasslessTarget(h, enemy) {
-    if (!h?.classless || !enemy || enemy.hp <= 0 || !this.active.includes(enemy)) return false;
+    if (!h || !enemy || enemy.hp <= 0 || !this.active.includes(enemy)) return false;
     const reach = h.d.rangeMode === "melee" ? this._meleeReach(h, enemy) : h.d.range;
     return Math.hypot(enemy.x - h.x, enemy.y - h.y) <= reach;
   }
@@ -400,7 +381,7 @@ export class Engine {
   getHeroAbilityStatus(index) {
     const h = this.heroes[index];
     if (!h) return [];
-    if (h.classless) {
+    {
       const capability = HERO_BASELINE.sharedStrike;
       const cooldown = Math.max(0, h.abilityCooldowns[capability.id] || 0);
       const target = this._selectTarget(h);
@@ -438,28 +419,10 @@ export class Engine {
           radius: definition.adjacentRadius, reason: !canPayHealthCost ? "health_cost" : validation.reason };
       })];
     }
-    return unlockedAbilities(h.ref).map((a) => {
-      const cooldown = Math.max(0, h.abilityCooldowns[a.id] || 0);
-      const hasTarget = h.alive && this._hasAbilityTarget(h, a);
-      return {
-        id: a.id,
-        name: a.name,
-        desc: a.desc,
-        color: a.color,
-        cooldown,
-        available: h.alive && cooldown <= 0 && hasTarget,
-        targetMode: ["shield_bash", "backstab", "life_steal", "piercing_shot", "focus_volley"].includes(a.effect)
-          ? "enemy" : a.effect === "firestorm" ? "area" : null,
-        range: a.effect === "shield_bash" ? 190
-          : ["backstab", "life_steal"].includes(a.effect) ? 300 : Math.round(h.d.range),
-        radius: a.effect === "firestorm" ? 70 : null,
-        reason: !h.alive ? "unavailable" : cooldown > 0 ? "cooldown" : hasTarget ? null : "no_target",
-      };
-    });
   }
 
   _classlessCanPayActiveCost(hero) {
-    if (!hero?.classless || !(hero.d.bloodPriceCost > 0)) return true;
+    if (!hero || !(hero.d.bloodPriceCost > 0)) return true;
     return hero.ref.hp - hero.ref.hp * hero.d.bloodPriceCost >= 1;
   }
 
@@ -476,7 +439,7 @@ export class Engine {
     const status = this.getHeroAbilityStatus(index).find((item) => item.id === abilityId);
     const h = this.heroes[index];
     if (!status || !h || status.targetMode !== "enemy") return [];
-    if (h.classless) {
+    {
       const ability = abilityId === HERO_BASELINE.sharedStrike.id ? null :
         getUnlockedClasslessAbilities(h.model).find((item) => item.id === abilityId);
       return this.active.filter((enemy) => this._isValidClasslessTarget(h, enemy) &&
@@ -486,23 +449,6 @@ export class Engine {
         maxHp: Math.max(1, Math.round(enemy.maxHp)), distance: Math.round(Math.hypot(enemy.x - h.x, enemy.y - h.y)), enemy,
       }));
     }
-    const damageType = h.ref.cls === "knight" ? C.DAMAGE_TYPES.KNIGHT_MELEE
-      : h.ref.cls === "rouge" ? C.DAMAGE_TYPES.ROUGE_MELEE
-      : h.ref.cls === "archer" ? C.DAMAGE_TYPES.ARCHER_RANGED
-      : C.DAMAGE_TYPES.ARCANE;
-    return this.active.filter((enemy) =>
-      enemy?.hp > 0 &&
-      Math.hypot(enemy.x - h.x, enemy.y - h.y) <= status.range &&
-      C.affinityMultiplier(enemy, damageType) > 0 &&
-      !(h.d.magic && enemy.magicImmune)
-    ).map((enemy) => ({
-      type: enemy.type,
-      name: enemy.name || enemy.type,
-      hp: Math.max(0, Math.round(enemy.hp)),
-      maxHp: Math.max(1, Math.round(enemy.maxHp)),
-      distance: Math.round(Math.hypot(enemy.x - h.x, enemy.y - h.y)),
-      enemy,
-    }));
   }
 
   getHeroAbilityTargetAt(index, abilityId, x, y) {
@@ -517,7 +463,7 @@ export class Engine {
     if (!status || status.targetMode !== "area" || !h || Math.hypot(x - h.x, y - h.y) > status.range) {
       return { valid: false, targets: [] };
     }
-    const damageType = h.ref.cls === "mage" ? C.DAMAGE_TYPES.ARCANE : C.DAMAGE_TYPES.KNIGHT_MELEE;
+    const damageType = C.DAMAGE_TYPES.KNIGHT_MELEE;
     const targets = this.active.filter((enemy) => enemy.hp > 0 &&
       Math.hypot(enemy.x - x, enemy.y - y) <= status.radius &&
       C.affinityMultiplier(enemy, damageType) > 0 &&
@@ -525,336 +471,16 @@ export class Engine {
     return { valid: targets.length > 0, targets };
   }
 
-  _hasAbilityTarget(h, ability) {
-    const damageType = h.ref.cls === "knight" ? C.DAMAGE_TYPES.KNIGHT_MELEE
-      : h.ref.cls === "rouge" ? C.DAMAGE_TYPES.ROUGE_MELEE
-      : h.ref.cls === "archer" ? C.DAMAGE_TYPES.ARCHER_RANGED
-      : C.DAMAGE_TYPES.ARCANE;
-    const canDamage = (enemy) => enemy?.hp > 0 && C.affinityMultiplier(enemy, damageType) > 0;
-    switch (ability.effect) {
-      case "shield_bash":
-        return canDamage(this._nearestEnemy(h.x, h.y, 190));
-      case "backstab":
-        return canDamage(this._selectTarget(h) || this._nearestEnemy(h.x, h.y, 300));
-      case "life_steal":
-        return canDamage(this._nearestEnemy(h.x, h.y, 300));
-      case "firestorm": {
-        const target = this._nearestEnemy(h.x, h.y, h.d.range);
-        return !!target && this.active.some((enemy) => canDamage(enemy) && Math.hypot(enemy.x - target.x, enemy.y - target.y) <= 70);
-      }
-      case "mend":
-        return this.heroes.some((ally) => ally.alive && ally !== h && ally.ref.hp < ally.d.maxHp);
-      case "piercing_shot": {
-        const target = this._selectTarget(h);
-        return !!target && [target, ...this.active.filter((enemy) => enemy !== target && Math.hypot(enemy.x - target.x, enemy.y - target.y) <= 48).slice(0, 2)].some(canDamage);
-      }
-      case "focus_volley":
-        return canDamage(this._selectTarget(h));
-      default:
-        return true;
-    }
-  }
-
   getHeroSpellStatus(index) {
     const h = this.heroes[index];
-    if (h?.classless) return this._classlessSpellStatus(h);
-    if (!h || h.ref.cls !== "mage") return [];
-    const level = Math.max(1, Number(h.ref.level) || 1);
-    const intelligence = Math.max(0, Number(h.d.intelligence) || 0);
-    const equippedIds = Array.isArray(h.ref.equippedSpells) ? h.ref.equippedSpells : [];
-    const learned = (h.ref.spellbook || []).filter((spell) => equippedIds.includes(spell.id)).map((spell) => ({
-      ...spell, researched: true, short: String(spell.name || "SPELL").toUpperCase(),
-      color: ({ fire: "#FF6600", ice: "#00F3FF", poison: "#39FF14", electric: "#FFE600", mind: "#A855F7" })[spell.element] || "#E879F9",
-      mana: Number(spell.manaCost || spell.baseMana) || 15,
-      cooldown: 7, range: 340, power: Number(spell.strength || spell.basePower) || 0.8,
-    }));
-    const spells = learned.length ? learned : MAGE_SPELLS;
-    return spells.map((spell) => {
-      const cost = Math.max(8, Math.round((spell.mana || spell.manaCost || spell.baseMana || 15) * (1 - Math.min(0.25, Math.max(0, level - 1) * 0.01))));
-      const cooldown = Math.max(0, h.spellCooldowns[spell.id] || 0);
-      return { ...spell, cost, cooldown, mana: Math.round(h.mana), maxMana: h.maxMana,
-        level, damage: Math.round((h.d.attack || 0) * (spell.power || spell.strength || spell.basePower || 1) * (1 + Math.max(0, level - 1) * 0.06 + intelligence * 0.012)),
-        targetMode: spell.effect === "area" ? "area"
-          : spell.researched || ["fireball", "chain_lightning"].includes(spell.id) ? "enemy" : null,
-        available: h.alive && cooldown <= 0 && h.mana >= cost };
-    });
-  }
-
-  getMageSpellTargets(index, spellId) {
-    const h = this.heroes[index];
-    const spell = this.getHeroSpellStatus(index).find((item) => item.id === spellId);
-    if (!h || !spell || spell.targetMode !== "enemy") return [];
-    const damageType = ({ fire: C.DAMAGE_TYPES.FIRE, ice: C.DAMAGE_TYPES.FROST, electric: C.DAMAGE_TYPES.LIGHTNING, poison: C.DAMAGE_TYPES.POISON })[spell.element]
-      || C.DAMAGE_TYPES.ARCANE;
-    return this.active.filter((enemy) => enemy?.hp > 0 &&
-      Math.hypot(enemy.x - h.x, enemy.y - h.y) <= spell.range &&
-      C.affinityMultiplier(enemy, damageType) > 0 &&
-      !(h.d.magic && enemy.magicImmune)
-    ).map((enemy) => ({
-      type: enemy.type,
-      name: enemy.name || enemy.type,
-      hp: Math.max(0, Math.round(enemy.hp)),
-      maxHp: Math.max(1, Math.round(enemy.maxHp)),
-      distance: Math.round(Math.hypot(enemy.x - h.x, enemy.y - h.y)),
-      enemy,
-    }));
-  }
-
-  getMageSpellTargetAt(index, spellId, x, y) {
-    return this.getMageSpellTargets(index, spellId)
-      .filter((target) => Math.hypot(target.enemy.x - x, target.enemy.y - y) <= 80)
-      .sort((a, b) => Math.hypot(a.enemy.x - x, a.enemy.y - y) - Math.hypot(b.enemy.x - x, b.enemy.y - y))[0] || null;
-  }
-
-  getMageSpellAreaPreview(index, spellId, x, y) {
-    const h = this.heroes[index];
-    const spell = this.getHeroSpellStatus(index).find((item) => item.id === spellId);
-    if (!h || !spell || spell.targetMode !== "area" || Math.hypot(x - h.x, y - h.y) > spell.range) {
-      return { valid: false, targets: [] };
-    }
-    const radius = spell.researched ? 95 : spell.radius;
-    const damageType = ({ fire: C.DAMAGE_TYPES.FIRE, ice: C.DAMAGE_TYPES.FROST, electric: C.DAMAGE_TYPES.LIGHTNING, poison: C.DAMAGE_TYPES.POISON })[spell.element];
-    const targets = this.active.filter((enemy) => enemy.hp > 0 &&
-      Math.hypot(enemy.x - x, enemy.y - y) <= radius &&
-      (!damageType || C.affinityMultiplier(enemy, damageType) > 0) &&
-      !(h.d.magic && enemy.magicImmune));
-    return { valid: targets.length > 0, targets, radius };
-  }
-
-  castMageSpell(index, spellId, targetOrPoint = null) {
-    const h = this.heroes[index];
-    const customSpell = (h?.ref?.equippedSpells || []).includes(spellId) ? (h.ref.spellbook || []).find((item) => item.id === spellId) : null;
-    const spell = customSpell ? { ...customSpell, researched: true, short: String(customSpell.name || "SPELL").toUpperCase(), color: ({ fire: "#FF6600", ice: "#00F3FF", poison: "#39FF14", electric: "#FFE600", mind: "#A855F7" })[customSpell.element] || "#E879F9", mana: Number(customSpell.manaCost || customSpell.baseMana) || 15, cooldown: 7, range: 340, power: Number(customSpell.strength || customSpell.basePower) || 0.8 } : MAGE_SPELLS.find((item) => item.id === spellId);
-    if (!h || !h.alive || h.ref.cls !== "mage" || !spell) return false;
-    const status = this.getHeroSpellStatus(index).find((item) => item.id === spellId);
-    if (!status || !status.available) return false;
-    if (targetOrPoint?.enemy && !this.getMageSpellTargets(index, spellId).some((item) => item.enemy === targetOrPoint.enemy)) return false;
-    if (spell.effect === "area" && targetOrPoint && Number.isFinite(targetOrPoint.x) &&
-      !this.getMageSpellAreaPreview(index, spellId, targetOrPoint.x, targetOrPoint.y).valid) return false;
-    const target = targetOrPoint?.enemy || this._nearestEnemy(h.x, h.y, spell.range);
-    if (spell.id !== "arcane_ward" && !target && !(spell.effect === "area" && targetOrPoint && Number.isFinite(targetOrPoint.x))) return false;
-    const effectStart = this.effects.length;
-    let used = false;
-    if (spell.researched) {
-      const elementType = ({ fire: C.DAMAGE_TYPES.FIRE, ice: C.DAMAGE_TYPES.FROST, electric: C.DAMAGE_TYPES.LIGHTNING, poison: C.DAMAGE_TYPES.POISON })[spell.element];
-      const victims = spell.effect === "area"
-        ? this.active.filter((enemy) => enemy.hp > 0 && target &&
-          Math.hypot(enemy.x - (targetOrPoint && Number.isFinite(targetOrPoint.x) ? targetOrPoint.x : target.x),
-            enemy.y - (targetOrPoint && Number.isFinite(targetOrPoint.y) ? targetOrPoint.y : target.y)) <= 95)
-        : [target];
-      for (const enemy of victims) {
-        const scale = spell.effect === "area" ? 0.72 : spell.effect === "time" ? 0.82 : 1;
-        const affinity = elementType ? C.affinityMultiplier(enemy, elementType) : 1;
-        const damage = Math.max(0, status.damage * scale * h.d.abilityDamageMultiplier * affinity);
-        if (damage > 0) {
-          enemy.hp = Math.max(0, enemy.hp - damage);
-          enemy.dmgBy["H" + h.i] = (enemy.dmgBy["H" + h.i] || 0) + damage;
-          if (spell.effect === "time") {
-            enemy.slowUntil = Math.max(enemy.slowUntil || 0, this.time + 2.5);
-            enemy.slowMultiplier = spell.element === "ice" ? 0.45 : 0.75;
-          }
-          this._float(enemy.x, enemy.y - 5, spell.name.toUpperCase() + " " + Math.round(damage), spell.color);
-          this.effects.push({ kind: "hit", x: enemy.x, y: enemy.y, r: spell.effect === "area" ? 20 : 14, life: 0.45, color: spell.color, crit: false });
-          if (enemy.hp <= 0) this._killEnemy(enemy, "H" + h.i);
-          used = true;
-        }
-      }
-    } else if (spell.id === "fireball") {
-      const damage = status.damage * h.d.abilityDamageMultiplier * C.affinityMultiplier(target, C.DAMAGE_TYPES.FIRE);
-      if (damage > 0) {
-        target.hp = Math.max(0, target.hp - damage);
-        target.dmgBy["H" + h.i] = (target.dmgBy["H" + h.i] || 0) + damage;
-        this._float(target.x, target.y - 5, "FIREBALL " + Math.round(damage), spell.color);
-        this.effects.push({ kind: "hit", x: target.x, y: target.y, r: 25, life: 0.45, color: spell.color, crit: false });
-        if (target.hp <= 0) this._killEnemy(target, "H" + h.i);
-        used = true;
-      } else this._float(target.x, target.y - 5, "IMMUNE", "#39FF14");
-    } else if (spell.id === "frost_nova") {
-      const victims = this.active.filter((enemy) => enemy.hp > 0 && Math.hypot(enemy.x - h.x, enemy.y - h.y) <= spell.radius);
-      for (const enemy of victims) {
-        const damage = status.damage * h.d.abilityDamageMultiplier * C.affinityMultiplier(enemy, C.DAMAGE_TYPES.FROST);
-        if (damage > 0) {
-          enemy.hp = Math.max(0, enemy.hp - damage);
-          enemy.dmgBy["H" + h.i] = (enemy.dmgBy["H" + h.i] || 0) + damage;
-          enemy.slowUntil = Math.max(enemy.slowUntil || 0, this.time + spell.slow);
-          enemy.slowMultiplier = 0.45;
-          this._float(enemy.x, enemy.y - 4, "FROST " + Math.round(damage), spell.color);
-          this.effects.push({ kind: "hit", x: enemy.x, y: enemy.y, r: 15, life: 0.38, color: spell.color, crit: false });
-          if (enemy.hp <= 0) this._killEnemy(enemy, "H" + h.i);
-          used = true;
-        }
-      }
-      if (used) this.effects.push({ kind: "spell_area", x: h.x, y: h.y, r: spell.radius, life: 0.65, color: spell.color, vfxSize: 52 });
-    } else if (spell.id === "chain_lightning") {
-      let current = target;
-      const hit = new Set();
-      for (let jump = 0; jump < spell.jumps && current; jump++) {
-        hit.add(current);
-        const damage = status.damage * Math.pow(0.72, jump) * h.d.abilityDamageMultiplier * C.affinityMultiplier(current, C.DAMAGE_TYPES.LIGHTNING);
-        if (damage > 0) {
-          current.hp = Math.max(0, current.hp - damage);
-          current.dmgBy["H" + h.i] = (current.dmgBy["H" + h.i] || 0) + damage;
-          this._float(current.x, current.y - 4, "ARC " + Math.round(damage), spell.color);
-          if (current.hp <= 0) this._killEnemy(current, "H" + h.i);
-          used = true;
-        }
-        this.effects.push({ kind: "hit", x: current.x, y: current.y, r: 19, life: 0.35, color: spell.color, crit: false });
-        const from = current;
-        current = this.active.filter((enemy) => enemy.hp > 0 && !hit.has(enemy))
-          .sort((a, b) => Math.hypot(a.x-from.x,a.y-from.y)-Math.hypot(b.x-from.x,b.y-from.y))
-          .find((enemy) => Math.hypot(enemy.x-from.x, enemy.y-from.y) <= 105) || null;
-      }
-    } else if (spell.id === "arcane_ward") {
-      const allies = this.heroes.filter((ally) => ally.alive && Math.hypot(ally.x-h.x, ally.y-h.y) <= spell.range)
-        .sort((a,b) => (a.ref.hp/a.d.maxHp)-(b.ref.hp/b.d.maxHp)).slice(0,2);
-      if (!allies.some((ally) => ally === h)) allies.unshift(h);
-      for (const ally of allies.slice(0,2)) {
-        const amount = Math.round(ally.d.maxHp * Math.min(0.38, spell.power + Math.max(0, status.level - 1) * 0.008));
-        ally.ref.shield = Math.min(ally.d.maxHp * 0.45, (ally.ref.shield || 0) + amount);
-        this._float(ally.x, ally.y - 20, "+" + amount + " WARD", spell.color);
-        this.effects.push({ kind: "shield", x: ally.x, y: ally.y, r: 24, life: 0.5, color: spell.color });
-      }
-      used = true;
-    }
-    if (!used) return false;
-    this.effects.push({ kind: "spell_cast", x: h.x, y: h.y, life: 0.36, color: spell.color, vfxSize: 48 });
-    h.mana = Math.max(0, h.mana - status.cost);
-    h.spellCooldowns[spell.id] = Math.max(2, spell.cooldown * (1 - Math.min(0.2, Math.max(0, status.level - 1) * 0.008)));
-    this._float(h.x, h.y - 28, spell.short, spell.color);
-    this.actionCompletions.push({
-      index,
-      result: "completed",
-      effects: this.effects.slice(effectStart),
-    });
-    return true;
+    return h ? this._classlessSpellStatus(h) : [];
   }
 
   useHeroAbility(index, abilityId, targetOrPoint = null) {
-    const h = this.heroes[index];
-    if (h?.classless) return abilityId === HERO_BASELINE.sharedStrike.id
+    if (!this.heroes[index]) return false;
+    return abilityId === HERO_BASELINE.sharedStrike.id
       ? this.useSharedStrike(index, targetOrPoint?.enemy || targetOrPoint)
       : this.executeClasslessAbility(index, abilityId, targetOrPoint);
-    const ability = getAbility(h?.ref, abilityId);
-    if (!h || !h.alive || !ability) return false;
-    const remaining = h.abilityCooldowns[ability.id] || 0;
-    if (remaining > 0 || !this._hasAbilityTarget(h, ability)) return false;
-    const target = targetOrPoint?.enemy || null;
-    if (target && !this.getHeroAbilityTargets(index, abilityId).some((item) => item.enemy === target)) return false;
-    if (ability.effect === "firestorm" && targetOrPoint && Number.isFinite(targetOrPoint.x) &&
-      !this.getHeroAbilityAreaPreview(index, abilityId, targetOrPoint.x, targetOrPoint.y).valid) return false;
-
-    let used = false;
-    switch (ability.effect) {
-      case "shield_bash": {
-        const victim = target || this._nearestEnemy(h.x, h.y, 190);
-        if (victim) {
-          used = this._applyAbilityDamage(h, victim, 2.0 * h.d.shieldAbilityDamageMultiplier, "SHIELD BASH", 2);
-        }
-        break;
-      }
-      case "fortress_pulse": {
-        for (const ally of this.heroes) {
-          if (!ally.alive) continue;
-          const dist = Math.hypot(ally.x - h.x, ally.y - h.y);
-          if (dist <= 150) {
-            const cap = ally.d.maxHp * 0.30 * ally.d.barrierMultiplier;
-            ally.ref.shield = Math.min(cap, (ally.ref.shield || 0) + ally.d.maxHp * 0.20);
-            this._float(ally.x, ally.y - 22, "+FORTIFY", "#00F3FF");
-            this.effects.push({ x: ally.x, y: ally.y, r: 24, life: 0.45, color: "#00F3FF" });
-          }
-        }
-        used = true;
-        break;
-      }
-      case "speed_rush": {
-        h.speedRushUntil = this.time + 5;
-        const target = this._nearestEnemy(h.x, h.y, 340);
-        if (target) {
-          h.manualTarget = target;
-          h.manual = true;
-          h.ref.manual = true;
-        }
-        this._float(h.x, h.y - 24, "SPEED RUSH", "#FF007F");
-        this.effects.push({ x: h.x, y: h.y, r: 28, life: 0.6, color: "#FF007F" });
-        used = true;
-        break;
-      }
-      case "backstab": {
-        const victim = target || this._selectTarget(h) || this._nearestEnemy(h.x, h.y, 300);
-        if (victim) {
-          used = this._applyAbilityDamage(h, victim, 2.4, "BACKSTAB", 0);
-        }
-        break;
-      }
-      case "life_steal": {
-        const victim = target || this._nearestEnemy(h.x, h.y, 300);
-        if (victim) {
-          const before = victim.hp;
-          used = this._applyAbilityDamage(h, victim, 1.8, "LIFE STEAL", 0);
-          if (!used) break;
-          const dealt = Math.max(0, before - victim.hp);
-          h.ref.hp = Math.min(h.d.maxHp, h.ref.hp + dealt * 0.45);
-          this._float(h.x, h.y - 24, "+" + Math.round(dealt * 0.45), "#39FF14");
-        }
-        break;
-      }
-      case "firestorm": {
-        const center = targetOrPoint && Number.isFinite(targetOrPoint.x)
-          ? targetOrPoint
-          : this._nearestEnemy(h.x, h.y, h.d.range);
-        if (center) {
-          const victims = this.active.filter((e) => e.hp > 0 && Math.hypot(e.x - center.x, e.y - center.y) <= 70);
-          for (const e of victims) used = this._applyAbilityDamage(h, e, 1.35, "FIRESTORM", 0) || used;
-          if (used) this.effects.push({ kind: "napalm", x: center.x, y: center.y, r: 18, life: 0.8, color: "#A855F7" });
-        }
-        break;
-      }
-      case "mend": {
-        const ally = this.heroes.filter((x) => x.alive && x !== h).sort((a, b) => (a.ref.hp / a.d.maxHp) - (b.ref.hp / b.d.maxHp))[0];
-        if (ally && ally.ref.hp < ally.d.maxHp) {
-          const heal = ally.d.maxHp * 0.30 * h.d.healPower;
-          ally.ref.hp = Math.min(ally.d.maxHp, ally.ref.hp + heal);
-          this._float(ally.x, ally.y - 22, "+" + Math.round(heal), "#39FF14");
-          this.effects.push({ x: ally.x, y: ally.y, r: 24, life: 0.45, color: "#39FF14" });
-          used = true;
-        }
-        break;
-      }
-      case "barrier": {
-        for (const ally of this.heroes) {
-          if (!ally.alive) continue;
-          const cap = ally.d.maxHp * 0.25 * h.d.barrierMultiplier;
-          ally.ref.shield = Math.min(cap, (ally.ref.shield || 0) + ally.d.maxHp * 0.18 * h.d.barrierMultiplier);
-          this._float(ally.x, ally.y - 22, "+BARRIER", "#00F3FF");
-        }
-        used = true;
-        break;
-      }
-      case "piercing_shot": {
-        const victim = target || this._selectTarget(h);
-        if (victim) {
-          const targets = [victim, ...this.active.filter((e) => e !== victim && e.hp > 0 && Math.hypot(e.x - victim.x, e.y - victim.y) <= 48).slice(0, 2)];
-          targets.forEach((e, i) => { used = this._applyAbilityDamage(h, e, i === 0 ? 2.0 : 0.75, "PIERCE", 0) || used; });
-        }
-        break;
-      }
-      case "focus_volley": {
-        const victim = target || this._selectTarget(h);
-        if (victim) {
-          for (let i = 0; i < 3 && victim.hp > 0; i++) used = this._applyAbilityDamage(h, victim, 0.75, "FOCUS", 0) || used;
-        }
-        break;
-      }
-      default:
-        break;
-    }
-
-    if (used) {
-      h.abilityCooldowns[ability.id] = ability.cooldown * h.d.cooldownMultiplier;
-      this.actionCompletions.push({ index, result: "completed" });
-      return true;
-    }
-    return false;
   }
 
   executeClasslessAbility(index, abilityId, targetOrPoint = null) {
@@ -888,7 +514,7 @@ export class Engine {
       const targetWasAlive = target.hp > 0;
       const hit = this._applyHit({ sourceId: `H${h.i}`, target, dmg: h.d.attack * definition.damageMultiplier,
         magic: false, damageType: null, critChance: h.d.critChance, critMult: h.d.critMult,
-        classless: true, heroIndex: h.i, ability: true, damageCategory: "weapon",
+        heroIndex: h.i, ability: true, damageCategory: "weapon",
         situationalBonus: Number.isFinite(definition.conditionalTargetHpBelow) &&
           target.hp / Math.max(1, target.maxHp) < definition.conditionalTargetHpBelow
           ? definition.conditionalDamageBonus : 0 });
@@ -898,7 +524,7 @@ export class Engine {
       if (secondaryTarget) {
         if (this._applyHit({ sourceId: `H${h.i}`, target: secondaryTarget,
           dmg: h.d.attack * definition.adjacentDamageMultiplier, magic: false, damageType: null,
-          critChance: h.d.critChance, critMult: h.d.critMult, classless: true, heroIndex: h.i,
+          critChance: h.d.critChance, critMult: h.d.critMult, heroIndex: h.i,
           ability: true, damageCategory: "weapon" })) affectedTargets.push(secondaryTarget);
       }
     } else if (definition.effect === "attack_speed_aura") {
@@ -976,7 +602,7 @@ export class Engine {
       h.y = target.y - PHANTOM_STRIKE_BEHIND_OFFSET;
       const hit = this._applyHit({ sourceId: `H${h.i}`, target,
         dmg: h.d.attack * definition.damageMultiplier, magic: false, damageType: null,
-        critChance: h.d.critChance, critMult: h.d.critMult, classless: true,
+        critChance: h.d.critChance, critMult: h.d.critMult,
         heroIndex: h.i, ability: true, damageCategory: "weapon",
         situationalBonus: targetWasTargetingHero ? 0 : definition.conditionalDamageBonus });
       if (!hit) {
@@ -1005,7 +631,7 @@ export class Engine {
 
   useSharedStrike(index, targetOrNull = null) {
     const h = this.heroes[index];
-    if (!h?.classless || !h.alive) return false;
+    if (!h || !h.alive) return false;
     if ((h.abilityCooldowns[HERO_BASELINE.sharedStrike.id] || 0) > 0) return false;
     const target = targetOrNull || this._selectTarget(h);
     if (!this._isValidClasslessTarget(h, target)) return false;
@@ -1020,9 +646,7 @@ export class Engine {
       damageType: null,
       critChance: h.d.critChance,
       critMult: h.d.critMult,
-      perkData: null,
       sharedStrike: true,
-      classless: true,
       heroIndex: h.i,
       ability: true,
       damageCategory: "weapon",
@@ -1030,38 +654,6 @@ export class Engine {
     this._chargeClasslessActiveCost(h, hpBeforeAbility);
     h.abilityCooldowns[HERO_BASELINE.sharedStrike.id] = HERO_BASELINE.sharedStrike.cooldownSeconds * h.d.cooldownMultiplier;
     this.actionCompletions.push({ index, result: "completed" });
-    return true;
-  }
-
-  _applyAbilityDamage(h, target, multiplier, label, stunSeconds = 0) {
-    if (!target || target.hp <= 0) return false;
-    const damageType = h.ref.cls === "knight" ? C.DAMAGE_TYPES.KNIGHT_MELEE : h.ref.cls === "rouge" ? C.DAMAGE_TYPES.ROUGE_MELEE : h.ref.cls === "archer" ? C.DAMAGE_TYPES.ARCHER_RANGED : C.DAMAGE_TYPES.ARCANE;
-    const affinity = C.affinityMultiplier(target, damageType);
-    if (affinity <= 0) {
-      this._float(target.x, target.y - 4, "IMMUNE", "#39FF14");
-      return false;
-    }
-    const echoMarks = this._takeClasslessEchoMarks(target, `H${h.i}`);
-    let dmg = (h.d.attack || 0) * multiplier * h.d.abilityDamageMultiplier * affinity;
-    const targetHpFraction = target.hp / Math.max(1, target.maxHp);
-    const lowHpBonus = targetHpFraction < 0.35 ? h.d.lowHpDamage : 0;
-    const executionBonus = targetHpFraction < 0.25 ? h.d.executionDamage : 0;
-    dmg *= 1 + lowHpBonus + executionBonus;
-    if (targetHpFraction > 0.70) dmg *= 1 + h.d.highHpDamage;
-    dmg *= 1 + this._classlessOpeningBonus(target);
-    target.hp = Math.max(0, target.hp - dmg);
-    target.dmgBy["H" + h.i] = (target.dmgBy["H" + h.i] || 0) + dmg;
-    let killSourceId = `H${h.i}`;
-    for (const echo of echoMarks) {
-      if (target.hp > 0 && echo.damage >= target.hp) killSourceId = echo.sourceId;
-      target.hp = Math.max(0, target.hp - echo.damage);
-      target.dmgBy[echo.sourceId] = (target.dmgBy[echo.sourceId] || 0) + echo.damage;
-      this._float(target.x, target.y - 18, `ECHO ${Math.round(echo.damage)}`, "#A78BFA");
-    }
-    if (stunSeconds > 0) target.stunUntil = Math.max(target.stunUntil || 0, this.time + stunSeconds);
-    this._float(target.x, target.y - 4, label + " " + Math.round(dmg), h.d.color);
-    this.effects.push({ kind: "hit", x: target.x, y: target.y, r: 16, life: 0.3, color: h.d.color, crit: false });
-    if (target.hp <= 0) this._killEnemy(target, killSourceId);
     return true;
   }
 
@@ -1085,9 +677,7 @@ export class Engine {
   commandHeroAttack(index, target) {
     const h = this.heroes[index];
     if (!h || !h.alive || !target || target.hp <= 0) return false;
-    if (h.classless && !this._isValidClasslessTarget(h, target)) return false;
-    if (!h.classless && h.d.range >= 130 && (!this.active.includes(target) ||
-      !this._isValidRangedTarget(h, target, h.ref.cls === "mage" ? C.DAMAGE_TYPES.ARCANE : C.DAMAGE_TYPES.ARCHER_RANGED))) return false;
+    if (!this._isValidClasslessTarget(h, target)) return false;
     h.manual = true;
     h.ref.manual = true;
     h.manualTarget = target;
@@ -1273,7 +863,7 @@ export class Engine {
   // disposable sim copy, so spent items flow back with the post-battle party.
   getHeroQuickSlots(index) {
     const h = this.heroes[index];
-    if (!h?.classless) return [];
+    if (!h) return [];
     const slots = Array.isArray(h.model.quickSlots) ? h.model.quickSlots : [];
     return slots.map((slot, i) => {
       const item = slot && CONSUMABLES[slot.key];
@@ -1288,7 +878,7 @@ export class Engine {
 
   useQuickItem(index, slotIndex) {
     const h = this.heroes[index];
-    const slot = h?.classless ? h.model.quickSlots?.[slotIndex] : null;
+    const slot = h ? h.model.quickSlots?.[slotIndex] : null;
     const item = slot && CONSUMABLES[slot.key];
     if (!item || !(slot.qty > 0) || !h.alive || h.quickCd > 0 || this.ended || !this._quickItemUseful(h, item)) return false;
     slot.qty -= 1;
@@ -1320,7 +910,7 @@ export class Engine {
   // on the field. A hero told to save potions for bosses keeps them until one shows up.
   _tickQuickItems(h, dt) {
     h.quickCd = Math.max(0, h.quickCd - dt);
-    if (!h.classless || h.quickCd > 0) return;
+    if (h.quickCd > 0) return;
     const slots = Array.isArray(h.model.quickSlots) ? h.model.quickSlots : [];
     const hpFraction = h.ref.hp / Math.max(1, h.d.maxHp);
     const eliteOnField = this.active.some((e) => e.hp > 0 && (e.boss || e.tier === "elite"));
@@ -1480,17 +1070,15 @@ export class Engine {
       if (!h.alive) continue;
       this._tickQuickItems(h, dt);
       h.castCd = Math.max(0, (h.castCd || 0) - dt);
-      if (h.classless && !h.manual && h.maxMana > 0) this._autoCast(h);
+      if (!h.manual && h.maxMana > 0) this._autoCast(h);
       for (const id of Object.keys(h.spellCooldowns)) h.spellCooldowns[id] = Math.max(0, h.spellCooldowns[id] - dt);
       h.mana = Math.min(h.maxMana, h.mana + (2 + Math.max(0, h.d.intelligence || 0) * 0.04) * dt);
-      const cfg = h.ref.attackConfig || "";
-      const melee = h.classless ? h.d.rangeMode !== "midline" : h.d.range < 130;
-      const support = h.d.magic && /Support|Heal|Barrier/i.test(cfg);
-      const baseAttackSpeed = h.classless ? h.d.classlessEffects.attackSpeed : 0;
+      const melee = h.d.rangeMode !== "midline";
+      const baseAttackSpeed = h.d.classlessEffects.attackSpeed;
       const activeAttackSpeedBonus = h.warCryUntil > this.time ? h.warCryAttackSpeedBonus : 0;
       const cappedAttackSpeed = Math.min(0.20, baseAttackSpeed + activeAttackSpeedBonus);
       const attackSpeedMultiplier = (1 + cappedAttackSpeed) / (1 + baseAttackSpeed);
-      h.cd -= dt * (!support && activeAttackSpeedBonus > 0 ? attackSpeedMultiplier : 1);
+      h.cd -= dt * (activeAttackSpeedBonus > 0 ? attackSpeedMultiplier : 1);
 
       if (h.retreating) {
         this._returnHome(h, dt);
@@ -1504,7 +1092,7 @@ export class Engine {
       if (h.rallyPoint) {
         const rd = Math.hypot(h.rallyPoint.x - h.x, h.rallyPoint.y - h.y);
         if (rd > 24) {
-          const spd = heroMovementSpeed(h, 185, this.time) * dt;
+          const spd = heroMovementSpeed(h) * dt;
           h.x += ((h.rallyPoint.x - h.x) / rd) * Math.min(spd, rd);
           h.y += ((h.rallyPoint.y - h.y) / rd) * Math.min(spd, rd);
           continue;
@@ -1517,7 +1105,7 @@ export class Engine {
       if (h.manualPoint) {
         const md = Math.hypot(h.manualPoint.x - h.x, h.manualPoint.y - h.y);
         if (md > 8) {
-          const spd = heroMovementSpeed(h, 155, this.time) * dt;
+          const spd = heroMovementSpeed(h) * dt;
           h.x += ((h.manualPoint.x - h.x) / md) * Math.min(spd, md);
           h.y += ((h.manualPoint.y - h.y) / md) * Math.min(spd, md);
           continue;
@@ -1550,29 +1138,8 @@ export class Engine {
         h.reactiveReason = null;
       }
 
-      // Mage support/barrier config: support the endangered ally when a
-      // reactive alert exists; otherwise use the normal weakest-ally logic.
-      if (support) {
-        if (h.cd <= 0 && this._support(h, cfg, reactiveActive ? h.reactiveAlly : null)) h.cd = h.d.rate;
-        if (reactiveActive && h.reactiveAlly?.alive) {
-          const ally = h.reactiveAlly;
-          const dist = Math.hypot(ally.x - h.x, ally.y - h.y);
-          if (dist > 190) {
-            const spd = heroMovementSpeed(h, 155, this.time, true) * dt;
-            h.x += ((ally.x - h.x) / Math.max(1, dist)) * Math.min(spd, dist);
-            h.y += ((ally.y - h.y) / Math.max(1, dist)) * Math.min(spd, dist);
-          }
-        } else if (!h.manual) {
-          // AUTO support mages regroup at home between support actions.
-          // A player-controlled mage must hold its commanded position instead
-          // of being pulled home by its support configuration.
-          this._returnHome(h, dt);
-        }
-        continue;
-      }
-
       // Gauntlet: a bow with an empty quiver can't shoot; the hero falls back.
-      if (h.classless && h.d.usesArrows && !this._arrowSlot(h)) {
+      if (h.d.usesArrows && !this._arrowSlot(h)) {
         if (!h.outOfArrows) {
           h.outOfArrows = true;
           this._float(h.x, h.y - 24, "NO ARROWS", "#E2E8F0");
@@ -1582,7 +1149,7 @@ export class Engine {
       }
 
       // Heroes on auto step out from under a lobbed bomb or bile about to land.
-      if (h.classless && !h.manual && this._dodgeBlast(h, dt)) continue;
+      if (!h.manual && this._dodgeBlast(h, dt)) continue;
 
       const alertEnemy = this._nearestEnemy(h.x, h.y, 300);
       const nearbyAutoTarget = this._nearestEnemy(h.x, h.y, 220);
@@ -1596,15 +1163,15 @@ export class Engine {
       if (!breached && !h.manual && !nearbyAutoTarget && !reactiveActive && !alertEnemy && !shouldReactToCastle) {
         this._returnHome(h, dt); continue;
       }
-      let target = h.classless ? this._selectTarget(h) : h.manual && !reactiveActive ? h.manualTarget : this._selectTarget(h);
+      let target = this._selectTarget(h);
 
       if (target && target.hp <= 0) {
         h.manualTarget = null;
         this._completeTacticalAction(h.i, "cancelled");
         target = h.manual ? null : this._selectTarget(h);
       }
-      if (target && h.pendingTacticalAction === "attack" && (h.classless ? h.d.rangeMode === "midline" : h.d.range >= 130) &&
-        !(h.classless ? this._isValidClasslessTarget(h, target) : this._isValidRangedTarget(h, target, h.ref.cls === "mage" ? C.DAMAGE_TYPES.ARCANE : C.DAMAGE_TYPES.ARCHER_RANGED))) {
+      if (target && h.pendingTacticalAction === "attack" && h.d.rangeMode === "midline" &&
+        !this._isValidClasslessTarget(h, target)) {
         h.manualTarget = null;
         this._completeTacticalAction(h.i, "cancelled");
         target = null;
@@ -1619,12 +1186,12 @@ export class Engine {
       // Gauntlet encounters: an AUTO classless hero with nothing in range closes
       // on the nearest enemy, so ranged enemies that out-range heroes (warlocks,
       // the demon) cannot stall a fight indefinitely.
-      if (h.classless && !target && !h.manual) {
+      if (!target && !h.manual) {
         const nearest = this.active.reduce((best, enemy) => enemy.hp > 0 &&
           (!best || Math.hypot(enemy.x - h.x, enemy.y - h.y) < Math.hypot(best.x - h.x, best.y - h.y)) ? enemy : best, null);
         if (nearest) {
           const dist = Math.hypot(nearest.x - h.x, nearest.y - h.y) || 1;
-          const step = Math.min(heroMovementSpeed(h, 155, this.time) * dt, Math.max(0, dist - (h.d.range - 10)));
+          const step = Math.min(heroMovementSpeed(h) * dt, Math.max(0, dist - (h.d.range - 10)));
           h.x += ((nearest.x - h.x) / dist) * step;
           h.y += ((nearest.y - h.y) / dist) * step;
           continue;
@@ -1635,7 +1202,7 @@ export class Engine {
         if (target) {
           const dist = Math.hypot(target.x - h.x, target.y - h.y) || 1;
           if (dist > this._meleeReach(h, target)) {
-            const spd = heroMovementSpeed(h, 155, this.time, true) * dt;
+            const spd = heroMovementSpeed(h) * dt;
             h.x += ((target.x - h.x) / dist) * Math.min(spd, dist);
             h.y += ((target.y - h.y) / dist) * Math.min(spd, dist);
           } else if (h.cd <= 0) {
@@ -1646,7 +1213,7 @@ export class Engine {
       } else {
         // Ranged heroes on auto keep their distance: while reloading, they
         // step away from an enemy closing in, then turn and shoot.
-        if (h.classless && !h.manual && h.cd > h.d.rate * (1 - KITE_WINDOW) && this._kite(h, dt)) continue;
+        if (!h.manual && h.cd > h.d.rate * (1 - KITE_WINDOW) && this._kite(h, dt)) continue;
         if (h.cd <= 0 && target && Math.hypot(target.x - h.x, target.y - h.y) <= h.d.range) {
           this._fire("H" + h.i, h, target, h.d, true);
           h.cd = h.d.rate;
@@ -2227,7 +1794,7 @@ export class Engine {
   // Gauntlet hero history: what each hero did in this fight, carried back on
   // the hero model and folded into hero.history (game/qualities.js).
   _tally(h, stat, amount) {
-    if (!h?.classless || !(amount > 0)) return;
+    if (!h || !(amount > 0)) return;
     const stats = (h.model.battleStats ||= {});
     stats[stat] = (stats[stat] || 0) + amount;
   }
@@ -2330,7 +1897,7 @@ export class Engine {
     // Dead centre: pick a side.
     const ux = dist > 1 ? (h.x - blast.tx) / dist : (h.x < W / 2 ? 1 : -1);
     const uy = dist > 1 ? (h.y - blast.ty) / dist : 0;
-    const step = heroMovementSpeed(h, 155, this.time) * dt;
+    const step = heroMovementSpeed(h) * dt;
     h.x = Math.max(KITE_MARGIN, Math.min(W - KITE_MARGIN, h.x + ux * step));
     h.y = Math.max(KITE_MARGIN, Math.min(FLOOR_Y - KITE_MARGIN, h.y + uy * step));
     return true;
@@ -2348,7 +1915,7 @@ export class Engine {
     }
     if (!threat || closest > KITE_RANGE) return false;
     const dist = Math.hypot(h.x - threat.x, h.y - threat.y) || 1;
-    const step = heroMovementSpeed(h, 155, this.time) * KITE_SPEED * dt;
+    const step = heroMovementSpeed(h) * KITE_SPEED * dt;
     const clampX = (x) => Math.max(KITE_MARGIN, Math.min(W - KITE_MARGIN, x));
     const clampY = (y) => Math.max(KITE_MARGIN, Math.min(FLOOR_Y - KITE_MARGIN, y));
     let nx = clampX(h.x + ((h.x - threat.x) / dist) * step);
@@ -2451,7 +2018,7 @@ export class Engine {
           this._float(h.x, h.y - 20, "DODGE", "#00F3FF");
           continue;
         }
-        dmg = h.classless ? this._classlessReducedDamage(h, dmg) : this._legacyInterposedDamage(h, dmg);
+        dmg = this._classlessReducedDamage(h, dmg);
         dmg *= 1 - Math.min(0.9, h.d.gear?.blastWard || 0);
         if (p.source) { h.lastHitBy = p.source; this._vampiric(p.source); }
         if (h.ref.shield > 0) {
@@ -2459,14 +2026,8 @@ export class Engine {
           h.ref.shield -= ab;
           dmg -= ab;
         }
-        if (h.classless) this._resolveClasslessHeroDamage(h, dmg);
-        else h.ref.hp = Math.max(0, h.ref.hp - dmg);
+        this._resolveClasslessHeroDamage(h, dmg);
         this._float(h.x, h.y - 20, "-" + Math.round(dmg), p.color || "#FF6600");
-        if (!h.classless && h.ref.hp <= 0 && h.alive) {
-          h.alive = false;
-          this._heroDowned(h);
-          this.sim.morale = clamp(this.sim.morale + C.MORALE.heroDefeat);
-        }
       } else {
         const t = v.obj;
         dmg *= 0.8; // soften enemy area damage against defensive structures
@@ -2515,7 +2076,7 @@ export class Engine {
       ? derived.lowHpDodge
       : 0;
     const baseDodge = Number.isFinite(derived.dodge) ? derived.dodge : 0;
-    const classlessBonus = hero.classless && !area
+    const classlessBonus = !area
       ? derived.evasion + (hpRatio >= 1 && derived.fullHpEvasion ? derived.fullHpEvasion : 0)
       : 0;
     return Math.min(0.5, Math.max(0, baseDodge + lowHpBonus + classlessBonus));
@@ -2536,7 +2097,7 @@ export class Engine {
 
   _classlessFormationReduction(hero) {
     return this.heroes.reduce((highest, owner) => {
-      const bonus = owner.classless && owner.alive ? owner.d.classlessEffects.formationMitigation : 0;
+      const bonus = owner.alive ? owner.d.classlessEffects.formationMitigation : 0;
       return bonus > 0 && Math.hypot(owner.x - hero.x, owner.y - hero.y) <= 5
         ? Math.max(highest, bonus) : highest;
     }, 0);
@@ -2546,7 +2107,7 @@ export class Engine {
     const controlledUntilBy = target?.classlessControlledUntilBy || {};
     const total = this.heroes.reduce((sum, owner) => {
       const controlUntil = controlledUntilBy[owner.i] || 0;
-      return owner.classless && owner.alive && owner.d.classlessEffects.openingDamage > 0 &&
+      return owner.alive && owner.d.classlessEffects.openingDamage > 0 &&
         controlUntil + 4 > this.time
         ? sum + owner.d.classlessEffects.openingDamage : sum;
     }, 0);
@@ -2578,13 +2139,6 @@ export class Engine {
     }
     if (Object.keys(target.classlessEchoMarks).length === 0) delete target.classlessEchoMarks;
     return entries;
-  }
-
-  _legacyInterposedDamage(hero, rawDamage) {
-    const reduction = hero?.interposeUntil > this.time ? hero.interposeReduction : 0;
-    const formation = this._classlessFormationReduction(hero);
-    return C.damageAfterDefense(rawDamage, hero.d.defense) *
-      (1 - Math.min(0.30, Math.max(0, reduction + formation)));
   }
 
   _resolveClasslessHeroDamage(hero, damage) {
@@ -2654,7 +2208,7 @@ export class Engine {
   }
 
   _tickClasslessSustain(hero, dt) {
-    if (!hero.classless || !hero.alive) return;
+    if (!hero.alive) return;
     const state = hero.classlessCombatState;
     if (hero.d.regenerationBelowHalf && hero.ref.hp / hero.d.maxHp < 0.5) {
       this._classlessHeal(hero, hero.d.maxHp * hero.d.regenerationBelowHalf * dt);
@@ -2668,7 +2222,7 @@ export class Engine {
   // Gauntlet gear regen and environmental damage over time. Environment damage
   // never knocks a hero out on its own.
   _tickGearAndEnvironment(hero, dt) {
-    if (!hero.classless || !hero.alive) return;
+    if (!hero.alive) return;
     const regen = hero.d.gear?.regen || 0;
     if (regen > 0) this._classlessHeal(hero, regen * dt * (1 - (hero.d.env?.healCut || 0)));
     const dot = hero.d.env?.dot || 0;
@@ -2782,22 +2336,16 @@ export class Engine {
         this._float(h.x, h.y - 20, "DODGE", "#00F3FF");
         return;
       }
-      let damage = h.classless ? this._classlessReducedDamage(h, p.dmg) : this._legacyInterposedDamage(h, p.dmg);
+      let damage = this._classlessReducedDamage(h, p.dmg);
       if (p.source) { h.lastHitBy = p.source; this._vampiric(p.source); }
       if (h.ref.shield > 0) {
         const absorbed = Math.min(h.ref.shield, damage);
         h.ref.shield -= absorbed;
         damage -= absorbed;
       }
-      if (h.classless) this._resolveClasslessHeroDamage(h, damage);
-      else h.ref.hp = Math.max(0, h.ref.hp - damage);
+      this._resolveClasslessHeroDamage(h, damage);
       this._float(h.x, h.y - 20, "-" + Math.round(damage), p.color);
       if (damage > 0) this._triggerHeroReaction(h, "ally");
-      if (!h.classless && h.ref.hp <= 0 && h.alive) {
-        h.alive = false;
-        this._heroDowned(h);
-        this.sim.morale = clamp(this.sim.morale + C.MORALE.heroDefeat);
-      }
     } else if (p.targetKind === "tower") {
       const tower = obj;
       if (tower.ref.hp <= 0) return;
@@ -2840,41 +2388,34 @@ export class Engine {
       const predator = e.families?.includes("predator") && h.ref.hp < h.d.maxHp * 0.5 ? 1.4 : 1;
       const empowered = e.empoweredUntil > this.time ? 1.15 : 1;
       const raw = e.damage * predator * empowered;
-      let dmg = h.classless ? this._classlessReducedDamage(h, raw) : this._legacyInterposedDamage(h, raw);
+      let dmg = this._classlessReducedDamage(h, raw);
       h.lastHitBy = e;
       if (h.ref.shield > 0) { const ab = Math.min(h.ref.shield, dmg); h.ref.shield -= ab; dmg -= ab; }
-      if (h.classless) this._resolveClasslessHeroDamage(h, dmg);
-      else h.ref.hp = Math.max(0, h.ref.hp - dmg);
+      this._resolveClasslessHeroDamage(h, dmg);
       if (dmg > 0) this._triggerHeroReaction(h, "ally");
       if (dmg > 0 && h.d.gear?.thorns > 0 && e.hp > 0) this._bonusDamage(e, dmg * h.d.gear.thorns, "H" + h.i, "#F8FAFC");
       if (e.boss) e.hp = Math.min(e.maxHp, e.hp + dmg * 0.5); // Demon Lord lifesteal
       if (dmg > 0) this._vampiric(e);
       this._float(h.x, h.y - 20, "-" + Math.round(dmg), "#FF3366");
-      if (!h.classless && h.ref.hp <= 0 && h.alive) {
-        h.alive = false;
-        this._heroDowned(h);
-        this.sim.morale = clamp(this.sim.morale + C.MORALE.heroDefeat);
-      }
     }
   }
 
   _fire(sourceId, src, target, d, isHero, { extra = false } = {}) {
     // Gauntlet: bows spend an arrow per shot (volley shots are free).
     let arrowEffect = null;
-    if (isHero && src.classless && src.d.usesArrows && !extra) {
+    if (isHero && src.d.usesArrows && !extra) {
       arrowEffect = this._drawArrow(src);
       if (arrowEffect === false) return false;
     }
-    if (isHero && src.classless) {
+    if (isHero) {
       src.visualActionKind = "attack";
       src.visualActionStartedAt = this.time;
       src.visualActionUntil = this.time + 0.36;
       src.facingTarget = target;
     }
-    const weaponType = isHero && src.classless ? getEquippedHeroWeaponType(src.model) : null;
+    const weaponType = isHero ? getEquippedHeroWeaponType(src.model) : null;
     const visualType = isHero
-      ? (src.classless ? weaponType === "bow" ? "arrow" : weaponType === "staff" ? "magic" : null
-        : src.ref?.cls === "mage" ? "magic" : src.ref?.cls === "archer" ? "arrow" : null)
+      ? (weaponType === "bow" ? "arrow" : weaponType === "staff" ? "magic" : null)
       : null;
     const shot = {
       sourceId, x: src.x, y: src.y, tx: target.x, ty: target.y, target,
@@ -2882,27 +2423,23 @@ export class Engine {
       spd: d.magic ? 340 : 460, dmg: (d.damage || d.attack) * this._consumeAmmoShot(src, isHero), magic: !!d.magic,
       critChance: isHero ? (d.critChance ?? C.BASE_CRIT) : C.BASE_CRIT,
       critMult: isHero ? (d.critMult ?? C.CRIT_MULT) : C.CRIT_MULT,
-      perkData: isHero && !src.classless ? d : null,
-      classless: isHero && !!src.classless,
-      heroIndex: isHero && src.classless ? src.i : null,
-      damageCategory: isHero && src.classless ? "weapon" : null,
-      damageType: Object.prototype.hasOwnProperty.call(d, "damageType") ? d.damageType : (src.ref?.cls === "knight" ? C.DAMAGE_TYPES.KNIGHT_MELEE
-        : src.ref?.cls === "rouge" ? C.DAMAGE_TYPES.ROUGE_MELEE
-        : src.ref?.cls === "archer" ? C.DAMAGE_TYPES.ARCHER_RANGED
-        : d.magic ? C.DAMAGE_TYPES.ARCANE : C.DAMAGE_TYPES.ARCHER_RANGED),
+      heroIndex: isHero ? src.i : null,
+      damageCategory: isHero ? "weapon" : null,
+      damageType: Object.prototype.hasOwnProperty.call(d, "damageType") ? d.damageType
+        : d.magic ? C.DAMAGE_TYPES.ARCANE : C.DAMAGE_TYPES.ARCHER_RANGED,
       color: isHero ? d.color : d.color, t: 0,
       visualType,
       vfxAssetId: projectileVfxAssetId({ visualType, sourceId }),
       arrowEffect,
     };
     // Gauntlet: melee weapons (swords) strike in place, with no projectile.
-    if (isHero && src.classless && src.d.rangeMode === "melee") {
+    if (isHero && src.d.rangeMode === "melee") {
       this._applyHit(shot);
       if (Number.isInteger(shot.heroActionIndex)) this._completeTacticalAction(shot.heroActionIndex, "completed");
     } else {
       this.projectiles.push(shot);
     }
-    if (isHero && src.classless && weaponType === "sword") {
+    if (isHero && weaponType === "sword") {
       this.effects.push({ kind: "weapon_swing", x: src.x, y: src.y - 7, r: 15, life: 0.22,
         color: src.d.color, vfxSize: 48, rotation: Math.atan2(target.y - src.y, target.x - src.x) });
       this.effects.push({ kind: "weapon_swing", x: target.x, y: target.y, r: 18, life: 0.2,
@@ -2910,7 +2447,7 @@ export class Engine {
     }
     this.effects.push({ x: src.x, y: src.y, r: 8, life: 0.18, color: d.color, ring: true });
     // Whisperwind: every third shot looses extra arrows at other enemies in range.
-    if (isHero && src.classless && !extra && src.d.gear?.volley > 0) {
+    if (isHero && !extra && src.d.gear?.volley > 0) {
       src.shotCount = (src.shotCount || 0) + 1;
       if (src.shotCount % 3 === 0) {
         const others = this.active
@@ -2922,85 +2459,15 @@ export class Engine {
     return true;
   }
 
+  // Every hit comes from a hero (enemies damage heroes elsewhere).
   _applyHit(p) {
-    if (p.classless) return this._applyClasslessHit(p);
-    const e = p.target;
-    const affinity = C.affinityMultiplier(e, p.damageType);
-    if (affinity <= 0 || (p.magic && e.magicImmune)) {
-      this._float(e.x, e.y - 4, "IMMUNE", "#39FF14");
-      this.effects.push({ kind: "immune", x: e.x, y: e.y, r: 12, life: 0.32, color: "#39FF14" });
-      return;
-    }
-    e.hitUntil = this.time + 0.18;
-
-    const echoMarks = this._takeClasslessEchoMarks(e, p.sourceId);
-    let dmg = p.dmg * affinity;
-    const openingBonus = /^H\d+$/.test(String(p.sourceId || "")) ? this._classlessOpeningBonus(e) : 0;
-    if (openingBonus > 0) {
-      dmg *= 1 + openingBonus;
-      this.effects.push({ kind: "opening", x: e.x, y: e.y, r: 18, life: 0.32, color: "#F59E0B" });
-    }
-    if (String(p.sourceId || "").startsWith("T")) {
-      const slot = Number(String(p.sourceId).slice(1));
-      const tower = this.towers.find((item) => item.slot === slot);
-      if (tower?.ref?.type === "ballista" && e.boss) dmg *= 1 + (tower.d.bossDamagePct || 0);
-    }
-    const crit = this.rng() < (p.critChance ?? C.BASE_CRIT);
-    if (crit) dmg *= (p.critMult ?? C.CRIT_MULT);
-
-    e.hp = Math.max(0, e.hp - dmg);
-    e.dmgBy[p.sourceId] = (e.dmgBy[p.sourceId] || 0) + dmg;
-    let killSourceId = p.sourceId;
-    for (const echo of echoMarks) {
-      if (e.hp > 0 && echo.damage >= e.hp) killSourceId = echo.sourceId;
-      e.hp = Math.max(0, e.hp - echo.damage);
-      e.dmgBy[echo.sourceId] = (e.dmgBy[echo.sourceId] || 0) + echo.damage;
-      this._float(e.x, e.y - 18, `ECHO ${Math.round(echo.damage)}`, "#A78BFA");
-    }
-
-    const affinityColor =
-      affinity >= 1.25 ? "#FF66CC" :
-      affinity <= 0.3 ? "#FF8A00" :
-      affinity <= 0.6 ? "#00F3FF" :
-      "#FFFFFF";
-
-    const label = crit ? "CRIT " + Math.round(dmg) : Math.round(dmg);
-    this._float(e.x, e.y - 4, label, crit ? "#FFE600" : affinityColor);
-    this.effects.push({
-      kind: "hit",
-      x: e.x,
-      y: e.y,
-      r: crit ? 15 : 10,
-      life: crit ? 0.32 : 0.22,
-      color: crit ? "#FFE600" : affinityColor,
-      crit,
-    });
-
-    if (p.perkData?.critHealPct && crit) {
-      const hero = this.heroes.find((h) => "H" + h.i === p.sourceId);
-      if (hero?.alive) hero.ref.hp = Math.min(hero.d.maxHp, hero.ref.hp + dmg * p.perkData.critHealPct);
-    }
-    if (
-      p.perkData?.perkEffects?.cleave > 1
-      && p.damageType === C.DAMAGE_TYPES.KNIGHT_MELEE
-      && !p.cleaveApplied
-    ) {
-      const [secondary] = this._multiTargetTargets(e, p.perkData.perkEffects.cleave);
-      if (secondary) this._applyHit({ ...p, target: secondary, cleaveApplied: true });
-    }
-    if (p.perkData?.multiTarget > 1 && !p.cleaveApplied) {
-      const extra = this._multiTargetTargets(e, p.perkData.multiTarget);
-      for (const other of extra) {
-        this._applyHit({ ...p, target: other, dmg: p.dmg * 0.55, cleaveApplied: true });
-      }
-    }
-    if (e.hp <= 0) this._killEnemy(e, killSourceId);
+    return this._applyClasslessHit(p);
   }
 
   _applyClasslessHit(p) {
     const target = p.target;
     const hero = this.heroes[p.heroIndex];
-    if (!target || target.hp <= 0 || !hero?.classless || !this._isValidClasslessTarget(hero, target)) return false;
+    if (!target || target.hp <= 0 || !hero || !this._isValidClasslessTarget(hero, target)) return false;
     const effects = hero.d.classlessEffects;
     const affinity = p.damageType ? C.affinityMultiplier(target, p.damageType) : 1;
     if (affinity <= 0 || (p.magic && target.magicImmune)) {
@@ -3283,7 +2750,7 @@ export class Engine {
   // cooldown are spent whether it works or fizzles. Returns true if cast.
   castHeroSpell(index, spellId, target = null) {
     const h = this.heroes[index];
-    const spell = h?.classless && this._classlessSpellStatus(h).find((entry) => entry.id === spellId);
+    const spell = h && this._classlessSpellStatus(h).find((entry) => entry.id === spellId);
     if (!spell?.available) return false;
     const foe = (target && target.hp > 0 ? target : null)
       || [h.manualTarget, h.currentTarget].find((enemy) => enemy?.hp > 0 && Math.hypot(enemy.x - h.x, enemy.y - h.y) <= spell.range)
@@ -3654,7 +3121,7 @@ export class Engine {
 
   // targeting tactics driven by the hero's attack configuration
   _selectTarget(h) {
-    if (h.classless) {
+    {
       if (this._isValidClasslessTarget(h, h.currentTarget)) return h.currentTarget;
       h.currentTarget = null;
       let nearest = null;
@@ -3671,59 +3138,6 @@ export class Engine {
       h.currentTarget = nearest;
       return nearest;
     }
-    const cfg = h.ref.attackConfig || "";
-    const melee = h.d.range < 130;
-    const pool = melee
-      ? this.active.filter((e) => Math.hypot(e.x - h.x, e.y - h.y) <= 300)
-      : this.active.filter((e) => Math.hypot(e.x - h.x, e.y - h.y) <= h.d.range);
-    if (!pool.length) return null;
-    const pick = (fn, dir) => pool.reduce((a, b) => (fn(b) * dir > fn(a) * dir ? b : a));
-    if (/Weakest|Assassinate/i.test(cfg)) return pick((e) => e.hp, -1);       // lowest HP
-    if (/Sniper|strongest/i.test(cfg)) return pick((e) => e.maxHp, 1);        // toughest
-    if (/Guard|Defensive/i.test(cfg)) return pick((e) => e.y, 1);            // closest to keep
-    if (h.ref.cls === "mage") {
-      const viable = pool.filter((e) => C.affinityMultiplier(e, C.DAMAGE_TYPES.ARCANE) > 0);
-      if (viable.length) {
-        return viable.reduce((best, e) => {
-          if (!best) return e;
-          const score = C.affinityMultiplier(e, C.DAMAGE_TYPES.ARCANE);
-          const bestScore = C.affinityMultiplier(best, C.DAMAGE_TYPES.ARCANE);
-          return score > bestScore || (score === bestScore && e.hp < best.hp) ? e : best;
-        }, null);
-      }
-      return null;
-    }
-    return pick((e) => Math.hypot(e.x - h.x, e.y - h.y), -1);                // nearest (default)
-  }
-  _support(h, cfg, preferredAlly = null) {
-    const barrier = /Barrier/i.test(cfg);
-    let preferredIsValid = false;
-    if (preferredAlly?.alive && preferredAlly !== h) {
-      const dist = Math.hypot(preferredAlly.x - h.x, preferredAlly.y - h.y);
-      preferredIsValid = dist <= 220;
-    }
-    let ally = preferredIsValid ? preferredAlly : null, worst = Infinity;
-    for (const a of this.heroes) {
-      if (!a.alive || a === h) continue;
-      const dist = Math.hypot(a.x - h.x, a.y - h.y);
-      if (dist > 220) continue;
-      const frac = a.ref.hp / a.d.maxHp;
-      if (!preferredIsValid && frac < worst) { worst = frac; ally = a; }
-    }
-    if (!ally) return false;
-    if (barrier) {
-      const cap = ally.d.maxHp * 0.25;
-      ally.ref.shield = Math.min(cap, (ally.ref.shield || 0) + 28 * h.d.healPower);
-      this._float(ally.x, ally.y - 22, "+SHIELD", "#00F3FF");
-      this.effects.push({ x: ally.x, y: ally.y, r: 24, life: 0.4, color: "#00F3FF" });
-    } else {
-      if (ally.ref.hp >= ally.d.maxHp) return false;
-      const heal = 34 * h.d.healPower;
-      ally.ref.hp = Math.min(ally.d.maxHp, ally.ref.hp + heal);
-      this._float(ally.x, ally.y - 22, "+" + Math.round(heal), "#39FF14");
-      this.effects.push({ x: ally.x, y: ally.y, r: 22, life: 0.4, color: "#39FF14" });
-    }
-    return true;
   }
   _nearestTower(x, y, r) {
     let best = null, bd = r;
@@ -3880,7 +3294,7 @@ export class Engine {
     const dx = h.home.x - h.x, dy = h.home.y - h.y;
     const d = Math.hypot(dx, dy);
     if (d < 2) return;
-    const spd = heroMovementSpeed(h, 150, this.time) * dt;
+    const spd = heroMovementSpeed(h) * dt;
     h.x += (dx / d) * Math.min(spd, d);
     h.y += (dy / d) * Math.min(spd, d);
   }
@@ -3897,7 +3311,6 @@ export class Engine {
       waveCount: this.cb.nextWave ? null : this.waveCount,
       heroes: this.heroes.map((h) => ({ name: h.ref.name, hp: h.ref.hp, maxHp: h.d.maxHp, alive: h.alive, shield: h.ref.shield || 0 })),
       heroAbilities: this.heroes.map((h) => this.getHeroAbilityStatus(h.i)),
-      heroSpells: this.heroes.map((h) => (h.classless ? this._classlessSpellStatus(h) : [])),
       heroSpells: this.heroes.map((h) => this.getHeroSpellStatus(h.i)),
       heroQuickSlots: this.heroes.map((h) => this.getHeroQuickSlots(h.i)),
       boss: (() => { const b = this.active.find((e) => e.boss); return b ? { name: b.name, hp: b.hp, maxHp: b.maxHp } : null; })(),
@@ -4373,7 +3786,7 @@ export class Engine {
       .find((candidate) => candidate && candidate.hp > 0);
     const facingX = target ? target.x - h.x : moving ? dx : 0;
     const facingY = target ? target.y - h.y : moving ? dy : -1;
-    const facing = h.classless ? Math.atan2(facingX, -facingY) : 0;
+    const facing = Math.atan2(facingX, -facingY);
     const action = h.visualActionUntil > this.time ? h.visualActionKind : null;
     const frame = selectHeroSpriteFrame({
       alive: h.alive,
@@ -4386,8 +3799,7 @@ export class Engine {
     const identityColor = isNeonIdentityColor(h.model?.appearance?.identityColor)
       ? h.model.appearance.identityColor : h.d.color || "#22D3EE";
     const accentColor = h.model?.appearance?.accentColor || identityColor;
-    const legacyWeapon = ({ knight: "sword", rouge: "sword", archer: "bow", mage: "staff" })[h.ref?.cls];
-    const weaponType = getEquippedHeroWeaponType(h.model || h.ref) || legacyWeapon;
+    const weaponType = getEquippedHeroWeaponType(h.model);
 
     ctx.save();
     ctx.translate(h.x, h.y);
