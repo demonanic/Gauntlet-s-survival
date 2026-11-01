@@ -45,7 +45,7 @@ These were judged to work well. A PR that weakens one needs an explicit reason t
 | 2 | Enemy-definition coverage tests | F3 (first step) | Done (#29, merged `57f9143`) |
 | 3 | One fight-outcome builder for watched and unattended fights | F5 | Done (#30, merged `c6a07c7`) |
 | 4 | Injectable, seedable randomness | F7 | Done (#31, merged `af594dd`) |
-| 5 | Legacy reachability investigation (no edits) | F2, F9 | Done, in review |
+| 5 | Legacy reachability investigation (no edits) | F2, F9 | Done, in review (#32) |
 | 6 | Remove only verified legacy code, in small PRs | F2, F9 | Not started |
 | 7 | Move fight results and rewards out of `expedition.js` | F6 | Not started |
 | 8 | Split `combat/engine.js`: A renderer, B enemy behavior, C hero abilities and spells, D the rest if justified | F1, F3 | Not started |
@@ -262,4 +262,4 @@ New questions for Sam are listed here until answered.
 | 2026-10-31 | Phase 4 seedable randomness | #31 | 447 tests pass, build passes; unseeded play byte-identical to `c6a07c7`; seeded scripts repeat exactly |
 | 2026-11-01 | Phase 4 review | #31 | Review passed (Sam). README wording for unseeded runs made general (no variance figure). No code change |
 | 2026-11-01 | Phase 4 merged | #31 | Merged `af594dd`; 447 tests pass on `main`; live site redeployed |
-| 2026-11-01 | Phase 5 legacy reachability (no edits) | Pending | Manifest in `docs/LEGACY_MANIFEST.md`; legacy class, tower, revive and fallback paths never ran in tests, tools or a watched fight; a crafted `cls` save crashes |
+| 2026-11-01 | Phase 5 legacy reachability (no edits) | #32 | Manifest in `docs/LEGACY_MANIFEST.md`; legacy class, tower, revive and fallback paths never ran in tests, tools or a watched fight; a crafted `cls` save crashes |
