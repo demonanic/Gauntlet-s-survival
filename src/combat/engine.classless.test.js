@@ -4,8 +4,20 @@ import * as C from "./config";
 import { Engine } from "./engine";
 import { combatVfxAssetId } from "./combatVfx";
 
+// A bare sim for engine-level tests. The engine requires rollDrop and
+// makeMinion (createEncounterSim provides both in the game); these tests check
+// no drops and expect no summons, so a summon here fails loudly.
+function testSim(extra = {}) {
+  return {
+    ...createNewState(),
+    rollDrop: () => null,
+    makeMinion: (type) => { throw new Error(`Unexpected summon (${type}) in an engine test`); },
+    ...extra,
+  };
+}
+
 function makeEngine(options = {}) {
-  const sim = createNewState();
+  const sim = testSim();
   sim.heroes = [createHeroModel({ id: "shared-hero", name: "Aster" })];
   const onEnd = jest.fn();
   const engine = new Engine({ getContext: () => null }, sim, { enemies: [], total: 100 }, { onEnd, ...options });
@@ -15,6 +27,17 @@ function makeEngine(options = {}) {
 function enemy(name, x, y, overrides = {}) {
   return { name, type: "targetDummy", hp: 500, maxHp: 500, x, y, speed: 0, lane: -1, floats: true, dmgBy: {}, affinities: {}, ...overrides };
 }
+
+describe("the encounter sim", () => {
+  test("must supply loot and summons: the engine has no legacy fallback", () => {
+    const bare = () => ({ ...createNewState(), heroes: [createHeroModel({ id: "h" })] });
+    const build = (sim) => () => new Engine({ getContext: () => null }, sim, { enemies: [], total: 1 });
+    expect(build(bare())).toThrow(/sim\.rollDrop/);
+    expect(build({ ...bare(), rollDrop: () => null })).toThrow(/sim\.makeMinion/);
+    expect(build({ ...bare(), makeMinion: () => ({}) })).toThrow(/sim\.rollDrop/);
+    expect(build(testSim({ heroes: [createHeroModel({ id: "h" })] }))).not.toThrow();
+  });
+});
 
 describe("bounded classless combat adapter", () => {
   test("uses the approved shared profile without a legacy class or resource pool", () => {
@@ -52,7 +75,7 @@ describe("bounded classless combat adapter", () => {
     const allocated = createHeroModel({ id: "allocated" });
     allocated.combat.stats.attack = 11;
     allocated.combat.stats.agility = 12;
-    const refreshed = new Engine({ getContext: () => null }, { ...createNewState(), heroes: [allocated] }, { enemies: [], total: 1 });
+    const refreshed = new Engine({ getContext: () => null }, testSim({ heroes: [allocated] }), { enemies: [], total: 1 });
     expect(refreshed.heroes[0].d.attack).toBe(17);
     expect(refreshed.heroes[0].d.dodge).toBeCloseTo(0.06);
   });
@@ -60,7 +83,7 @@ describe("bounded classless combat adapter", () => {
   test("implemented universal passive nodes change hits, crits, attack speed, and Shared Strike cooldown", () => {
     const hero = createHeroModel({ id: "passive-build" });
     hero.progression.ownedNodeIds = ["V1", "P1", "P2a", "S1", "T1", "F1"];
-    const engine = new Engine({ getContext: () => null }, { ...createNewState(), heroes: [hero] }, { enemies: [], total: 1 });
+    const engine = new Engine({ getContext: () => null }, testSim({ heroes: [hero] }), { enemies: [], total: 1 });
     expect(engine.heroes[0].d.attack).toBe(16);
     expect(engine.heroes[0].d.rate).toBeCloseTo(1.05 / 1.05);
     expect(engine.heroes[0].d.critChance).toBeCloseTo(0.13);
@@ -77,7 +100,7 @@ describe("bounded classless combat adapter", () => {
   test("conditional damage passives apply once through the shared direct-hit pipeline", () => {
     const hero = createHeroModel({ id: "conditional-build" });
     hero.progression.ownedNodeIds = ["V2", "V2a", "P2", "S3"];
-    const engine = new Engine({ getContext: () => null }, { ...createNewState(), heroes: [hero] }, { enemies: [], total: 1 });
+    const engine = new Engine({ getContext: () => null }, testSim({ heroes: [hero] }), { enemies: [], total: 1 });
     const target = enemy("conditional target", engine.heroes[0].x + 30, engine.heroes[0].y, { hp: 1000, maxHp: 1000 });
     engine.active = [target];
     const random = jest.spyOn(Math, "random").mockReturnValue(0.5);
@@ -96,7 +119,7 @@ describe("bounded classless combat adapter", () => {
   test("control passives apply documented slow/root cadence and boss duration", () => {
     const hero = createHeroModel({ id: "control-build" });
     hero.progression.ownedNodeIds = ["T1", "T2", "N1", "N2"];
-    const engine = new Engine({ getContext: () => null }, { ...createNewState(), heroes: [hero] }, { enemies: [], total: 1 });
+    const engine = new Engine({ getContext: () => null }, testSim({ heroes: [hero] }), { enemies: [], total: 1 });
     const target = enemy("boss", engine.heroes[0].x + 30, engine.heroes[0].y, { boss: true });
     engine.active = [target];
     const random = jest.spyOn(Math, "random").mockReturnValue(0.5);
@@ -112,7 +135,7 @@ describe("bounded classless combat adapter", () => {
     const owner = createHeroModel({ id: "opening-owner" });
     owner.progression.ownedNodeIds = ["T1", "T2", "T3"];
     const ally = createHeroModel({ id: "opening-ally" });
-    const engine = new Engine({ getContext: () => null }, { ...createNewState(), heroes: [owner, ally] }, { enemies: [], total: 1 });
+    const engine = new Engine({ getContext: () => null }, testSim({ heroes: [owner, ally] }), { enemies: [], total: 1 });
     const target = enemy("controlled", engine.heroes[0].x + 20, engine.heroes[0].y, { hp: 1000, maxHp: 1000 });
     engine.active = [target];
     const random = jest.spyOn(Math, "random").mockReturnValue(0.5);
@@ -143,7 +166,7 @@ describe("bounded classless combat adapter", () => {
     const secondOwner = createHeroModel({ id: "formation-owner-b" });
     secondOwner.progression.ownedNodeIds = ["T1", "T2", "T3a"];
     const engine = new Engine({ getContext: () => null },
-      { ...createNewState(), heroes: [recipient, firstOwner, secondOwner] }, { enemies: [], total: 1 });
+      testSim({ heroes: [recipient, firstOwner, secondOwner] }), { enemies: [], total: 1 });
     const [protectedHero, ownerA, ownerB] = engine.heroes;
     protectedHero.x = 100;
     ownerA.x = 105;
@@ -167,7 +190,7 @@ describe("bounded classless combat adapter", () => {
     owner.progression.ownedNodeIds = ["C1", "C2", "P1", "P2", "T1", "T2", "N1", "N2"];
     const ally = createHeroModel({ id: "echo-ally" });
     const engine = new Engine({ getContext: () => null },
-      { ...createNewState(), heroes: [owner, ally] }, { enemies: [], total: 1 });
+      testSim({ heroes: [owner, ally] }), { enemies: [], total: 1 });
     const first = enemy("echo-first", engine.heroes[0].x + 20, engine.heroes[0].y, { hp: 1000, maxHp: 1000 });
     const second = enemy("echo-cooldown", engine.heroes[0].x + 30, engine.heroes[0].y, { hp: 1000, maxHp: 1000 });
     const third = enemy("echo-ready", engine.heroes[0].x + 40, engine.heroes[0].y, { hp: 1000, maxHp: 1000 });
@@ -213,7 +236,7 @@ describe("bounded classless combat adapter", () => {
   test("classless evasion perks do not evade area attacks", () => {
     const hero = createHeroModel({ id: "evasion-build" });
     hero.progression.ownedNodeIds = ["S1", "S2", "I1"];
-    const engine = new Engine({ getContext: () => null }, { ...createNewState(), heroes: [hero] }, { enemies: [], total: 1 });
+    const engine = new Engine({ getContext: () => null }, testSim({ heroes: [hero] }), { enemies: [], total: 1 });
     const runtime = engine.heroes[0];
     expect(engine._heroDodgeChance(runtime, true)).toBeCloseTo(runtime.d.dodge);
     expect(engine._heroDodgeChance(runtime, false)).toBeCloseTo(runtime.d.dodge + 0.16);
@@ -239,7 +262,7 @@ describe("bounded classless combat adapter", () => {
   });
 
   test("Interpose protects the lowest-HP nearby ally for five seconds and respects shared mitigation cap", () => {
-    const sim = createNewState();
+    const sim = testSim();
     const caster = createHeroModel({ id: "interpose-caster" });
     caster.progression.ownedNodeIds = ["W3"];
     const firstAlly = createHeroModel({ id: "interpose-first" });
@@ -264,7 +287,7 @@ describe("bounded classless combat adapter", () => {
   });
 
   test("Interpose falls back to its caster when no other living ally is in range", () => {
-    const sim = createNewState();
+    const sim = testSim();
     const caster = createHeroModel({ id: "interpose-solo" });
     caster.progression.ownedNodeIds = ["W3"];
     const distantAlly = createHeroModel({ id: "interpose-distant" });
@@ -279,7 +302,7 @@ describe("bounded classless combat adapter", () => {
   });
 
   test("Blood Price charges current HP only after a successful active use and buffs its damage", () => {
-    const sim = createNewState();
+    const sim = testSim();
     const model = createHeroModel({ id: "blood-price" });
     model.progression.ownedNodeIds = ["H2"];
     sim.heroes = [model];
@@ -307,7 +330,7 @@ describe("bounded classless combat adapter", () => {
   });
 
   test("Crimson Covenant doubles weapon lifesteal and permits one lethal save per 60 seconds", () => {
-    const sim = createNewState();
+    const sim = testSim();
     const model = createHeroModel({ id: "crimson-covenant" });
     model.progression.ownedNodeIds = ["H1", "H3"];
     sim.heroes = [model];
@@ -374,7 +397,7 @@ describe("bounded classless combat adapter", () => {
   test("classless Execution enforces unlock, range, health condition, pipeline, and cooldown", () => {
     const hero = createHeroModel({ id: "execution-build" });
     hero.progression.ownedNodeIds = ["P1", "P2", "P3"];
-    const engine = new Engine({ getContext: () => null }, { ...createNewState(), heroes: [hero] }, { enemies: [], total: 1 });
+    const engine = new Engine({ getContext: () => null }, testSim({ heroes: [hero] }), { enemies: [], total: 1 });
     const target = enemy("execution target", engine.heroes[0].x + 30, engine.heroes[0].y, { hp: 170, maxHp: 500 });
     engine.active = [target];
     const random = jest.spyOn(Math, "random").mockReturnValue(0.5);
@@ -396,7 +419,7 @@ describe("bounded classless combat adapter", () => {
   test("Killshot requires a target below 40 percent and refunds its cooldown on a kill", () => {
     const hero = createHeroModel({ id: "killshot-build" });
     hero.progression.ownedNodeIds = ["P1", "P2a", "P3a"];
-    const engine = new Engine({ getContext: () => null }, { ...createNewState(), heroes: [hero] }, { enemies: [], total: 1 });
+    const engine = new Engine({ getContext: () => null }, testSim({ heroes: [hero] }), { enemies: [], total: 1 });
     const target = enemy("killshot target", engine.heroes[0].x + 30, engine.heroes[0].y, { hp: 30, maxHp: 500 });
     engine.active = [target];
     const random = jest.spyOn(Math, "random").mockReturnValue(0.5);
@@ -412,7 +435,7 @@ describe("bounded classless combat adapter", () => {
   test("Cleaving Strike hits its selected target and nearest adjacent enemy through the weapon pipeline", () => {
     const hero = createHeroModel({ id: "cleaving-build" });
     hero.progression.ownedNodeIds = ["V1", "V2", "V3"];
-    const engine = new Engine({ getContext: () => null }, { ...createNewState(), heroes: [hero] }, { enemies: [], total: 1 });
+    const engine = new Engine({ getContext: () => null }, testSim({ heroes: [hero] }), { enemies: [], total: 1 });
     const runtimeHero = engine.heroes[0];
     const primary = enemy("primary", runtimeHero.x + 30, runtimeHero.y);
     const nearest = enemy("nearest adjacent", runtimeHero.x + 35, runtimeHero.y, { hp: 200, maxHp: 200 });
@@ -446,7 +469,7 @@ describe("bounded classless combat adapter", () => {
     nearMax.combat.hp = 295;
     distant.combat.hp = 200;
     dead.combat.hp = 0;
-    const sim = { ...createNewState(), heroes: [hero, ally, nearMax, distant, dead] };
+    const sim = testSim({ heroes: [hero, ally, nearMax, distant, dead] });
     const engine = new Engine({ getContext: () => null }, sim, { enemies: [], total: 1 });
     const [source, nearby, almostFull, far, fallen] = engine.heroes;
     source.ref.hp = 250;
@@ -473,7 +496,7 @@ describe("bounded classless combat adapter", () => {
     const distant = createHeroModel({ id: "war-cry-distant" });
     const dead = createHeroModel({ id: "war-cry-dead" });
     dead.combat.hp = 0;
-    const sim = { ...createNewState(), heroes: [hero, ally, distant, dead] };
+    const sim = testSim({ heroes: [hero, ally, distant, dead] });
     const engine = new Engine({ getContext: () => null }, sim, { enemies: [], total: 1 });
     const [source, nearby, far, fallen] = engine.heroes;
     nearby.x = source.x + 7;
@@ -504,7 +527,7 @@ describe("bounded classless combat adapter", () => {
   test("classless active ability failure does not charge cooldown, HP, or resource", () => {
     const hero = createHeroModel({ id: "failed-ability-build" });
     hero.progression.ownedNodeIds = ["P1", "P2", "P3"];
-    const engine = new Engine({ getContext: () => null }, { ...createNewState(), heroes: [hero] }, { enemies: [], total: 1 });
+    const engine = new Engine({ getContext: () => null }, testSim({ heroes: [hero] }), { enemies: [], total: 1 });
     const target = enemy("healthy target", engine.heroes[0].x + 30, engine.heroes[0].y, { hp: 200, maxHp: 500 });
     engine.active = [target];
     expect(engine.getHeroAbilityStatus(0).find(({ id }) => id === "P3")).toMatchObject({ available: false, reason: "target_health" });
@@ -520,7 +543,7 @@ describe("bounded classless combat adapter", () => {
     const hero = createHeroModel({ id: "smoke-build" });
     hero.progression.ownedNodeIds = ["S1", "S2", "S2a"];
     const ally = createHeroModel({ id: "smoke-ally" });
-    const engine = new Engine({ getContext: () => null }, { ...createNewState(), heroes: [hero, ally] }, { enemies: [], total: 1 });
+    const engine = new Engine({ getContext: () => null }, testSim({ heroes: [hero, ally] }), { enemies: [], total: 1 });
     const [smoke, other] = engine.heroes;
     const target = enemy("direct target", smoke.x + 20, smoke.y - 30);
     engine.active = [target];
@@ -539,7 +562,7 @@ describe("bounded classless combat adapter", () => {
   test("Vanish bonus is consumed once by the next direct weapon hit and obeys the situational cap", () => {
     const hero = createHeroModel({ id: "vanish-build" });
     hero.progression.ownedNodeIds = ["S1", "S2", "S3", "S3a"];
-    const engine = new Engine({ getContext: () => null }, { ...createNewState(), heroes: [hero] }, { enemies: [], total: 1 });
+    const engine = new Engine({ getContext: () => null }, testSim({ heroes: [hero] }), { enemies: [], total: 1 });
     const runtimeHero = engine.heroes[0];
     const first = enemy("first", runtimeHero.x + 30, runtimeHero.y, { hp: 500, maxHp: 500 });
     const second = enemy("second", runtimeHero.x + 40, runtimeHero.y, { hp: 500, maxHp: 500 });
@@ -560,7 +583,7 @@ describe("bounded classless combat adapter", () => {
     const hidden = createHeroModel({ id: "hidden" });
     hidden.progression.ownedNodeIds = ["S1", "S2", "S2a"];
     const visible = createHeroModel({ id: "visible" });
-    const engine = new Engine({ getContext: () => null }, { ...createNewState(), heroes: [hidden, visible] }, { enemies: [], total: 1 });
+    const engine = new Engine({ getContext: () => null }, testSim({ heroes: [hidden, visible] }), { enemies: [], total: 1 });
     const [smoke, ally] = engine.heroes;
     const attacker = { type: "darkElf", x: smoke.x, y: smoke.y - 40, damage: 20, attackRange: 245 };
     engine.useHeroAbility(0, "S2a");
@@ -586,7 +609,7 @@ describe("bounded classless combat adapter", () => {
   test("Phantom Strike teleports behind the target and uses the weapon pipeline with conditional damage", () => {
     const hero = createHeroModel({ id: "phantom-build" });
     hero.progression.ownedNodeIds = ["I1", "I2", "I3"];
-    const engine = new Engine({ getContext: () => null }, { ...createNewState(), heroes: [hero] }, { enemies: [], total: 1 });
+    const engine = new Engine({ getContext: () => null }, testSim({ heroes: [hero] }), { enemies: [], total: 1 });
     const runtimeHero = engine.heroes[0];
     const target = enemy("unengaged", runtimeHero.x + 60, runtimeHero.y - 20, { hp: 500, maxHp: 500 });
     engine.active = [target];
@@ -604,7 +627,7 @@ describe("bounded classless combat adapter", () => {
   test("Phantom Strike omits its conditional bonus when the enemy is targeting the caster", () => {
     const hero = createHeroModel({ id: "phantom-engaged-build" });
     hero.progression.ownedNodeIds = ["I1", "I2", "I3"];
-    const engine = new Engine({ getContext: () => null }, { ...createNewState(), heroes: [hero] }, { enemies: [], total: 1 });
+    const engine = new Engine({ getContext: () => null }, testSim({ heroes: [hero] }), { enemies: [], total: 1 });
     const runtimeHero = engine.heroes[0];
     const target = enemy("engaged", runtimeHero.x + 20, runtimeHero.y - 20,
       { type: "lieutenant", hp: 500, maxHp: 500 });
@@ -661,7 +684,7 @@ describe("bounded classless combat adapter", () => {
     wounded.combat.hp = 250;
     dead.combat.hp = 0;
     const engine = new Engine({ getContext: () => null },
-      { ...createNewState(), heroes: [caster, wounded, full, dead] }, { enemies: [], total: 1 });
+      testSim({ heroes: [caster, wounded, full, dead] }), { enemies: [], total: 1 });
     engine.heroes[1].x = engine.heroes[0].x + 5;
     engine.heroes[2].x = engine.heroes[0].x + 6;
     engine.heroes[3].x = engine.heroes[0].x + 7;

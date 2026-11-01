@@ -9,8 +9,7 @@ import { heroLuck, luckEffects } from "./luck";
 import { ELEMENTS, MAGIC, castSuccessChance, knownSpells, maxMana as spellMaxMana, spellPower, spellRadius } from "./spells";
 import { BONDS, memorialDamage } from "../game/bonds";
 import * as C from "./config";
-import { heroDerived, makeSingleEnemy } from "./logic";
-import { rollEquipmentDrop } from "./equipment";
+import { heroDerived } from "./logic";
 import { unlockedAbilities, getAbility, MAGE_SPELLS } from "./perks";
 import { HERO_BASELINE, statDefense } from "./heroModel";
 import { classlessCombatEffects, classlessMaxHp } from "./classlessCombatEffects";
@@ -212,6 +211,11 @@ export class Engine {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
     this.sim = sim;              // cloned fragment (mutated)
+    // The encounter sim supplies loot and summons (createEncounterSim). There
+    // is no fallback: a sim without them is a bug, so say so at once.
+    for (const hook of ["rollDrop", "makeMinion"]) {
+      if (typeof sim?.[hook] !== "function") throw new TypeError(`Engine needs sim.${hook}; build the sim with createEncounterSim`);
+    }
     // Every random roll in the fight (game/random.js). A sim made with a seeded
     // rng gives the same fight for the same inputs; otherwise Math.random.
     this.rng = typeof sim.rng === "function" ? sim.rng : defaultRandom;
@@ -1360,7 +1364,7 @@ export class Engine {
 
   // Gauntlet scales summoned minions to the encounter through sim.makeMinion.
   _summon(type) {
-    const minion = this.sim.makeMinion ? this.sim.makeMinion(type) : makeSingleEnemy(this.sim, type);
+    const minion = this.sim.makeMinion(type);
     minion.summoned = true;
     this.injectEnemy(minion);
   }
@@ -3570,10 +3574,8 @@ export class Engine {
     }
     this.sim.gold += Math.round(tier.gold * (1 + (killer?.d?.traits?.goldFind || 0)));
 
-    // Equipment drops are deposited directly into the community Vault.
-    // The drop/rarity economy is tuned separately from the verified gear stats.
-    // Gauntlet supplies its own loot table through sim.rollDrop (gear or consumables).
-    const drop = this.sim.rollDrop ? this.sim.rollDrop(e) : rollEquipmentDrop(e, this.sim.wave || 1);
+    // Gauntlet's loot table (gear or consumables) comes from sim.rollDrop.
+    const drop = this.sim.rollDrop(e);
     if (drop) this.sim.vault.push(drop);
 
     // XP attribution
