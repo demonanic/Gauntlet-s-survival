@@ -108,3 +108,12 @@ Only with Sam's approval of each step:
   5. prune `config.js` (items 17–20).
 
 Every Phase 6 PR keeps the Phase 2 enemy-coverage, Phase 3 fight-outcome and Phase 4 seed tests green. Combat changes also re-check the unseeded byte-identity probe from Phase 4.
+
+## Progress
+
+| Step | Items | Status |
+| --- | --- | --- |
+| 6A | 4, 5 | Done, in review: the engine requires `sim.makeMinion` and `sim.rollDrop`; the `makeSingleEnemy` and `rollEquipmentDrop` fallbacks and their imports are gone; the hand-built test sims supply both |
+| 6B | 1, 3 | Not started. Loading will drop a stray `cls` first (Sam's decision) |
+| 6C | 6 | Not started |
+| 6D | 7–20 | Not started |

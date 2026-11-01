@@ -45,8 +45,8 @@ These were judged to work well. A PR that weakens one needs an explicit reason t
 | 2 | Enemy-definition coverage tests | F3 (first step) | Done (#29, merged `57f9143`) |
 | 3 | One fight-outcome builder for watched and unattended fights | F5 | Done (#30, merged `c6a07c7`) |
 | 4 | Injectable, seedable randomness | F7 | Done (#31, merged `af594dd`) |
-| 5 | Legacy reachability investigation (no edits) | F2, F9 | Done, in review (#32) |
-| 6 | Remove only verified legacy code, in small PRs | F2, F9 | Not started |
+| 5 | Legacy reachability investigation (no edits) | F2, F9 | Done (#32, merged `50bdf0f`) |
+| 6 | Remove only verified legacy code, in small PRs | F2, F9 | In progress: 6A done, in review |
 | 7 | Move fight results and rewards out of `expedition.js` | F6 | Not started |
 | 8 | Split `combat/engine.js`: A renderer, B enemy behavior, C hero abilities and spells, D the rest if justified | F1, F3 | Not started |
 | 9 | One definition per enemy; regional spawn data stays in regions | F3 | Not started |
@@ -153,7 +153,7 @@ Findings (no change made):
 - Gear and hero ids include the clock, so two seeded runs give the same results but different ids.
 - Observed while choosing test cases: three level-10 heroes in starter gear lost or retreated in 12 of 12 seeded Boneyard trips, because the threat system (PR #25) scales enemies up for an over-levelled party. This is existing balance, not changed here; noted for Sam in case it isn't intended.
 
-### Phase 5: Legacy reachability (no edits) (done, in review)
+### Phase 5: Legacy reachability (no edits) (done)
 
 The full manifest, with evidence for every item, is in `docs/LEGACY_MANIFEST.md`. No code was changed in Phase 5; runtime counters were added only in a throwaway copy of the repository and never committed.
 
@@ -174,14 +174,31 @@ The full manifest, with evidence for every item, is in `docs/LEGACY_MANIFEST.md`
   Only one legacy path ran: the `rollEquipmentDrop` fallback, twice, in `engine.classless.test.js`, whose hand-built sims have no `rollDrop`.
 - [x] Removal manifest: 21 items, each classified (LIVE, TEST-ONLY, FALLBACK or UNREACHABLE; none TOOLING-ONLY). None is FUTURE-INTENT UNKNOWN, because `docs/DESIGN.md` ("Second trim pass") already records the intent to remove the tower, castle and economy code. The manifest also suggests a Phase 6 order: 6A fallbacks, 6B class heroes, 6C test fixtures, 6D dead code in five groups.
 - [x] No code changed; full suite still 31 files, 447 tests; production build succeeded.
-- [ ] Sam reviews the manifest and decides the open questions below before any Phase 6 step.
+- [x] Sam reviewed and merged PR #32 (`50bdf0f`) and decided both open questions (see Decisions). Phase 6 proceeds one step at a time, starting with 6A only.
 
 ### Phase 6: Remove verified legacy code
 
-- [ ] 6A Remove unused fallbacks (fail loudly where a dependency is required).
-- [ ] 6B Remove class-hero combat branches, only after proving every hero is classless.
-- [ ] 6C Move the few live helpers to focused modules.
-- [ ] 6D+ Delete orphaned files and constants, one group per PR.
+The steps follow `docs/LEGACY_MANIFEST.md`. Each step is its own PR and starts only when Sam says go.
+
+- [x] **6A: remove the sim fallbacks** (manifest items 4 and 5), done, in review.
+  - The engine no longer falls back to the legacy `makeSingleEnemy` (`logic.js`) or `rollEquipmentDrop` (`equipment.js`). Its constructor now requires `sim.makeMinion` and `sim.rollDrop` and throws a clear `TypeError` naming the missing one. Both imports are gone, so `equipment.js` is now imported only by `logic.js`.
+  - Both production paths (`simulate.js`, `Battle.jsx`) already build sims with `createEncounterSim`, which supplies both.
+  - `src/combat/engine.classless.test.js`, the only file with hand-built sims (25, from `createNewState`), now builds them with a `testSim()` helper. Its `rollDrop` drops nothing, which changes no assertion because no test there checks drops. Its `makeMinion` throws, so an unexpected summon fails loudly.
+  - New test: the engine refuses a sim missing either function, naming it, and accepts one with both.
+  - Evidence:
+    - Full suite: 31 files, 448 tests passed (1 new). That includes the Phase 2 enemy coverage, Phase 3 fight-outcome parity and Phase 4 seed tests.
+    - Production build succeeded.
+    - The Phase 4 probe (`Math.random` seeded identically, four unattended trips, three fights, a shop rotation) gave byte-identical output on `main` (`50bdf0f`) and this branch.
+    - A watched fight in the browser (`npm run dev`) won, 3 slain, +12g, saved, no page errors.
+  - [ ] Sam merges the PR.
+- [ ] **6B: remove the class-hero paths** (items 1 and 3). First, save loading drops a stray `cls` field (Sam's decision), with a save-fixture test. Then the class branches go.
+- [ ] **6C: replace the legacy test fixtures** (item 6): `createNewState` and `createHero`.
+- [ ] **6D: delete dead code, one group per PR:**
+  1. towers, the unused sim fields and `xpGains.towers` (items 11, 14, 16);
+  2. the revive API and sim morale (items 12, 13);
+  3. the `zombie` sprite (item 15);
+  4. the legacy modules (items 7–10);
+  5. unused `config.js` exports (items 17–20).
 - [ ] Each PR: imports resolve, tests and build pass, scenarios run, watched combat and save loading still work.
 
 ### Phase 7: Fight results out of `expedition.js`
@@ -235,10 +252,12 @@ Recorded in Phase 0 at `471f8fd`. Scenario results vary by about ±15% at 24 tri
 
 ## Open decisions
 
-New questions for Sam are listed here until answered.
+New questions for Sam are listed here until answered. None open right now.
 
-1. **Saves with a `cls` hero (Phase 6B).** No real save has one, but a hand-edited save that does crashes the first fight today. When the class branches go, should the loader simply drop `cls` so such a hero loads as an ordinary classless hero (recommended), or leave loading as it is?
-2. **No error boundary.** Any error while rendering, such as an engine error on the Battle screen, blanks the whole page. This also relates to the Phase 3 finding that an engine error in an unattended fight escapes `tick()`. Should a small error boundary around the Battle screen be added, and if so in which phase? It is a behavior change, so it is not part of Phase 5 or 6.
+Decisions (Sam, 2026-11-01, reviewing Phase 5):
+
+1. **Saves with a `cls` hero:** save loading will drop an unexpected `cls` field, so such a hero loads as an ordinary classless hero. Done in Phase 6B, with a save-fixture test, just before the class branches are removed.
+2. **Error boundary:** not part of Phase 6. It will be a separate reliability PR with its own design: what the player sees, whether the fight can be retried, keeping the save safe, copying an error report, and what an unattended fight should do on an engine error (the Phase 3 finding).
 
 ## Known unknowns
 
@@ -264,3 +283,5 @@ New questions for Sam are listed here until answered.
 | 2026-11-01 | Phase 4 merged | #31 | Merged `af594dd`; 447 tests pass on `main`; live site redeployed |
 | 2026-11-01 | Phase 5 legacy reachability (no edits) | #32 | Manifest in `docs/LEGACY_MANIFEST.md`; legacy class, tower, revive and fallback paths never ran in tests, tools or a watched fight; a crafted `cls` save crashes |
 | 2026-11-01 | Phase 5 scenario evidence | #32 | Both instrumented scenario runs (idle common, active rare; all 7 groups) recorded 0 legacy hits |
+| 2026-11-01 | Phase 5 merged | #32 | Merged `50bdf0f`; both open decisions settled |
+| 2026-11-01 | Phase 6A sim fallbacks removed | Pending | 448 tests pass, build passes, unseeded play byte-identical to `50bdf0f`, watched fight checked |
