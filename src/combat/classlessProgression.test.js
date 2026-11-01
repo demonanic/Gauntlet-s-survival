@@ -1,5 +1,5 @@
 import { allocateClasslessStat, awardClasslessXp, CANONICAL_NODES, getCanonicalNode, purchaseClasslessNode, purchaseNode } from "./classlessProgression";
-import { createHero } from "./logic";
+import { createHeroModel } from "./heroModel";
 
 const CANONICAL_IDS = [
   "V1", "V2", "V2a", "V3", "V3a", "W1", "W2", "W2a", "W3", "W3a",
@@ -71,7 +71,7 @@ describe("purchaseNode", () => {
   });
 
   test("classless purchase adapter changes only progression after validation", () => {
-    const hero = createHero();
+    const hero = createHeroModel();
     hero.progression.ap = 1;
     const originalIdentity = hero.identity;
     const originalCombat = hero.combat;
@@ -83,17 +83,17 @@ describe("purchaseNode", () => {
   });
 
   test("Precision active nodes unlock only after their canonical purchase validates", () => {
-    const hero = createHero();
+    const hero = createHeroModel();
     hero.progression = { level: 10, xp: 9000, ap: 3, sp: 9, ownedNodeIds: ["P1", "P2"] };
     expect(purchaseClasslessNode(hero, "P3")).toMatchObject({ ok: true, progression: { ap: 0, ownedNodeIds: ["P1", "P2", "P3"] } });
     expect(hero.progression.ownedNodeIds).toEqual(["P1", "P2"]);
-    const secondAbility = createHero();
+    const secondAbility = createHeroModel();
     secondAbility.progression = { level: 10, xp: 9000, ap: 3, sp: 9, ownedNodeIds: ["P1", "P2a"] };
     expect(purchaseClasslessNode(secondAbility, "P3a")).toMatchObject({ ok: true, progression: { ap: 0, ownedNodeIds: ["P1", "P2a", "P3a"] } });
   });
 
   test("Vanguard active nodes unlock only after their canonical purchase validates", () => {
-    const hero = createHero();
+    const hero = createHeroModel();
     hero.progression = { level: 10, xp: 9000, ap: 6, sp: 9, ownedNodeIds: ["V1", "V2"] };
     const cleave = purchaseClasslessNode(hero, "V3");
     expect(cleave).toMatchObject({ ok: true, progression: { ap: 3, ownedNodeIds: ["V1", "V2", "V3"] } });
@@ -109,7 +109,7 @@ describe("purchaseNode", () => {
     [{ level: 1, ap: 1, ownedNodeIds: [] }, "missing-node", "unknown_node"],
     [{ level: 10, ap: 2, ownedNodeIds: ["H1", "H2"] }, "H3", "insufficient_ap"],
   ])("classless adapter preserves the hero when purchase is rejected", (progression, nodeId, reason) => {
-    const hero = createHero();
+    const hero = createHeroModel();
     hero.progression = { ...progression };
     const before = JSON.stringify(hero);
     expect(purchaseClasslessNode(hero, nodeId)).toEqual({ ok: false, reason });
@@ -117,11 +117,13 @@ describe("purchaseNode", () => {
   });
 
   test("rejects legacy heroes at the classless adapter boundary", () => {
-    expect(purchaseClasslessNode(createHero("knight"), "V1")).toEqual({ ok: false, reason: "not_classless_hero" });
+    // A Demonanic class hero, with the fields a hero-model hero has, is still refused.
+    const classHero = { ...createHeroModel(), cls: "knight" };
+    expect(purchaseClasslessNode(classHero, "V1")).toEqual({ ok: false, reason: "not_classless_hero" });
   });
 
   test("purchases implemented Echo and Ward (range 150, the owner's call)", () => {
-    const hero = createHero();
+    const hero = createHeroModel();
     hero.progression = { level: 5, xp: 0, ap: 4, sp: 4, ownedNodeIds: ["C1"] };
     expect(purchaseClasslessNode(hero, "C2")).toMatchObject({ ok: true,
       progression: { ap: 2, ownedNodeIds: ["C1", "C2"] } });
@@ -130,11 +132,11 @@ describe("purchaseNode", () => {
   });
 
   test("permits only the newly registered Interpose and Blood Price/Covenant effects after canonical prerequisites", () => {
-    const warden = createHero();
+    const warden = createHeroModel();
     warden.progression = { level: 10, xp: 0, ap: 6, sp: 0, ownedNodeIds: ["W1", "W2"] };
     expect(purchaseClasslessNode(warden, "W3")).toMatchObject({ ok: true, progression: { ownedNodeIds: ["W1", "W2", "W3"] } });
 
-    const hemomancer = createHero();
+    const hemomancer = createHeroModel();
     hemomancer.progression = { level: 10, xp: 0, ap: 6, sp: 0, ownedNodeIds: ["H1", "H2"] };
     expect(purchaseClasslessNode(hemomancer, "H3")).toMatchObject({ ok: true, progression: { ownedNodeIds: ["H1", "H2", "H3"] } });
   });
@@ -148,7 +150,7 @@ describe("purchaseNode", () => {
   });
 
   test("classless stat allocation spends one SP on one combat attribute atomically", () => {
-    const hero = createHero();
+    const hero = createHeroModel();
     hero.progression.sp = 1;
     const result = allocateClasslessStat(hero, "attack");
     expect(result.ok).toBe(true);
