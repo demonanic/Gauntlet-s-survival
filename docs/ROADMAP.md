@@ -44,8 +44,8 @@ These were judged to work well. A PR that weakens one needs an explicit reason t
 | 1 | Versioned save upgrades; an unreadable save is never silently overwritten | F4 | Done (#28, merged `30731da`) |
 | 2 | Enemy-definition coverage tests | F3 (first step) | Done (#29, merged `57f9143`) |
 | 3 | One fight-outcome builder for watched and unattended fights | F5 | Done (#30, merged `c6a07c7`) |
-| 4 | Injectable, seedable randomness | F7 | Done, in review (#31) |
-| 5 | Legacy reachability investigation (no edits) | F2, F9 | Not started |
+| 4 | Injectable, seedable randomness | F7 | Done (#31, merged `af594dd`) |
+| 5 | Legacy reachability investigation (no edits) | F2, F9 | Done, in review |
 | 6 | Remove only verified legacy code, in small PRs | F2, F9 | Not started |
 | 7 | Move fight results and rewards out of `expedition.js` | F6 | Not started |
 | 8 | Split `combat/engine.js`: A renderer, B enemy behavior, C hero abilities and spells, D the rest if justified | F1, F3 | Not started |
@@ -129,7 +129,7 @@ Findings for later phases (no change made):
 - The end-to-end parity fights have no Clutch moments, spell casts or nemesis results; those fields are covered by the unit tests with a full synthetic result.
 - On the Battle screen at 8×, the throttled HUD can still read "1 enemies left" behind the VICTORY panel. Existing display behavior, not touched here.
 
-### Phase 4: Seedable randomness (done, in review)
+### Phase 4: Seedable randomness (done)
 
 - [x] Inventoried every direct `Math.random` call and every call that skipped an available `rng` (live code, before the change):
   - `combat/engine.js`: 15 direct calls, and no way to pass a random source in.
@@ -144,7 +144,7 @@ Findings for later phases (no change made):
 - [x] Probabilities unchanged: with `Math.random` seeded identically, the previous `main` (`c6a07c7`, in a separate checkout) and this branch produced byte-identical results for four unattended trips (Gutter win, Boneyard and Frostfang retreats with nemeses, a Rift return), three direct fights (a defeat, one that hit the 600 s limit, a Rift return) and a shop rotation. In play every roll still calls `Math.random` at the same moment and in the same order.
 - [x] The Phase 3 parity tests now give both paths the same `rng`, as the game does.
 - [x] Full suite: 31 files, 447 tests passed (13 new). Production build succeeded.
-- [ ] Sam merges the PR.
+- [x] Sam merged PR #31 (`af594dd`), with the README wording change from review; 447 tests pass on `main` after the merge, and the live site redeployed with it.
 
 Findings (no change made):
 
@@ -153,13 +153,28 @@ Findings (no change made):
 - Gear and hero ids include the clock, so two seeded runs give the same results but different ids.
 - Observed while choosing test cases: three level-10 heroes in starter gear lost or retreated in 12 of 12 seeded Boneyard trips, because the threat system (PR #25) scales enemies up for an over-levelled party. This is existing balance, not changed here; noted for Sam in case it isn't intended.
 
-### Phase 5: Legacy reachability (no edits)
+### Phase 5: Legacy reachability (no edits) (done, in review)
 
-- [ ] Trace `combat/logic.js`, `libraryResearch.js`, `equipment.js`, `perks.js`, class-hero branches, `classlessHeroRef`, the old drop and enemy fallbacks, and tower, castle and worker constants.
-- [ ] Resolve whether any live path reaches the non-classless body of `_applyHit`.
-- [ ] Check static, computed, dynamic, string-based, test-only and tooling references.
-- [ ] Confirm whether any stored save can still hold a class hero.
-- [ ] Removal manifest, each item marked LIVE, TEST-ONLY, TOOLING-ONLY, UNREACHABLE, FALLBACK or FUTURE-INTENT UNKNOWN.
+The full manifest, with evidence for every item, is in `docs/LEGACY_MANIFEST.md`. No code was changed in Phase 5; runtime counters were added only in a throwaway copy of the repository and never committed.
+
+- [x] Traced all of them:
+  - **Legacy modules:** `logic.js`, `libraryResearch.js`, `equipment.js` and `perks.js` reach the app only through 6 names that `engine.js` imports (`heroDerived`, `makeSingleEnemy`, `rollEquipmentDrop`, `unlockedAbilities`, `getAbility`, `MAGE_SPELLS`), plus `createNewState` and `createHero` in three test files.
+  - **Engine:** every class-hero branch, the adapters (`classlessHeroRef`, `classlessHeroDerived`, which are live), both sim fallbacks, towers, the revive API, `sim.morale` and the `zombie` sprite.
+  - **`config.js`:** all 71 exports: 17 live, 36 used only by the legacy modules, 5 used only from unreachable engine code, 1 used only by another legacy export, 12 unused.
+- [x] `_applyHit`'s non-classless body: it only damages enemies, and every hero hit is marked classless unless the hero itself is not classless. It ran 0 times in all tests, balance, ranks and a watched fight (scenarios pending). It is reachable only through a hero with a `cls` field.
+- [x] References checked: static imports, named and `C.NAME` references, tests and tools. There are no dynamic `import()` calls and no computed `C[...]` lookups. Name collisions (for example `recruitHero`, `spend`) were checked against the actual imports.
+- [x] Saves: no save Gauntlet wrote can hold a class hero. Since the first commit, heroes are created only with `createHeroModel`, and no commit writes `cls` from the game, UI or screens. A hand-edited save with `cls` on a hero does load (the loader keeps unknown fields), but the first fight then crashes in the legacy `heroDerived`. A watched fight blanks the page (there is no error boundary); an unattended fight throws out of `tick()`. So the class path doesn't work today, and removing it can't break anything that works.
+- [x] Runtime evidence (instrumented copy):
+  - full test suite (31 files, 447 tests);
+  - `balance --runs 2 --hours 4` (two idle and two active playthroughs: full campaign plus 4 h endgame, boss rank 9, nemeses);
+  - `ranks --fights 2 --active` (boss ranks 1–31);
+  - `scenarios --trips 4`, idle with common gear and active with rare gear, every group (still running at the first commit; result added when it finishes);
+  - a watched fight in the browser.
+
+  Only one legacy path ran: the `rollEquipmentDrop` fallback, twice, in `engine.classless.test.js`, whose hand-built sims have no `rollDrop`.
+- [x] Removal manifest: 21 items, each classified (LIVE, TEST-ONLY, FALLBACK or UNREACHABLE; none TOOLING-ONLY). None is FUTURE-INTENT UNKNOWN, because `docs/DESIGN.md` ("Second trim pass") already records the intent to remove the tower, castle and economy code. The manifest also suggests a Phase 6 order: 6A fallbacks, 6B class heroes, 6C test fixtures, 6D dead code in five groups.
+- [x] No code changed; full suite still 31 files, 447 tests; production build succeeded.
+- [ ] Sam reviews the manifest and decides the open questions below before any Phase 6 step.
 
 ### Phase 6: Remove verified legacy code
 
@@ -220,14 +235,15 @@ Recorded in Phase 0 at `471f8fd`. Scenario results vary by about ±15% at 24 tri
 
 ## Open decisions
 
-None right now. New questions for Sam are listed here until answered.
+New questions for Sam are listed here until answered.
+
+1. **Saves with a `cls` hero (Phase 6B).** No real save has one, but a hand-edited save that does crashes the first fight today. When the class branches go, should the loader simply drop `cls` so such a hero loads as an ordinary classless hero (recommended), or leave loading as it is?
+2. **No error boundary.** Any error while rendering, such as an engine error on the Battle screen, blanks the whole page. This also relates to the Phase 3 finding that an engine error in an unattended fight escapes `tick()`. Should a small error boundary around the Battle screen be added, and if so in which phase? It is a behavior change, so it is not part of Phase 5 or 6.
 
 ## Known unknowns
 
-- Whether any live path reaches the non-classless body of `_applyHit` (Phase 5). Phase 4 found that no seeded wild, boss or Rift fight reached its crit roll.
 - What an engine error in an unattended fight should do (today it would escape `tick()`); see the Phase 3 findings.
 - Whether a misspelt type string in the engine's behavior or sprite branches would be noticed (only by reading the code until Phase 8B).
-- The count of unused `config.js` exports is approximate; dynamic lookups would not show up (Phase 5).
 - No performance measurements exist yet (Phase 10).
 - The Supabase table and row-level security were not inspected.
 
@@ -245,3 +261,5 @@ None right now. New questions for Sam are listed here until answered.
 | 2026-10-31 | Phase 3 merged | #30 | Merged `c6a07c7`; 434 tests pass on `main`; live site redeployed |
 | 2026-10-31 | Phase 4 seedable randomness | #31 | 447 tests pass, build passes; unseeded play byte-identical to `c6a07c7`; seeded scripts repeat exactly |
 | 2026-11-01 | Phase 4 review | #31 | Review passed (Sam). README wording for unseeded runs made general (no variance figure). No code change |
+| 2026-11-01 | Phase 4 merged | #31 | Merged `af594dd`; 447 tests pass on `main`; live site redeployed |
+| 2026-11-01 | Phase 5 legacy reachability (no edits) | Pending | Manifest in `docs/LEGACY_MANIFEST.md`; legacy class, tower, revive and fallback paths never ran in tests, tools or a watched fight; a crafted `cls` save crashes |
