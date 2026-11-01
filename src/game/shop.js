@@ -5,6 +5,7 @@
 import { serializeGameState } from "../combat/heroModel";
 import { GEAR_SLOTS } from "../combat/gear";
 import { composeStats, createGearItem, tierMult } from "./items";
+import { seededRandom } from "./random";
 import { REGIONS } from "./regions";
 
 export const SHOP_ROTATION_MS = 4 * 60 * 60 * 1000;
@@ -25,17 +26,6 @@ export function shopRotation(now) {
 export function shopTier(state) {
   const cleared = REGIONS.filter((region) => !region.endless && state.clears?.[region.id] > 0).map((region) => region.tier);
   return Math.max(1, ...cleared) + Math.floor((state.bossRank || 0) / 2);
-}
-
-function mulberry32(seed) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6D2B79F5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
 }
 
 function weightedPick(weights, rng) {
@@ -61,7 +51,7 @@ export function rerollCost(state, now) {
 
 export function shopStock(state, now) {
   const { rotation, rerolls, sold } = rotationState(state, now);
-  const rng = mulberry32((state.seed || 1) * 31 + rotation * 7919 + rerolls * 104729);
+  const rng = seededRandom((state.seed || 1) * 31 + rotation * 7919 + rerolls * 104729);
   const tier = shopTier(state);
   const items = [];
   for (let index = 0; index < SHOP_REGULAR_COUNT; index += 1) {

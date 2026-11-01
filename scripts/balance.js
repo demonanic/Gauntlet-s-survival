@@ -10,6 +10,7 @@
 //   npm run balance -- --histories  # print each hero's career history (quality calibration)
 //   npm run balance -- --trace boneyard   # print every trip to that region: party, gear, how it ended
 //   npm run balance -- --until boneyard   # stop each playthrough after its first trip there
+//   npm run balance -- --seed 7     # repeatable run: same seed and flags, same numbers
 //
 // "Idle" players never tap abilities (heroes only auto-attack and auto-use
 // supplies). "Active" players fire every ability the moment it is ready.
@@ -26,10 +27,11 @@ import { getEnvironment } from "../src/game/environment";
 import { buyConsumable, equipGear, loadQuickSlot, sellGear, upgradeCost, upgradeGear } from "../src/game/items";
 import { heroQualities } from "../src/combat/traits";
 import { REGIONS, getRegion } from "../src/game/regions";
-import { activePlayer, developHeroes } from "./simKit";
+import { activePlayer, applySeedFlag, developHeroes } from "./simKit";
 import { buyShopItem, shopStock } from "../src/game/shop";
 
 const args = process.argv.slice(2);
+applySeedFlag(args);
 const RUNS = Number(args[args.indexOf("--runs") + 1]) || 6;
 const NO_GEAR = args.includes("--no-gear");
 const NO_SUPPLIES = args.includes("--no-supplies");

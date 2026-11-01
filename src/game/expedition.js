@@ -378,7 +378,7 @@ function advanceExpedition(state, now, options) {
       continue;
     }
     if (at >= run.endsAt) {
-      reachEnd(state, region, at);
+      reachEnd(state, region, at, options.rng);
       continue;
     }
     runEvent(state, region, at, options.rng);
@@ -386,7 +386,7 @@ function advanceExpedition(state, now, options) {
   }
 }
 
-function reachEnd(state, region, at) {
+function reachEnd(state, region, at, rng) {
   const run = state.expedition;
   if (region.boss && !run.bossDone) {
     // A last breather before the final fight, so the boss tests the party,
@@ -401,7 +401,7 @@ function reachEnd(state, region, at) {
     addFeed(run, at, fallen.length
       ? `The party catches its breath before the final stretch. ${fallen.map((hero) => hero.identity.name).join(" and ")} ${fallen.length > 1 ? "are" : "is"} back on their feet.`
       : "The party catches its breath and binds its wounds before the final stretch.", "good");
-    const wave = buildBossEncounter(region, state.bossRank || 0);
+    const wave = buildBossEncounter(region, state.bossRank || 0, rng);
     const boss = wave.enemies.find((enemy) => enemy.boss || enemy.tier === "elite") || wave.enemies[0];
     addFeed(run, at, `The way out is blocked: ${boss.name} stands guard with ${describeSquad({ enemies: wave.enemies.filter((enemy) => enemy !== boss) })}.`, "danger", true);
     if (wave.champion) addFeed(run, at, `A Champion! It ${CHAMPIONS[wave.champion].text}. Double bounty if it falls.`, "danger", true);
@@ -415,7 +415,7 @@ function reachEnd(state, region, at) {
     state.clears[region.id] = (state.clears[region.id] || 0) + 1;
     addFeed(run, at, `${region.name} explored! +${region.completionGold} gold bounty.`, "good");
   } else if (run.depth) {
-    finishLeg(state, region, at);
+    finishLeg(state, region, at, rng);
   }
   offerDeeper(state, at);
 }
@@ -452,12 +452,12 @@ function pushDeeper(state, at, rng) {
 }
 
 // A leg survived: its gold grows by the leg's spoils bonus, and a cache turns up.
-function finishLeg(state, region, at) {
+function finishLeg(state, region, at, rng) {
   const run = state.expedition;
   const found = Math.max(0, run.loot.gold - (run.legStartGold ?? run.loot.gold));
   const bonus = Math.round(found * DEEPER.loot * run.depth + (run.bounty || 0) * DEEPER.bountyShare * run.depth);
   const rarities = run.depth >= 4 ? ["epic", "epic", "legendary"] : run.depth >= 2 ? ["rare", "epic"] : ["uncommon", "rare"];
-  const cache = createGearItem({ slot: pick(GEAR_SLOTS, Math.random), rarity: pick(rarities, Math.random), tier: region.tier + 1 }, Math.random);
+  const cache = createGearItem({ slot: pick(GEAR_SLOTS, rng), rarity: pick(rarities, rng), tier: region.tier + 1 }, rng);
   run.loot.gold += bonus;
   run.loot.items.push(cache);
   addFeed(run, at, `Deep spoils from leg ${run.depth}: +${bonus} gold and a ${cache.name}.`, "loot", true);
@@ -549,10 +549,10 @@ function runEvent(state, region, at, rng) {
     if (nemesis && rng() < nemesisAppearChance(nemesis, run.heroIds)) {
       run.nemesisMet = true;
       nemesis.met = (nemesis.met || 0) + 1;
-      startEncounter(state, region, at, buildNemesisEncounter(region, nemesis, nemesisLevel(nemesis, at), progress, rng), false);
+      startEncounter(state, region, at, buildNemesisEncounter(region, nemesis, nemesisLevel(nemesis, at), progress, rng), false, rng);
       return;
     }
-    startEncounter(state, region, at, buildWildEncounter(region, progress, rng), rng() < ambushChance(state, conditions, environment));
+    startEncounter(state, region, at, buildWildEncounter(region, progress, rng), rng() < ambushChance(state, conditions, environment), rng);
   } else if (kind === "rare") {
     rareEvent(state, region, hero, at, rng);
   } else {
@@ -566,7 +566,7 @@ function tutorialEncounter(state, region, at, rng) {
   const run = state.expedition;
   run.tutorial = false;
   const wave = buildWildEncounter({ ...region, wildlife: { ...region.wildlife, squad: [2, 2], eliteChance: 0 } }, 0, rng, { ecology: false, waves: 1 });
-  startEncounter(state, region, at, wave, false);
+  startEncounter(state, region, at, wave, false, rng);
   run.pending.patient = true;
 }
 
@@ -707,7 +707,7 @@ function rareEvent(state, region, hero, at, rng) {
     openStory(state, at, "map", rng);
   } else if (kind === "legend") {
     const progress = 1 - (run.endsAt - at) / run.durationMs;
-    startEncounter(state, region, at, buildLegendaryEncounter(region, progress, rng), false);
+    startEncounter(state, region, at, buildLegendaryEncounter(region, progress, rng), false, rng);
   } else {
     const rarity = pick(["uncommon", "rare", "rare", "epic"], rng);
     const item = createGearItem({ slot: pick(GEAR_SLOTS, rng), rarity, tier: region.tier + 1 }, rng);
@@ -755,7 +755,7 @@ function findSomething(state, region, hero, at, rng) {
 
 // A sighting asks the player to attack or sneak; an ambush skips the choice
 // and opens with a volley that costs every hero a little HP.
-function startEncounter(state, region, at, wave, ambush) {
+function startEncounter(state, region, at, wave, ambush, rng) {
   const run = state.expedition;
   run.stats.encounters += 1;
   run.quietEvents = 0;
@@ -766,9 +766,9 @@ function startEncounter(state, region, at, wave, ambush) {
   const extra = legend?.nemesisId ? { nemesisId: legend.nemesisId } : legend ? { legendary: true } : {};
   // A Trailwise hero may spot the ambush before it springs.
   const qualities = road(state);
-  if (ambush && Math.random() < roadEffect(qualities, "spotAmbush")) {
+  if (ambush && rng() < roadEffect(qualities, "spotAmbush")) {
     ambush = false;
-    addFeed(run, at, `${firstName(qualities.who.spotAmbush, Math.random)} spots the ambush before it springs.`, "good");
+    addFeed(run, at, `${firstName(qualities.who.spotAmbush, rng)} spots the ambush before it springs.`, "good");
   }
   if (ambush) {
     ambushParty(state, at, `Ambush! ${squad} burst from the shadows!`);
@@ -800,7 +800,7 @@ function nemesisSighting(state, foe) {
 
 // After a fight: a nemesis that was there grows, flees or falls, and a
 // creature that knocked a hero out may rise as a new one.
-function settleNemeses(state, region, party, { victory, downed, nemesisSlain, nemesisFled }, at) {
+function settleNemeses(state, region, party, { victory, downed, nemesisSlain, nemesisFled }, at, rng) {
   if (!region.wildlife || region.tier < NEMESIS.fromTier) return;
   const run = state.expedition;
   const byFoe = new Map();
@@ -818,7 +818,7 @@ function settleNemeses(state, region, party, { victory, downed, nemesisSlain, ne
     if (nemesisSlain === nemesis.id) {
       const level = nemesisLevel(nemesis, at);
       const gold = Math.round(NEMESIS.rewardGold * level * tierMult(region.tier));
-      const trophy = createGearItem({ slot: pick(GEAR_SLOTS, Math.random), rarity: level >= 6 ? "epic" : pick(["rare", "epic"], Math.random), tier: region.tier + 1 }, Math.random);
+      const trophy = createGearItem({ slot: pick(GEAR_SLOTS, rng), rarity: level >= 6 ? "epic" : pick(["rare", "epic"], rng), tier: region.tier + 1 }, rng);
       run.loot.gold += gold;
       run.loot.items.push(trophy);
       changeMorale(state, 20);
@@ -840,7 +840,7 @@ function settleNemeses(state, region, party, { victory, downed, nemesisSlain, ne
   }
   for (const { foe, heroes } of byFoe.values()) {
     if (foe.nemesisId) continue;
-    const risen = riseNemesis(state, { type: foe.type, typeName: foe.name, regionId: region.id, heroes, wiped: !victory }, at);
+    const risen = riseNemesis(state, { type: foe.type, typeName: foe.name, regionId: region.id, heroes, wiped: !victory }, at, rng);
     if (risen) {
       addFeed(run, at, `The ${foe.name} that downed ${heroes.map((hero) => hero.name).join(" and ")} lets out a howl and slinks away. It has a name now: ${risen.name}. It will remember this.`, "danger", true);
       break;
@@ -1103,14 +1103,14 @@ function autoFight(state, region, at, rng, onStep) {
   const pending = state.expedition.pending;
   const endless = pending.kind === "rift";
   const { result, sim, elapsed } = simulateEncounter(currentEncounterParty(state), pending.wave, {
-    regionTier: region.tier, onStep, endless,
+    regionTier: region.tier, onStep, endless, rng,
     shouldReturn: (engine) => {
       const hp = engine.heroes.reduce((sum, hero) => sum + Math.max(0, hero.ref.hp), 0);
       return hp / engine.heroes.reduce((sum, hero) => sum + hero.d.maxHp, 0) < RIFT_AUTO_RETURN_HP;
     },
   });
   state.expedition.stats.autoFightSeconds += Math.round(elapsed);
-  applyFightResult(state, region, buildFightOutcome(result, sim), at);
+  applyFightResult(state, region, buildFightOutcome(result, sim), at, rng);
   // Left to themselves, a battered party doesn't push its luck.
   if (state.expedition && !state.expedition.pending && partyHpFraction(state) < AUTO_RETREAT_HP) {
     addFeed(state.expedition, at, "Too battered to go on, the party limps home with its loot.", "danger");
@@ -1122,15 +1122,15 @@ function autoFight(state, region, at, rng, onStep) {
 // `outcome` is the canonical fight result (buildFightOutcome in
 // fightOutcome.js); its `party` is the hero list the engine fought with, in
 // the same order as its xpGains indices.
-export function resolveEncounter(state, outcome, now) {
+export function resolveEncounter(state, outcome, now, { rng = Math.random } = {}) {
   const pending = state.expedition?.pending;
   if (!pending || !FIGHT_KINDS.has(pending.kind)) return { ok: false, reason: "no_encounter_ready" };
   const next = serializeGameState(state);
-  applyFightResult(next, tripRegion(next.expedition), outcome, now);
+  applyFightResult(next, tripRegion(next.expedition), outcome, now, rng);
   return { ok: true, state: next };
 }
 
-function applyFightResult(state, region, { victory, party, xpGains, gold, items, wavesCleared = 0, ...outcome }, at) {
+function applyFightResult(state, region, { victory, party, xpGains, gold, items, wavesCleared = 0, ...outcome }, at, rng) {
   // Wisdom (guild) and Fast Learner (hero) boost the XP the engine awarded.
   const xpBonus = legacyBonuses(state).xp;
   const boostedXp = Object.fromEntries(Object.entries(xpGains || {}).map(([index, xp]) =>
@@ -1170,7 +1170,7 @@ function applyFightResult(state, region, { victory, party, xpGains, gold, items,
     const spent = Math.floor((runtime.arrowsSpent?.arrows || 0) * ARROW_RECOVERY);
     if (victory && spent > 0) recovered += returnArrows(state, saved, spent);
     recordFight(saved, runtime.battleStats, { victory, morale: run.morale, ambush: run.pending?.kind === "ambush" });
-    for (const development of developQualities(saved, at, Math.random, sharedQualities(state.heroes, saved))) {
+    for (const development of developQualities(saved, at, rng, sharedQualities(state.heroes, saved))) {
       addFeed(run, at, development.text, "good", true);
     }
   }
@@ -1184,7 +1184,7 @@ function applyFightResult(state, region, { victory, party, xpGains, gold, items,
   }
   const { pending } = run;
   run.stats.fights += 1;
-  if (pending.kind !== "rift") settleNemeses(state, region, party, { victory, ...outcome }, at);
+  if (pending.kind !== "rift") settleNemeses(state, region, party, { victory, ...outcome }, at, rng);
   for (const { hero, choice, landed } of outcome.clutches || []) {
     const name = party[hero]?.identity?.name;
     if (!name) continue;
@@ -1232,7 +1232,7 @@ function applyFightResult(state, region, { victory, party, xpGains, gold, items,
         : `${first} and ${second} are ${BOND_NAMES[level]} now.`, "good", !!offer);
   }
   for (const hero of livingParty(state)) heal(hero, AFTER_FIGHT_HEAL);
-  afterVictory(state, qualities, at);
+  afterVictory(state, qualities, at, rng);
   if (recovered > 0) addFeed(run, at, `Picked up ${recovered} arrow${recovered > 1 ? "s" : ""} from the field.`, "flavor");
   for (const hero of party) {
     if (heroUsesArrows(hero) && hero.combat.hp > 0 && heroArrowCount(findHero(state, heroId(hero))) === 0) {
@@ -1241,7 +1241,6 @@ function applyFightResult(state, region, { victory, party, xpGains, gold, items,
   }
   addFeed(run, at, `Victory over ${pending.label}! +${Math.round(gold || 0)} gold${items?.length ? `, ${items.length} item${items.length > 1 ? "s" : ""}` : ""}.`, "good");
   if (pending.legendary) {
-    const rng = Math.random;
     const bonus = Math.round(randomBetween(LEGENDARY.rewardGold, rng) * tierMult(region.tier));
     const trophy = createGearItem({ slot: pick(GEAR_SLOTS, rng), rarity: pick(["rare", "epic"], rng), tier: region.tier + 1 }, rng);
     run.loot.gold += bonus;
@@ -1262,19 +1261,19 @@ function applyFightResult(state, region, { victory, party, xpGains, gold, items,
     // A Champion pays double, and leaves a second crystal.
     if (pending.wave.champion) {
       bounty *= 2;
-      run.loot.items.push(randomCrystal(2));
+      run.loot.items.push(randomCrystal(2, rng));
       addFeed(run, at, `The Champion is broken! Double bounty and an extra crystal.`, "loot", true);
     }
     run.loot.gold += bounty;
     run.bounty = bounty;
     state.clears[region.id] = (state.clears[region.id] || 0) + 1;
     // Every end boss leaves a Flawless crystal behind.
-    const crystal = randomCrystal(2);
+    const crystal = randomCrystal(2, rng);
     run.loot.items.push(crystal);
     addFeed(run, at, `${region.name} conquered! +${bounty} gold bounty and a ${crystalInfo(crystal.key).fullName}.`, "good");
     // The first time each boss falls to a party led by a level 10+ hero, a crate turns up.
     const boss = pending.wave.enemies.find((enemy) => enemy.boss) || pending.wave.enemies[0];
-    if (earnPetCrate(state, boss.type, run.heroIds[0])) {
+    if (earnPetCrate(state, boss.type, run.heroIds[0], rng)) {
       addFeed(run, at, `Among ${boss.name}'s hoard: a weird crate with breathing holes. Something inside is scratching.`, "loot", true);
     }
     run.pending = null;
@@ -1288,18 +1287,18 @@ function applyFightResult(state, region, { victory, party, xpGains, gold, items,
 
 // Qualities that kick in after a won fight: a Scavenger picks over the
 // fallen, a Field Surgeon patches everyone up.
-function afterVictory(state, qualities, at) {
+function afterVictory(state, qualities, at, rng) {
   const run = state.expedition;
-  if (Math.random() < roadEffect(qualities, "scavengeOnWin")) {
-    const key = pick(["bandage", "bandage", "potion", "arrows"], Math.random);
+  if (rng() < roadEffect(qualities, "scavengeOnWin")) {
+    const key = pick(["bandage", "bandage", "potion", "arrows"], rng);
     const qty = key === "arrows" ? 6 : 1;
     run.loot.items.push({ kind: "consumable", key, qty });
-    addFeed(run, at, `${firstName(qualities.who.scavengeOnWin, Math.random)} scavenges ${key === "arrows" ? `${qty} arrows` : `a ${CONSUMABLES[key].name}`} from the fallen.`, "loot");
+    addFeed(run, at, `${firstName(qualities.who.scavengeOnWin, rng)} scavenges ${key === "arrows" ? `${qty} arrows` : `a ${CONSUMABLES[key].name}`} from the fallen.`, "loot");
   }
   const patch = roadEffect(qualities, "postFightHeal");
   if (patch > 0) {
     for (const hero of livingParty(state)) heal(hero, patch);
-    addFeed(run, at, `${firstName(qualities.who.postFightHeal, Math.random)} patches up the party's wounds.`, "good");
+    addFeed(run, at, `${firstName(qualities.who.postFightHeal, rng)} patches up the party's wounds.`, "good");
   }
 }
 
