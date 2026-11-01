@@ -113,7 +113,8 @@ Every Phase 6 PR keeps the Phase 2 enemy-coverage, Phase 3 fight-outcome and Pha
 
 | Step | Items | Status |
 | --- | --- | --- |
-| 6A | 4, 5 | Done, in review: the engine requires `sim.makeMinion` and `sim.rollDrop`; the `makeSingleEnemy` and `rollEquipmentDrop` fallbacks and their imports are gone; the hand-built test sims supply both |
-| 6B | 1, 3 | Not started. Loading will drop a stray `cls` first (Sam's decision) |
-| 6C | 6 | Not started |
-| 6D | 7–20 | Not started |
+| 6A | 4, 5 | Merged (#33): the engine requires `sim.makeMinion` and `sim.rollDrop`; the `makeSingleEnemy` and `rollEquipmentDrop` fallbacks and their imports are gone; the hand-built test sims supply both |
+| 6B | 1, 3 | Done, in review (batch 1): loading drops a stray `cls`; the engine's class-hero branches and its `logic.js` and `perks.js` imports are gone |
+| 6C | 6 | Done, in review (batch 1): no test imports `logic.js` |
+| 6D-1 | 11, 14, 16 | Done, in review (batch 1): towers, barricades, the sim's unused fields and `xpGains.towers` are gone (also the tower-loss morale writes from item 13) |
+| 6D-2 to 6D-5 | 7–10, 12, 13, 15, 17–20 | Not started (batches 2 and 3) |
