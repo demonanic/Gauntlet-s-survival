@@ -6,7 +6,7 @@
 // accumulates XP gains, returned to the UI at wave end.
 import { drawGearMarks, heroGearMarks } from "./heroLook";
 import { heroLuck, luckEffects } from "./luck";
-import { ELEMENTS, MAGIC, castSuccessChance, knownSpells, maxMana as spellMaxMana, proficiency, spellPower, spellRadius } from "./spells";
+import { ELEMENTS, MAGIC, SHIELD_CAP, castSuccessChance, knownSpells, maxMana as spellMaxMana, proficiency, spellPower, spellRadius, supportPower } from "./spells";
 import { SpellVfx } from "./spellVfx";
 import { BONDS, memorialDamage } from "../game/bonds";
 import * as C from "./config";
@@ -196,6 +196,8 @@ const BOSS_MELEE_REACH = 90;
 function laneX(i) { return (W / LANES) * (i + 0.5); }
 
 export const LAYOUT = { W, H, HERO_Y, FLOOR_Y };
+// The order an unattended caster weighs its support spells in.
+const SUPPORT_PRIORITY = Object.freeze(["lifeline", "heal", "renew", "barrier", "aegis", "empower"]);
 
 export class Engine {
   constructor(canvas, sim, wave, callbacks = {}) {
@@ -1033,6 +1035,7 @@ export class Engine {
       this._tickClasslessSustain(h, dt);
       this._tickGearAndEnvironment(h, dt);
       if (!h.alive) continue;
+      this._tickSupport(h, dt);
       this._tickQuickItems(h, dt);
       h.castCd = Math.max(0, (h.castCd || 0) - dt);
       if (!h.manual && h.maxMana > 0) this._autoCast(h);
@@ -1040,7 +1043,8 @@ export class Engine {
       h.mana = Math.min(h.maxMana, h.mana + (2 + Math.max(0, h.d.intelligence || 0) * 0.04) * dt);
       const melee = h.d.rangeMode !== "midline";
       const baseAttackSpeed = h.d.classlessEffects.attackSpeed;
-      const activeAttackSpeedBonus = h.warCryUntil > this.time ? h.warCryAttackSpeedBonus : 0;
+      const activeAttackSpeedBonus = (h.warCryUntil > this.time ? h.warCryAttackSpeedBonus : 0)
+        + (h.empowerUntil > this.time ? h.empowerSpeed || 0 : 0);
       const cappedAttackSpeed = Math.min(0.20, baseAttackSpeed + activeAttackSpeedBonus);
       const attackSpeedMultiplier = (1 + cappedAttackSpeed) / (1 + baseAttackSpeed);
       h.cd -= dt * (activeAttackSpeedBonus > 0 ? attackSpeedMultiplier : 1);
@@ -2010,7 +2014,8 @@ export class Engine {
     const lastStand = state?.lastStandUntil > this.time ? hero.d.lastStand : 0;
     const interpose = hero.interposeUntil > this.time ? hero.interposeReduction : 0;
     const formation = this._classlessFormationReduction(hero);
-    const reduction = Math.min(0.30, Math.max(0, hero.d.damageReduction + lastStand + interpose + formation));
+    const aegis = hero.aegisUntil > this.time ? hero.aegisReduction || 0 : 0;
+    const reduction = Math.min(0.30, Math.max(0, hero.d.damageReduction + lastStand + interpose + formation + aegis));
     // Gauntlet: Survivor quality below 30% HP; a Watcher's mark leaves a hero exposed.
     const guard = hero.ref.hp < hero.d.maxHp * 0.3 ? hero.d.traits?.lowHpGuard || 0 : 0;
     const exposed = hero.exposedUntil > this.time ? 1.15 : 1;
@@ -2066,6 +2071,7 @@ export class Engine {
 
   _resolveClasslessHeroDamage(hero, damage) {
     const state = hero.classlessCombatState;
+    if (damage > 0) hero.lastHurtAt = this.time;
     if (state?.decoy) {
       state.decoy = false;
       this._float(hero.x, hero.y - 20, "DECOY", "#A78BFA");
@@ -2098,6 +2104,13 @@ export class Engine {
       state.survivalReadyAt = this.time + 60;
       this._float(hero.x, hero.y - 22, "SURVIVE", "#DC2626");
       this.effects.push({ kind: "guard", x: hero.x, y: hero.y, r: 26, life: 0.65, color: "#DC2626" });
+    }
+    // Lifeline (Restoration): the blow that would drop them leaves them at 1 HP, then heals.
+    if (hero.ref.hp <= 0 && hero.lifelineUntil > this.time) {
+      hero.lifelineUntil = 0;
+      hero.ref.hp = Math.min(hero.d.maxHp, 1 + hero.d.maxHp * (hero.lifelineHeal || 0));
+      this._float(hero.x, hero.y - 22, "LIFELINE", "#FFD36B");
+      this.vfx?.lifelineSave(hero);
     }
     // Gravebinder Ring: rise once per fight.
     if (hero.ref.hp <= 0 && hero.d.gear?.revive > 0 && !hero.revived) {
@@ -2389,6 +2402,8 @@ export class Engine {
     if (traits) damage *= 1 + traits.damage + (hero.ref.hp < hero.d.maxHp * 0.5 ? traits.berserk : 0);
     damage *= 1 + (hero.d.gear?.damageBonus || 0);
     damage *= 1 + this._bondDamage(hero);
+    // Empower (Warding): the party hits harder for a while.
+    if (hero.empowerUntil > this.time) damage *= 1 + (hero.empowerDamage || 0);
     // Evolved qualities: Bladesworn (melee) and Giantslayer (elites and bosses).
     if (p.damageCategory === "weapon" && hero.d.rangeMode === "melee") damage *= 1 + (traits?.meleeDamage || 0);
     if (target.boss || target.tier === "elite") damage *= 1 + (traits?.eliteDamage || 0);
@@ -2644,7 +2659,10 @@ export class Engine {
       return { ...spell, color: ELEMENTS[spell.element].color, cost: spell.mana, cooldownSeconds: spell.cooldown, cooldown,
         cooldownTotal: spell.cooldown * h.d.cooldownMultiplier,
         mana: Math.round(h.mana), maxMana: h.maxMana, success: castSuccessChance(h.model, spell.element),
-        available: h.alive && cooldown <= 0 && h.mana >= spell.mana && !this.ended };
+        // A support spell with nobody to help can't be cast (no heal at full HP).
+        noTarget: !!spell.support && !this._supportTarget(h, spell, false),
+        available: h.alive && cooldown <= 0 && h.mana >= spell.mana && !this.ended
+          && (!spell.support || !!this._supportTarget(h, spell, false)) };
     });
   }
 
@@ -2655,6 +2673,7 @@ export class Engine {
     const h = this.heroes[index];
     const spell = h && this._classlessSpellStatus(h).find((entry) => entry.id === spellId);
     if (!spell?.available) return false;
+    if (spell.support) return this._castSupport(h, spell, spellId, target, announce);
     const foe = (target && target.hp > 0 ? target : null)
       || [h.manualTarget, h.currentTarget].find((enemy) => enemy?.hp > 0 && Math.hypot(enemy.x - h.x, enemy.y - h.y) <= spell.range)
       || this._nearestEnemy(h.x, h.y, spell.range);
@@ -2741,6 +2760,126 @@ export class Engine {
   }
 
   // What each element does besides damage; lingering spells hit harder.
+  // ---- support spells (Restoration, Warding) ----------------------------------
+
+  _partyHpFraction() {
+    const alive = this.heroes.filter((hero) => hero.alive);
+    const max = alive.reduce((sum, hero) => sum + hero.d.maxHp, 0);
+    return max ? alive.reduce((sum, hero) => sum + Math.max(0, hero.ref.hp), 0) / max : 1;
+  }
+
+  // Who a support spell would help now, or null. `auto`: the party deciding by
+  // itself, which waits until the help is needed; a tap only needs someone it
+  // can help (no heal at full HP, no second Barrier).
+  _supportTarget(h, spell, auto) {
+    if (!h?.alive) return null;
+    const frac = (ally) => ally.ref.hp / Math.max(1, ally.d.maxHp);
+    const reach = spell.range || spell.radius || 300;
+    const near = this.heroes.filter((ally) => ally.alive && Math.hypot(ally.x - h.x, ally.y - h.y) <= reach);
+    const lowest = (list) => list.sort((a, b) => frac(a) - frac(b))[0] || null;
+    const underAttack = (ally) => this.time - (ally.lastHurtAt ?? -99) < 1.5;
+    switch (spell.shape) {
+      case "heal": return lowest(near.filter((ally) => frac(ally) < (auto ? 0.55 : 0.999)));
+      case "renew": {
+        const hurt = near.filter((ally) => frac(ally) < (auto ? 0.7 : 0.999) && !(ally.renewUntil > this.time));
+        return hurt.length >= (auto ? 2 : 1) ? h : null;
+      }
+      case "lifeline": return lowest(near.filter((ally) => !(ally.lifelineUntil > this.time) && (!auto || (frac(ally) < 0.35 && underAttack(ally)))));
+      case "barrier": return lowest(near.filter((ally) => !(ally.barrierUntil > this.time) && (ally.ref.shield || 0) < ally.d.maxHp * SHIELD_CAP && (!auto || underAttack(ally))));
+      case "empower": {
+        const fresh = near.filter((ally) => !(ally.empowerUntil > this.time));
+        if (!fresh.length) return null;
+        if (!auto) return h;
+        const foes = this.active.filter((enemy) => enemy.hp > 0);
+        return foes.some((enemy) => enemy.boss || enemy.tier === "elite") || foes.length >= 3 ? h : null;
+      }
+      case "aegis": {
+        const fresh = near.filter((ally) => !(ally.aegisUntil > this.time));
+        if (!fresh.length) return null;
+        if (!auto) return h;
+        return this.active.some((enemy) => enemy.hp > 0 && enemy.boss) || this._partyHpFraction() < 0.6 ? h : null;
+      }
+      default: return null;
+    }
+  }
+
+  _castSupport(h, spell, spellId, given, announce) {
+    const target = given && this.heroes.includes(given) && given.alive ? given : this._supportTarget(h, spell, false);
+    if (!target) return false;
+    h.mana -= spell.cost;
+    h.spellCooldowns[spellId] = spell.cooldownSeconds * h.d.cooldownMultiplier;
+    h.castCd = 0.8;
+    h.visualActionKind = "attack";
+    h.visualActionStartedAt = this.time;
+    h.visualActionUntil = this.time + 0.3;
+    if (!(this.rng() < spell.success)) {
+      if (this.vfx) this.vfx.fizzle(spell.element, h.x, h.y);
+      else this._float(h.x, h.y - 26, "FIZZLE", "#94A3B8");
+      return true;
+    }
+    if (announce) this._callout(h, spell.name.toUpperCase(), spell.color, false);
+    (this.spellSuccesses[h.i] ||= {})[spellId] = ((this.spellSuccesses[h.i] || {})[spellId] || 0) + 1;
+    const staff = getEquippedHeroWeaponType(h.model) === "staff";
+    const power = supportPower(h.model, spellId, { staff });
+    const rank = this.vfx ? proficiency(h.model, spell.element) : 1;
+    const radius = spell.radius || 0;
+    const party = radius ? this.heroes.filter((ally) => ally.alive && Math.hypot(ally.x - h.x, ally.y - h.y) <= radius) : [target];
+    this.vfx?.cast(spell.element, h.x, h.y, rank);
+    if (spell.shape === "heal") {
+      const healed = Math.min(target.d.maxHp * power, Math.max(0, target.d.maxHp - target.ref.hp));
+      target.ref.hp += healed;
+      if (healed > 0) this._float(target.x, target.y - 26, `+${Math.round(healed)}`, spell.color);
+      this.vfx?.supportBurst("restoration", target, rank);
+    } else if (spell.shape === "renew") {
+      for (const ally of party) {
+        const perSecond = (ally.d.maxHp * power) / spell.seconds;
+        ally.renewPerSecond = ally.renewUntil > this.time ? Math.max(ally.renewPerSecond || 0, perSecond) : perSecond;
+        ally.renewUntil = this.time + spell.seconds;
+        this.vfx?.aura("renewal", ally, spell.seconds, rank);
+      }
+    } else if (spell.shape === "lifeline") {
+      target.lifelineUntil = this.time + spell.seconds;
+      target.lifelineHeal = power;
+      this.vfx?.aura("lifeline", target, spell.seconds, rank);
+    } else if (spell.shape === "barrier") {
+      const before = target.ref.shield || 0;
+      target.ref.shield = Math.min(target.d.maxHp * SHIELD_CAP, before + target.d.maxHp * power);
+      target.barrierLeft = (target.barrierLeft || 0) + (target.ref.shield - before);
+      target.barrierUntil = this.time + spell.seconds;
+      this._float(target.x, target.y - 26, `+${Math.round(target.ref.shield - before)} shield`, spell.color);
+      this.vfx?.supportBurst("warding", target, rank);
+      this.vfx?.aura("barrier", target, spell.seconds, rank, () => (target.ref.shield || 0) > 0 && target.barrierLeft > 0);
+    } else if (spell.shape === "empower") {
+      for (const ally of party) {
+        ally.empowerUntil = this.time + spell.seconds;
+        ally.empowerDamage = power;
+        ally.empowerSpeed = spell.speed * (power / spell.power);
+        this.vfx?.aura("empower", ally, spell.seconds, rank);
+      }
+    } else if (spell.shape === "aegis") {
+      for (const ally of party) {
+        ally.aegisUntil = this.time + spell.seconds;
+        ally.aegisReduction = power;
+        this.vfx?.aura("aegis", ally, spell.seconds, rank);
+      }
+    }
+    return true;
+  }
+
+  // Healing over time (Renewal) and Barrier running out, each frame.
+  _tickSupport(h, dt) {
+    if (h.renewUntil > this.time) {
+      h.ref.hp = Math.min(h.d.maxHp, h.ref.hp + h.renewPerSecond * dt);
+    }
+    if (h.barrierLeft > 0) {
+      h.barrierLeft = Math.min(h.barrierLeft, h.ref.shield || 0);
+      if (!(h.barrierUntil > this.time)) {
+        h.ref.shield = Math.max(0, (h.ref.shield || 0) - h.barrierLeft);
+        h.barrierLeft = 0;
+      }
+    }
+  }
+
   _spellElement(h, enemy, damage, element, sourceId, strong) {
     const scale = strong ? 1.5 : 1;
     const rank = this.vfx ? proficiency(h.model, element) : 1;
@@ -2780,6 +2919,12 @@ export class Engine {
     if (h.castCd > 0 || !this.active.some((enemy) => enemy.hp > 0)) return;
     const ready = this._classlessSpellStatus(h).filter((spell) => spell.available);
     if (!ready.length) return;
+    // Support first, and only when the party needs it right now.
+    for (const shape of SUPPORT_PRIORITY) {
+      const spell = ready.find((entry) => entry.shape === shape);
+      const ally = spell && this._supportTarget(h, spell, true);
+      if (ally) { this.castHeroSpell(h.i, spell.id, ally); return; }
+    }
     const target = [h.currentTarget].find((enemy) => enemy?.hp > 0) || this._nearestEnemy(h.x, h.y, 340);
     if (!target) return;
     const inRange = ready.filter((spell) => Math.hypot(target.x - h.x, target.y - h.y) <= spell.range);

@@ -585,9 +585,26 @@ Owner-approved direction; each step is its own PR, built in this order:
    it lands. The engine makes a `SpellVfx` only when it has a real canvas, updates it
    in the live frame loop at game speed (paused during hit-stop), and the module uses
    its own random numbers, never `Math.random` or the fight's rng (tested).
-3. **Restoration and Warding**, new schools chosen like elements, three spells each
+3. **Restoration and Warding** (done: `SPELLS` in spells.js, `_castSupport` in the engine), new schools chosen like elements, three spells each
    (start, proficiency II, IV): Mend, Renewal, Lifeline; Barrier, Empower, Aegis.
    Restoration: soft green-white motes; Warding: gold hexagon shells (1 to 3 layers).
+   Owner-approved starting numbers (Nov 2026), scaled by `supportPower` (spell rank,
+   +10% school bonus, Intelligence, staff): Mend 18% max HP on the most-hurt ally (14
+   mana, 6 s); Renewal 12% over 6 s to everyone within 220 (26, 14 s); Lifeline, 8 s:
+   a killing blow leaves 1 HP and heals 25%, once (30, 30 s); Barrier, a 15% max-HP
+   shield for 10 s, shields capped at 30% (14, 7 s); Empower, everyone within 220 +12%
+   damage and +10% attack speed for 8 s, attack speed still capped at +20% (24, 20 s);
+   Aegis, 15% less damage taken for 6 s within the 30% cap (28, 24 s). Spell heals skip
+   the 4%/s regeneration limit. Auto: support first, only when needed (Lifeline under
+   35% while hit, Mend under 55%, Renewal with 2+ under 70%, Barrier on whoever is
+   being hit, Aegis in boss fights or under 60% party HP, Empower against a boss, an
+   elite or 3+ foes). Nobody to help: the spell can't be cast ("No one needs it").
+   Measured (temporary CI test, 24 seeded fights each; party of sword, sword, bow and
+   a staff caster at Int 20 with proficiency IV, common gear one tier low; boss
+   fights): Boneyard LV4 won 15/24 with an Arcane-only caster, 24/24 with
+   Restoration, 20/24 with Warding; Frostfang LV6 0/24, 14/24, 2/24; Ashen LV9 0/24,
+   4/24, 0/24. Restoration nearly removes knockouts in fights a party can win. Sam
+   tests these in play before any tuning.
 4. **Familiars as real units:** their own HP (enemies can hit them; downed for the rest
    of the fight, never lost), their own targets and a simple role per species, and
    animated sprites. Balance re-measured (`npm run scenarios -- --group companions`).

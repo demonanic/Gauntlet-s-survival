@@ -14,8 +14,13 @@ export const ELEMENTS = Object.freeze({
   poison: { name: "Poison", color: "#39FF14" },
   electric: { name: "Lightning", color: "#FFE600" },
   mind: { name: "Mind", color: "#A855F7" },
+  restoration: { name: "Restoration", color: "#A7F3D0" },
+  warding: { name: "Warding", color: "#FFB547" },
 });
-export const SCHOOLS = Object.freeze(["fire", "ice", "poison", "electric", "mind"]);
+export const SCHOOLS = Object.freeze(["fire", "ice", "poison", "electric", "mind", "restoration", "warding"]);
+// Schools whose spells help the party instead of hurting a foe (owner-approved,
+// Nov 2026). Their spells need no enemy target.
+export const SUPPORT_SCHOOLS = Object.freeze(["restoration", "warding"]);
 
 // Successful casts needed for ranks I-V (spells and element proficiency alike).
 export const RANK_CASTS = Object.freeze([0, 15, 45, 100, 200]);
@@ -62,6 +67,14 @@ export const SPELLS = Object.freeze({
   thought_lance: { name: "Thought Lance", element: "mind", shape: "bolt", power: 1.05, mana: 12, cooldown: 5, range: 300, unlock: 1 },
   nightmare_field: { name: "Nightmare Field", element: "mind", shape: "area", power: 0.62, mana: 22, cooldown: 9, range: 280, radius: 75, unlock: 2 },
   dread_haze: { name: "Dread Haze", element: "mind", shape: "linger", power: 0.55, mana: 19, cooldown: 10, range: 300, seconds: 6, unlock: 4 },
+  // Support schools. `power` is a share of the target's max HP (heals, shields),
+  // or the buff's strength (Empower: damage; Aegis: damage taken), before scaling.
+  mend: { name: "Mend", element: "restoration", shape: "heal", power: 0.18, mana: 14, cooldown: 6, range: 300, unlock: 1, support: true },
+  renewal: { name: "Renewal", element: "restoration", shape: "renew", power: 0.12, mana: 26, cooldown: 14, radius: 220, seconds: 6, unlock: 2, support: true },
+  lifeline: { name: "Lifeline", element: "restoration", shape: "lifeline", power: 0.25, mana: 30, cooldown: 30, range: 300, seconds: 8, unlock: 4, support: true },
+  barrier: { name: "Barrier", element: "warding", shape: "barrier", power: 0.15, mana: 14, cooldown: 7, range: 300, seconds: 10, unlock: 1, support: true },
+  empower: { name: "Empower", element: "warding", shape: "empower", power: 0.12, speed: 0.1, mana: 24, cooldown: 20, radius: 220, seconds: 8, unlock: 2, support: true },
+  aegis: { name: "Aegis", element: "warding", shape: "aegis", power: 0.15, mana: 28, cooldown: 24, radius: 220, seconds: 6, unlock: 4, support: true },
 });
 
 // What each element's spells do besides damage.
@@ -72,7 +85,12 @@ export const ELEMENT_EFFECTS = Object.freeze({
   electric: "arcs to one more foe for 50%",
   mind: "stuns for 0.6 s",
   arcane: "pure arcane damage",
+  restoration: "heals allies; spell heals ignore the regeneration limit",
+  warding: "shields and strengthens allies",
 });
+
+// Shields from Barrier stack up to this share of a hero's max HP.
+export const SHIELD_CAP = 0.3;
 
 export function emptyMagic() {
   return { elements: [], casts: {} };
@@ -145,6 +163,15 @@ export function spellPower(hero, spellId, { staff = false } = {}) {
   const rank = rankFor(spellCasts(hero, spellId));
   const elementBonus = spell.element === "arcane" ? MAGIC.arcaneBonus : MAGIC.elementBonus;
   return spell.power * (1 + MAGIC.rankPower * (rank - 1)) * (1 + elementBonus)
+    * (1 + MAGIC.intPower * Math.max(0, intelligence(hero) - 10)) * (staff ? 1 + MAGIC.staffPower : 1);
+}
+
+// Strength of a support spell (a share of max HP, or a buff), scaled like
+// spell damage: spell rank, the school bonus, Intelligence and a staff.
+export function supportPower(hero, spellId, { staff = false } = {}) {
+  const spell = SPELLS[spellId];
+  const rank = rankFor(spellCasts(hero, spellId));
+  return spell.power * (1 + MAGIC.rankPower * (rank - 1)) * (1 + MAGIC.elementBonus)
     * (1 + MAGIC.intPower * Math.max(0, intelligence(hero) - 10)) * (staff ? 1 + MAGIC.staffPower : 1);
 }
 
