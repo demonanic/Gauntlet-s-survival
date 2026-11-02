@@ -137,7 +137,8 @@ export default function HeroGear({
   const quickSlots = hero.quickSlots || [];
   // Best fit for this hero first, each tagged Upgrade, About the same or Worse.
   const candidates = picking?.type === "gear" ? rankForSlot(hero, vault, picking.slot).map(({ item }) => item) : [];
-  const upgrades = locked ? 0 : vault.filter((item) => fitTag(hero, item)?.kind === "upgrade").length;
+  // Slots the vault could improve (not how many pieces would).
+  const upgrades = locked ? 0 : new Set(vault.filter((item) => fitTag(hero, item)?.kind === "upgrade").map((item) => item.slot)).size;
 
   return (
     <div className="fixed inset-0 z-[75] overflow-y-auto bg-black/85 p-3" data-testid="hero-gear">
@@ -184,7 +185,7 @@ export default function HeroGear({
           <h3 className="font-display text-sm font-bold text-cyan-200">GEAR</h3>
           {onEquipBest && (
             <NeonButton color="#39FF14" disabled={!upgrades} onClick={() => { onEquipBest(); setPicking(null); }} data-testid="equip-best">
-              {upgrades ? `Equip best (${upgrades} upgrade${upgrades === 1 ? "" : "s"})` : "Wearing the best"}
+              {upgrades ? `Equip best (${upgrades} slot${upgrades === 1 ? "" : "s"})` : "Wearing the best"}
             </NeonButton>
           )}
         </div>

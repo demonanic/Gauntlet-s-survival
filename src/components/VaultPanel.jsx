@@ -185,7 +185,7 @@ export default function VaultPanel({
       ) : (
         <ul className="space-y-1 font-mono-g text-[11px]">
           {items.map((item) => (
-            <li key={item.id} className="flex items-center justify-between gap-2 border-b border-white/5 pb-1">
+            <li key={item.id} className="border-b border-white/5 pb-1.5">
               <div className="flex min-w-0 items-start gap-1.5">
                 <button
                   type="button"
@@ -201,7 +201,7 @@ export default function VaultPanel({
                   <Verdict guild={guild} item={item} />
                 </div>
               </div>
-              <div className="flex shrink-0 flex-col gap-1">
+              <div className="mt-1 flex flex-wrap gap-1 pl-6">
                 {(item.upgrade || 0) < MAX_UPGRADE && (
                   <NeonButton color="#FF6600" disabled={guild.gold < upgradeCost(item)} onClick={() => onUpgrade(item.id)} data-testid={`upgrade-${item.id}`}>
                     Forge {upgradeCost(item)}g
