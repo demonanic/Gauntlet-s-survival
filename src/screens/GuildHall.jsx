@@ -8,7 +8,7 @@ import { heroStatus, recruitCost, treatmentCost } from "../game/guild";
 import { canRetire } from "../game/legacy";
 
 export default function GuildHall({
-  guild, now, onRecruit, onOpenPerks, onOpenGear, onSell, onSalvage, onUpgrade, onReforge, onTreat, onRetire, onBuyLegacy, onAnswerBond, onEquipBestParty, onToggleLock,
+  guild, now, onRecruit, onOpenPerks, onOpenGear, onSell, onSalvage, onUpgrade, onReforge, onTreat, onRetire, onBuyLegacy, onAnswerBond, onEquipBestParty, onToggleLock, onClearGear, onAutoClear,
 }) {
   const cost = recruitCost(guild);
   return (
@@ -70,6 +70,8 @@ export default function GuildHall({
         onReforge={onReforge}
         onToggleLock={onToggleLock}
         onEquipBestParty={onEquipBestParty}
+        onClearGear={onClearGear}
+        onAutoClear={onAutoClear}
       />
       <BondOffers guild={guild} onAnswer={onAnswerBond} />
       <NemesisBoard guild={guild} />

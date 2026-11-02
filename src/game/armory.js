@@ -2,7 +2,8 @@
 // gear for one hero or the whole party, and (later steps) sorting and clearing
 // the vault. Menus only: nothing here runs during a fight.
 import { GEAR_SLOTS, heroGearStats } from "../combat/gear";
-import { RARITY_ORDER, equipGear } from "./items";
+import { serializeGameState } from "../combat/heroModel";
+import { RARITY_ORDER, equipGear, gearScore, salvageValue } from "./items";
 
 // What each stat is worth to a hero, by the weapon they fight with. Stats a
 // hero can't use (arrow saving without a bow, cleave without a sword) are worth
@@ -164,4 +165,93 @@ export function vaultView(vault, { slot = "all", rarity = "all", sort = "rarity"
     value: (a, b) => (b.item.value || 0) - (a.item.value || 0),
   }[VAULT_SORTS[sort] ? sort : "rarity"];
   return items.sort(compare).map(({ item }) => item);
+}
+
+// ---------------- clearing the vault ----------------
+// Gear that Clear junk never picks and auto-clear never touches: locked,
+// forged, holding a crystal, a set piece or a Legendary. (Clear junk can still
+// sell a set piece or Legendary if the player ticks it by hand.)
+export function isProtected(item) {
+  return !!(item.locked || (item.upgrade || 0) > 0 || item.runes?.some(Boolean) || item.set || item.legendary);
+}
+
+const spareGroup = (item) => (item.slot === "weapon" ? `weapon:${item.weaponType || ""}` : item.slot);
+
+// What Clear junk ticks: unprotected vault gear that isn't an upgrade for any
+// hero, home or away. One spare per slot (per weapon type) is kept back, the
+// best of the junk, unless the vault already holds another piece for it, so a
+// new recruit always has something to wear.
+export function junkItems(state) {
+  const junk = state.vault.filter((item) => !isProtected(item) && upgradeFor(state, item).length === 0);
+  const junkIds = new Set(junk.map((item) => item.id));
+  const keep = new Set();
+  const groups = {};
+  for (const item of junk) (groups[spareGroup(item)] ||= []).push(item);
+  for (const [group, items] of Object.entries(groups)) {
+    if (state.vault.some((item) => !junkIds.has(item.id) && spareGroup(item) === group)) continue;
+    keep.add(items.reduce((best, item) => (gearScore(item) > gearScore(best) ? item : best)).id);
+  }
+  return junk.filter((item) => !keep.has(item.id));
+}
+
+// Sell (gold) or salvage (essence) many vault pieces at once. Locked pieces
+// and unknown ids are skipped.
+export function clearGear(state, itemIds, mode = "sell") {
+  if (mode !== "sell" && mode !== "salvage") return { ok: false, reason: "unknown_mode" };
+  const wanted = new Set(itemIds);
+  const next = serializeGameState(state);
+  const cleared = next.vault.filter((item) => wanted.has(item.id) && !item.locked);
+  if (!cleared.length) return { ok: false, reason: "nothing_to_clear" };
+  const gone = new Set(cleared.map((item) => item.id));
+  next.vault = next.vault.filter((item) => !gone.has(item.id));
+  const gold = mode === "sell" ? cleared.reduce((sum, item) => sum + Math.max(0, Math.round(item.value || 0)), 0) : 0;
+  const essence = mode === "salvage" ? cleared.reduce((sum, item) => sum + salvageValue(item), 0) : 0;
+  next.gold += gold;
+  next.essence = (next.essence || 0) + essence;
+  return { ok: true, state: next, count: cleared.length, gold, essence };
+}
+
+// Auto-clear: off unless the player turns it on. When an expedition comes
+// home, new gear at or below `maxRarity` that's unprotected and no upgrade for
+// anyone is sold or salvaged. Only Common to Rare can be chosen.
+export const AUTO_CLEAR_RARITIES = Object.freeze(["common", "uncommon", "rare"]);
+export const AUTO_CLEAR_DEFAULT = Object.freeze({ enabled: false, maxRarity: "uncommon", mode: "sell" });
+
+export function normalizeAutoClear(saved) {
+  if (!saved || typeof saved !== "object") return null;
+  return {
+    enabled: saved.enabled === true,
+    maxRarity: AUTO_CLEAR_RARITIES.includes(saved.maxRarity) ? saved.maxRarity : AUTO_CLEAR_DEFAULT.maxRarity,
+    mode: saved.mode === "salvage" ? "salvage" : "sell",
+  };
+}
+
+export function autoClearSettings(state) {
+  return normalizeAutoClear(state.autoClear) || { ...AUTO_CLEAR_DEFAULT };
+}
+
+export function setAutoClear(state, patch = {}) {
+  const next = serializeGameState(state);
+  next.autoClear = normalizeAutoClear({ ...autoClearSettings(state), ...patch });
+  return { ok: true, state: next };
+}
+
+// Clears from `items` (just-banked loot) in place; returns what it did, or null
+// when auto-clear is off or found nothing. Mutates `state` (called from the
+// expedition's own mutable completion step).
+export function applyAutoClear(state, items = []) {
+  const settings = normalizeAutoClear(state.autoClear);
+  if (!settings?.enabled) return null;
+  const limit = RARITY_ORDER.indexOf(settings.maxRarity);
+  const fresh = new Set(items.filter((item) => item?.kind === "gear").map((item) => item.id));
+  const picked = state.vault.filter((item) => fresh.has(item.id) && RARITY_ORDER.indexOf(item.rarity) <= limit
+    && !isProtected(item) && upgradeFor(state, item).length === 0);
+  if (!picked.length) return null;
+  const gone = new Set(picked.map((item) => item.id));
+  state.vault = state.vault.filter((item) => !gone.has(item.id));
+  const gold = settings.mode === "sell" ? picked.reduce((sum, item) => sum + Math.max(0, Math.round(item.value || 0)), 0) : 0;
+  const essence = settings.mode === "salvage" ? picked.reduce((sum, item) => sum + salvageValue(item), 0) : 0;
+  state.gold += gold;
+  state.essence = (state.essence || 0) + essence;
+  return { count: picked.length, gold, essence, mode: settings.mode };
 }

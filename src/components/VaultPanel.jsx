@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { GEAR_SLOT_LABELS, GEAR_SLOTS } from "../combat/gear";
-import { VAULT_SORTS, upgradeFor, vaultView } from "../game/armory";
+import { AUTO_CLEAR_RARITIES, VAULT_SORTS, autoClearSettings, junkItems, upgradeFor, vaultView } from "../game/armory";
 import { MAX_UPGRADE, RARITIES, RARITY_ORDER, reforgeCost, salvageValue, upgradeCost } from "../game/items";
 import ItemDetails from "./ItemDetails";
 import { NeonButton, Panel } from "./ui";
@@ -31,10 +31,88 @@ function Verdict({ guild, item }) {
   );
 }
 
+// Clear junk: the armory ticks every unprotected piece no hero needs (keeping
+// one spare per slot); untick any, then sell or salvage the rest in one go.
+function ClearJunk({ guild, onClear, onClose }) {
+  const junk = junkItems(guild);
+  const [unticked, setUnticked] = useState(() => new Set());
+  const chosen = junk.filter((item) => !unticked.has(item.id));
+  const gold = chosen.reduce((sum, item) => sum + Math.max(0, Math.round(item.value || 0)), 0);
+  const essence = chosen.reduce((sum, item) => sum + salvageValue(item), 0);
+  const toggle = (id) => setUnticked((current) => {
+    const next = new Set(current);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    return next;
+  });
+  const clear = (mode) => {
+    const what = mode === "sell" ? `${gold}g` : `${essence}✦ essence`;
+    if (!window.confirm(`${mode === "sell" ? "Sell" : "Salvage"} ${chosen.length} piece${chosen.length === 1 ? "" : "s"} for ${what}?`)) return;
+    onClear(chosen.map((item) => item.id), mode);
+    onClose();
+  };
+  return (
+    <div className="mb-2 rounded border border-amber-400/40 p-2 font-mono-g text-[11px]" data-testid="clear-junk">
+      <div className="mb-1 flex items-center justify-between">
+        <span className="font-bold text-amber-200">Clear junk · {chosen.length} of {junk.length} ticked</span>
+        <NeonButton color="#94A3B8" onClick={onClose}>Cancel</NeonButton>
+      </div>
+      {junk.length === 0 ? (
+        <p className="text-slate-400">No junk: every unlocked piece is an upgrade for someone, protected, or the last spare for its slot.</p>
+      ) : (
+        <>
+          <p className="mb-1 text-[10px] text-slate-500">
+            Not an upgrade for any hero. Kept back: locked, forged or crystal-set pieces, set pieces, Legendaries, and one spare per slot.
+          </p>
+          <ul className="max-h-64 space-y-0.5 overflow-y-auto">
+            {junk.map((item) => (
+              <li key={item.id}>
+                <label className="flex items-start gap-1.5">
+                  <input type="checkbox" checked={!unticked.has(item.id)} onChange={() => toggle(item.id)} data-testid={`junk-${item.id}`} />
+                  <ItemDetails item={item} showSlot />
+                </label>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-2 flex flex-wrap gap-1">
+            <NeonButton color="#FFE600" disabled={!chosen.length} onClick={() => clear("sell")} data-testid="clear-sell">Sell {chosen.length} · {gold}g</NeonButton>
+            <NeonButton color="#A78BFA" disabled={!chosen.length} onClick={() => clear("salvage")} data-testid="clear-salvage">Salvage {chosen.length} · {essence}✦</NeonButton>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// Auto-clear: an opt-in rule run on new loot when an expedition comes home.
+function AutoClear({ guild, onChange }) {
+  const settings = autoClearSettings(guild);
+  return (
+    <div className="mb-2 flex flex-wrap items-center gap-1 font-mono-g text-[10px]" data-testid="auto-clear">
+      <label className="flex items-center gap-1 text-slate-300">
+        <input type="checkbox" checked={settings.enabled} onChange={(event) => onChange({ enabled: event.target.checked })} data-testid="auto-clear-on" />
+        Auto-clear new loot up to
+      </label>
+      {AUTO_CLEAR_RARITIES.map((key) => (
+        <Chip key={key} active={settings.maxRarity === key} color={RARITIES[key].color} onClick={() => onChange({ maxRarity: key })} data-testid={`auto-clear-${key}`}>
+          {RARITIES[key].name}
+        </Chip>
+      ))}
+      <span className="text-slate-500">by</span>
+      <Chip active={settings.mode === "sell"} color="#FFE600" onClick={() => onChange({ mode: "sell" })} data-testid="auto-clear-sell">selling</Chip>
+      <Chip active={settings.mode === "salvage"} color="#A78BFA" onClick={() => onChange({ mode: "salvage" })} data-testid="auto-clear-salvage">salvaging</Chip>
+      <span className="w-full text-slate-500">Only gear no hero needs; set pieces, Legendaries and locked gear are never touched.</span>
+    </div>
+  );
+}
+
 // The vault: filter by slot and rarity, sort (best for a chosen hero, newest,
 // rarity, value), see who each piece helps, lock keepers, and forge, reforge,
 // sell or salvage the rest.
-export default function VaultPanel({ guild, onSell, onSalvage, onUpgrade, onReforge, onToggleLock, onEquipBestParty }) {
+export default function VaultPanel({
+  guild, onSell, onSalvage, onUpgrade, onReforge, onToggleLock, onEquipBestParty, onClearGear, onAutoClear,
+}) {
+  const [clearing, setClearing] = useState(false);
   const [slot, setSlot] = useState("all");
   const [rarity, setRarity] = useState("all");
   const [sort, setSort] = useState("rarity");
@@ -56,9 +134,12 @@ export default function VaultPanel({ guild, onSell, onSalvage, onUpgrade, onRefo
       {guild.vault.length > 0 && (
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <NeonButton color="#39FF14" onClick={onEquipBestParty} data-testid="equip-best-party">Equip best for party</NeonButton>
-          <span className="font-mono-g text-[10px] text-slate-500">Each hero at home gets the vault gear that suits their weapon best.</span>
+          <NeonButton color="#FFB547" onClick={() => setClearing(true)} data-testid="clear-junk-open">Clear junk</NeonButton>
+          <span className="w-full font-mono-g text-[10px] text-slate-500">Equip best gives each hero at home the vault gear that suits their weapon best.</span>
         </div>
       )}
+      {clearing && <ClearJunk guild={guild} onClear={onClearGear} onClose={() => setClearing(false)} />}
+      <AutoClear guild={guild} onChange={onAutoClear} />
 
       {guild.vault.length > 0 && (
         <div className="mb-2 space-y-1 font-mono-g text-[10px]" data-testid="vault-filters">

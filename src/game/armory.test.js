@@ -1,6 +1,11 @@
 import { createGuild } from "./guild";
 import { createGearItem, salvageGear, sellGear, toggleItemLock } from "./items";
-import { canWear, equipBest, equipBestParty, fitChange, fitTag, heroFit, heroRole, rankForSlot, upgradeFor, vaultView } from "./armory";
+import {
+  applyAutoClear, autoClearSettings, canWear, clearGear, equipBest, equipBestParty, fitChange, fitTag, heroFit, heroRole, junkItems,
+  rankForSlot, setAutoClear, upgradeFor, vaultView,
+} from "./armory";
+import { completeExpedition } from "./expeditionRun";
+import { parseGuild } from "./storage";
 
 const T0 = 1_000_000;
 const byWeapon = (state, type) => state.heroes.find((hero) => hero.equipment.weapon?.weaponType === type);
@@ -149,5 +154,104 @@ describe("armory: vault view and locks", () => {
     const worn = state.heroes[0].equipment.weapon.id;
     expect(toggleItemLock(state, worn).state.heroes[0].equipment.weapon.locked).toBe(true);
     expect(toggleItemLock(state, "nope")).toEqual({ ok: false, reason: "unknown_item" });
+  });
+});
+
+describe("armory: clearing junk", () => {
+  // Pieces worse than what the starting heroes wear in that slot.
+  const junkHelm = () => piece("head", { defense: 1 });
+  test("junk is unprotected gear nobody needs, keeping one spare per slot", () => {
+    const state = createGuild();
+    const [a, b, c] = [junkHelm(), junkHelm(), junkHelm()];
+    b.stats.defense = 2;
+    const locked = { ...junkHelm(), locked: true };
+    const forged = { ...junkHelm(), upgrade: 1 };
+    const crystal = { ...junkHelm(), runes: ["ember-1"] };
+    const setPiece = piece("head", { defense: 1 }, { set: "gravewatch" });
+    const upgrade = createGearItem({ slot: "head", rarity: "epic", tier: 5 });
+    const swordA = piece("weapon", { attack: 1 }, { variant: "sword" });
+    const bowA = piece("weapon", { attack: 1 }, { variant: "bow" });
+    state.vault = [a, b, c, locked, forged, crystal, setPiece, upgrade, swordA, bowA];
+    const ids = junkItems(state).map((item) => item.id);
+    // The protected helms already stand as spares, so all three plain ones go.
+    expect(ids).toEqual(expect.arrayContaining([a.id, b.id, c.id]));
+    expect(ids).not.toEqual(expect.arrayContaining([locked.id]));
+    for (const kept of [locked, forged, crystal, setPiece, upgrade, swordA, bowA]) expect(ids).not.toContain(kept.id);
+    // With nothing else for the slot, the best junk helm stays back as a spare.
+    state.vault = [a, b, c];
+    expect(junkItems(state).map((item) => item.id).sort()).toEqual([a.id, c.id].sort());
+  });
+
+  test("bulk sell or salvage pays the same as one by one and skips locked gear", () => {
+    const state = createGuild();
+    const items = [createGearItem({ slot: "head", rarity: "uncommon", tier: 2 }), createGearItem({ slot: "legs", rarity: "rare", tier: 3 })];
+    const locked = { ...createGearItem({ slot: "arms", rarity: "rare", tier: 3 }), locked: true };
+    state.vault = [...items, locked];
+    const ids = [...items, locked].map((item) => item.id);
+    const sold = clearGear(state, ids, "sell");
+    expect(sold).toMatchObject({ ok: true, count: 2, gold: items[0].value + items[1].value, essence: 0 });
+    expect(sold.state.gold).toBe(state.gold + sold.gold);
+    expect(sold.state.vault.map((item) => item.id)).toEqual([locked.id]);
+    const salvaged = clearGear(state, ids, "salvage");
+    expect(salvaged.state.essence).toBe((state.essence || 0) + salvaged.essence);
+    expect(salvaged.gold).toBe(0);
+    expect(clearGear(state, [locked.id], "sell")).toEqual({ ok: false, reason: "nothing_to_clear" });
+    expect(clearGear(state, ids, "burn")).toEqual({ ok: false, reason: "unknown_mode" });
+  });
+});
+
+describe("armory: auto-clear", () => {
+  // An expedition on its way home with this loot (completeExpedition banks it).
+  function run(state, items) {
+    state.expedition = { loot: { gold: 10, items }, regionId: "boneyard", heroIds: [], feed: [], stats: {}, morale: 1, wavesCleared: 0 };
+    return state;
+  }
+
+  test("off by default: a returning expedition banks everything and the guild gains no setting", () => {
+    const state = createGuild();
+    expect("autoClear" in state).toBe(false);
+    expect(autoClearSettings(state)).toEqual({ enabled: false, maxRarity: "uncommon", mode: "sell" });
+    const loot = [piece("head", { defense: 1 })];
+    run(state, loot);
+    completeExpedition(state, "victory", 1);
+    expect(state.vault.map((item) => item.id)).toContain(loot[0].id);
+    expect("autoCleared" in state.lastReport).toBe(false);
+  });
+
+  test("on: clears new loot up to the chosen rarity that nobody needs, and reports it", () => {
+    let state = createGuild();
+    state = setAutoClear(state, { enabled: true, maxRarity: "uncommon", mode: "sell" }).state;
+    const junk = piece("head", { defense: 1 });
+    const junk2 = { ...piece("legs", { defense: 1 }), rarity: "uncommon" };
+    const rare = { ...piece("arms", { defense: 1 }), rarity: "rare" };
+    const setPiece = piece("chest", { defense: 1 }, { set: "gravewatch" });
+    const upgrade = createGearItem({ slot: "head", rarity: "uncommon", tier: 6 });
+    const old = piece("head", { defense: 1 });
+    state.vault.push(old);
+    run(state, [junk, junk2, rare, setPiece, upgrade]);
+    const gold = state.gold;
+    completeExpedition(state, "victory", 1);
+    const left = state.vault.map((item) => item.id);
+    expect(left).toEqual(expect.arrayContaining([old.id, rare.id, setPiece.id, upgrade.id]));
+    expect(left).not.toContain(junk.id);
+    expect(left).not.toContain(junk2.id);
+    expect(state.lastReport.autoCleared).toEqual({ count: 2, gold: junk.value + junk2.value, essence: 0, mode: "sell" });
+    expect(state.gold).toBe(gold + 10 + junk.value + junk2.value);
+  });
+
+  test("salvage mode pays essence; the setting survives a save and bad values are repaired", () => {
+    let state = createGuild();
+    state = setAutoClear(state, { enabled: true, mode: "salvage", maxRarity: "common" }).state;
+    const items = [piece("head", { defense: 1 })];
+    state.vault.push(...items);
+    const result = applyAutoClear(state, items);
+    expect(result).toMatchObject({ count: 1, gold: 0, mode: "salvage" });
+    expect(result.essence).toBeGreaterThan(0);
+    const loaded = parseGuild(JSON.parse(JSON.stringify(state)));
+    expect(loaded.autoClear).toEqual({ enabled: true, maxRarity: "common", mode: "salvage" });
+    const repaired = parseGuild({ ...JSON.parse(JSON.stringify(state)), autoClear: { enabled: "yes", maxRarity: "legendary", mode: 3 } });
+    expect(repaired.autoClear).toEqual({ enabled: false, maxRarity: "uncommon", mode: "sell" });
+    const none = parseGuild(JSON.parse(JSON.stringify(createGuild())));
+    expect("autoClear" in none).toBe(false);
   });
 });

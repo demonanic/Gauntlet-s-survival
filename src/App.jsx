@@ -25,7 +25,7 @@ import {
 import { buyShopItem, rerollShop } from "./game/shop";
 import { isDebugMode } from "./game/debug";
 import { guildHints } from "./game/hints";
-import { equipBest, equipBestParty } from "./game/armory";
+import { clearGear, equipBest, equipBestParty, setAutoClear } from "./game/armory";
 import { assignPet, choosePetMod, openPetCrate, unassignPet } from "./game/pets";
 import { getRegion } from "./game/regions";
 import {
@@ -174,6 +174,8 @@ export default function App() {
           onSell={(itemId) => apply((current) => sellGear(current, itemId))}
           onEquipBestParty={() => apply((current) => equipBestParty(current))}
           onToggleLock={(itemId) => apply((current) => toggleItemLock(current, itemId))}
+          onClearGear={(itemIds, mode) => apply((current) => clearGear(current, itemIds, mode))}
+          onAutoClear={(patch) => apply((current) => setAutoClear(current, patch))}
           onSalvage={(itemId) => apply((current) => salvageGear(current, itemId))}
           onUpgrade={(itemId) => apply((current) => upgradeGear(current, itemId))}
           onReforge={(itemId) => apply((current) => reforgeGear(current, itemId))}
@@ -287,6 +289,12 @@ export default function App() {
               {getRegion(report.regionId)?.name}{report.depth > 0 && ` · pushed ${report.depth} leg${report.depth > 1 ? "s" : ""} deeper`}
             </p>
             <p className="my-2 font-mono-g text-sm text-yellow-300">+{report.loot.gold}g · {report.loot.items.length} items</p>
+            {report.autoCleared && (
+              <p className="-mt-1 mb-2 font-mono-g text-[11px] text-amber-200" data-testid="report-auto-cleared">
+                Auto-cleared {report.autoCleared.count} piece{report.autoCleared.count === 1 ? "" : "s"} no hero needed:{" "}
+                {report.autoCleared.mode === "salvage" ? `+${report.autoCleared.essence}✦` : `+${report.autoCleared.gold}g`}
+              </p>
+            )}
             {report.stats && (
               <p className="mb-2 font-mono-g text-[10px] text-slate-400">
                 {report.stats.encounters} encounters · {report.stats.fights} fights · {report.stats.sneaks} snuck past · {report.stats.ambushes} ambushes
