@@ -141,6 +141,42 @@ A deliberately small model (not Demonanic's 11 slots), defined in `src/combat/ge
   Departure restocks every loaded slot from the stash and gives an arrowless archer
   plain arrows in a free slot.
 
+## Mastery: heroes improve at what they do (Nov 2026, `src/combat/mastery.js`)
+
+Owner request: reward heroes for using their special moves, weapons, dodges and
+backstabs, the way successful casts already rank up spells. Ranks I to V; rank I adds
+nothing, so heroes fight exactly as before until they rank up (characterization: with
+`hero.mastery` and the new history counters left out, every recorded case produced the
+same state as before).
+
+- **Special moves** (every landed use, including Shared Strike; moves stay manual only):
+  15 / 45 / 100 / 200 uses. Each rank above I: +5% to the move's numbers (damage,
+  healing, shields, buff size and duration) and -3% cooldown (`masteredMove`).
+- **Weapons** (hits with that kind of weapon): 300 / 1,000 / 2,500 / 5,000. Each rank:
+  +2% weapon damage; bows also +0.5% crit.
+- **Evasion** (dodges): 40 / 120 / 300 / 600. Each rank +0.5% dodge, inside the agility
+  dodge cap (35%).
+- **Backstab** (melee hits on a foe that attacked another hero or a familiar in the last
+  3 s, `BACKSTAB_WINDOW`; Phantom Strike always counts): 100 / 300 / 750 / 1,500. Each
+  rank +4% backstab damage.
+- Counts are tallied in the fight (`battleStats`) and folded in after it
+  (`recordMastery` in fightResults.js), watched or unattended; rank-ups go in the trip
+  feed. The hero sheet's Mastery section shows ranks, progress and bonuses.
+- **Five new evolved qualities**, three tiers each, grown at the usual milestones from
+  new history counters (`casts`, `supportCasts`, `moves`, `backstabs`, `dodges`):
+  Spellwright (+4/6/8% cast success, +5/8/12% spell power), Lifebinder (healing and
+  shielding spells +8/12/16%), Duelist (move cooldowns -5/8/12%), Shadowblade (backstab
+  damage +10/15/20%), Untouchable (+2/3/4% dodge, inside the cap). Scores are per-fight
+  rates calibrated on measured fights (see `SPELLWRIGHT_RATE` and the rest in
+  qualities.js).
+- **Measured** (local run, 24 seeded fights each; party of two swords, a bow and an Int 20
+  Arcane/Restoration staff caster, common gear a tier low; the bow had no arrows loaded,
+  so it didn't shoot): per hero per fight, a sword lands 55-78 hits, 7-21 backstabs and
+  2-10 dodges; the caster 12-29 attack spells and 4-9 support spells. So sword rank II
+  takes about 5 fights and rank V about 75; evasion V about 200 fights. A fully mastered
+  party against a fresh one: Boneyard boss LV4 won 24/24 vs 23/24 (party HP left 80% vs
+  74%); Frostfang boss LV6 5/24 vs 3/24 (10% vs 5%); fights about 10% shorter.
+
 ## Armory: best gear and clearing the vault (Nov 2026, `src/game/armory.js`)
 
 Owner request: the vault was hard to sort and to find the best gear per hero in; add bulk
