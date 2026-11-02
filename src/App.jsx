@@ -20,7 +20,7 @@ import { answerBond } from "./game/bonds";
 import { chooseBeast, learnElement } from "./combat/spells";
 import {
   buyConsumable, buyCrystal, equipGear, extractCrystal, fletchArrows, fuseCrystals, infuseCrystal, loadQuickSlot, reforgeGear,
-  salvageGear, sellGear, setSupplyStyle, unequipGear, unloadQuickSlot, upgradeGear,
+  salvageGear, sellGear, setSupplyStyle, toggleItemLock, unequipGear, unloadQuickSlot, upgradeGear,
 } from "./game/items";
 import { buyShopItem, rerollShop } from "./game/shop";
 import { isDebugMode } from "./game/debug";
@@ -173,6 +173,7 @@ export default function App() {
           onOpenGear={setGearHeroId}
           onSell={(itemId) => apply((current) => sellGear(current, itemId))}
           onEquipBestParty={() => apply((current) => equipBestParty(current))}
+          onToggleLock={(itemId) => apply((current) => toggleItemLock(current, itemId))}
           onSalvage={(itemId) => apply((current) => salvageGear(current, itemId))}
           onUpgrade={(itemId) => apply((current) => upgradeGear(current, itemId))}
           onReforge={(itemId) => apply((current) => reforgeGear(current, itemId))}

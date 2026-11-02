@@ -1,6 +1,6 @@
 import { createGuild } from "./guild";
-import { createGearItem } from "./items";
-import { canWear, equipBest, equipBestParty, fitChange, fitTag, heroFit, heroRole, rankForSlot, upgradeFor } from "./armory";
+import { createGearItem, salvageGear, sellGear, toggleItemLock } from "./items";
+import { canWear, equipBest, equipBestParty, fitChange, fitTag, heroFit, heroRole, rankForSlot, upgradeFor, vaultView } from "./armory";
 
 const T0 = 1_000_000;
 const byWeapon = (state, type) => state.heroes.find((hero) => hero.equipment.weapon?.weaponType === type);
@@ -111,5 +111,43 @@ describe("armory: equip best", () => {
     const helped = upgradeFor(state, ring);
     expect(helped.length).toBe(state.heroes.length);
     expect(helped.map(({ change }) => change.share)).toEqual([...helped.map(({ change }) => change.share)].sort((x, y) => y - x));
+  });
+});
+
+describe("armory: vault view and locks", () => {
+  test("filters by slot and rarity and sorts four ways", () => {
+    const state = createGuild();
+    const hero = byWeapon(state, "bow");
+    const rareHelm = createGearItem({ slot: "head", rarity: "rare", tier: 2 });
+    const commonHelm = createGearItem({ slot: "head", rarity: "common", tier: 1 });
+    const epicSword = createGearItem({ slot: "weapon", variant: "sword", rarity: "epic", tier: 4 });
+    const ring = piece("trinket", { critChance: 0.06 });
+    const vault = [rareHelm, commonHelm, epicSword, ring];
+    expect(vaultView(vault, { slot: "head" })).toEqual([rareHelm, commonHelm]);
+    expect(vaultView(vault, { rarity: "epic" })).toEqual([epicSword]);
+    expect(vaultView(vault, { sort: "rarity" })[0]).toBe(epicSword);
+    expect(vaultView(vault, { sort: "newest" })).toEqual([ring, epicSword, commonHelm, rareHelm]);
+    expect(vaultView(vault, { sort: "value" })[0]).toBe(epicSword);
+    // Best for the bow hero: the sword can't be worn, so it goes last.
+    const fit = vaultView(vault, { sort: "fit", hero });
+    expect(fit[fit.length - 1]).toBe(epicSword);
+    expect(fitChange(hero, fit[0]).gain).toBeGreaterThanOrEqual(fitChange(hero, fit[1]).gain);
+  });
+
+  test("a locked piece can't be sold or salvaged until unlocked; worn gear can be locked too", () => {
+    const state = createGuild();
+    const helm = createGearItem({ slot: "head", rarity: "rare", tier: 2 });
+    state.vault = [helm];
+    const locked = toggleItemLock(state, helm.id).state;
+    expect(locked.vault[0].locked).toBe(true);
+    expect(state.vault[0].locked).toBeUndefined();
+    expect(sellGear(locked, helm.id)).toEqual({ ok: false, reason: "locked" });
+    expect(salvageGear(locked, helm.id)).toEqual({ ok: false, reason: "locked" });
+    const unlocked = toggleItemLock(locked, helm.id).state;
+    expect("locked" in unlocked.vault[0]).toBe(false);
+    expect(sellGear(unlocked, helm.id).ok).toBe(true);
+    const worn = state.heroes[0].equipment.weapon.id;
+    expect(toggleItemLock(state, worn).state.heroes[0].equipment.weapon.locked).toBe(true);
+    expect(toggleItemLock(state, "nope")).toEqual({ ok: false, reason: "unknown_item" });
   });
 });

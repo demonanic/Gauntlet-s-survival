@@ -2,7 +2,7 @@
 // gear for one hero or the whole party, and (later steps) sorting and clearing
 // the vault. Menus only: nothing here runs during a fight.
 import { GEAR_SLOTS, heroGearStats } from "../combat/gear";
-import { equipGear } from "./items";
+import { RARITY_ORDER, equipGear } from "./items";
 
 // What each stat is worth to a hero, by the weapon they fight with. Stats a
 // hero can't use (arrow saving without a bow, cleave without a sword) are worth
@@ -139,4 +139,29 @@ export function upgradeFor(state, item) {
     .map((hero) => ({ hero, change: fitChange(hero, item) }))
     .filter(({ hero, change }) => isUpgrade(change, hero))
     .sort((a, b) => b.change.share - a.change.share);
+}
+
+// ---------------- vault view (sorting and filtering) ----------------
+export const VAULT_SORTS = Object.freeze({
+  fit: "Best for hero",
+  newest: "Newest",
+  rarity: "Rarity",
+  value: "Sell value",
+});
+
+// The vault as shown: filtered by slot and rarity ("all" for either), then
+// sorted. "fit" ranks by how much the piece adds for `hero` (pieces they can't
+// wear last); the vault keeps arrival order, so newest is the end of it.
+export function vaultView(vault, { slot = "all", rarity = "all", sort = "rarity", hero = null } = {}) {
+  const items = vault.map((item, index) => ({ item, index }))
+    .filter(({ item }) => (slot === "all" || item.slot === slot) && (rarity === "all" || item.rarity === rarity));
+  const rank = (item) => RARITY_ORDER.indexOf(item.rarity);
+  const gain = (item) => (hero ? fitChange(hero, item)?.gain ?? -Infinity : 0);
+  const compare = {
+    fit: (a, b) => gain(b.item) - gain(a.item) || rank(b.item) - rank(a.item),
+    newest: (a, b) => b.index - a.index,
+    rarity: (a, b) => rank(b.item) - rank(a.item) || (b.item.tier || 1) - (a.item.tier || 1) || a.item.slot.localeCompare(b.item.slot),
+    value: (a, b) => (b.item.value || 0) - (a.item.value || 0),
+  }[VAULT_SORTS[sort] ? sort : "rarity"];
+  return items.sort(compare).map(({ item }) => item);
 }
