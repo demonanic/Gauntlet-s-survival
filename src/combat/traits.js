@@ -132,6 +132,52 @@ export const TRAITS = Object.freeze({
       { desc: "Keeps the party's spirits up through anything.", road: { moraleWhenLow: 4, moraleOnWin: 4, moraleBase: 5 } },
     ]),
   },
+  // Mastery qualities (Nov 2026): from spells, special moves, backstabs and dodges.
+  spellwright: {
+    key: "spellwright", name: "Spellwright", kind: "evolved",
+    story: "Spell after spell, {hero} has made magic come when called.",
+    tiers: tiers(["Spellwright", "Adept Spellwright", "Spellwright Master"], [
+      { desc: "+4% cast success, +5% spell power.", effects: { castSuccess: 0.04, spellPower: 0.05 } },
+      { desc: "+6% cast success, +8% spell power.", effects: { castSuccess: 0.06, spellPower: 0.08 } },
+      { desc: "+8% cast success, +12% spell power.", effects: { castSuccess: 0.08, spellPower: 0.12 } },
+    ]),
+  },
+  lifebinder: {
+    key: "lifebinder", name: "Lifebinder", kind: "evolved",
+    story: "So many wounds closed and blows turned aside: {hero} keeps the party standing.",
+    tiers: tiers(["Lifebinder", "Warden of Life", "Lifebinder Master"], [
+      { desc: "Healing and shielding spells +8%.", effects: { supportPower: 0.08 } },
+      { desc: "Healing and shielding spells +12%.", effects: { supportPower: 0.12 } },
+      { desc: "Healing and shielding spells +16%.", effects: { supportPower: 0.16 } },
+    ]),
+  },
+  duelist: {
+    key: "duelist", name: "Duelist", kind: "evolved",
+    story: "{hero} has thrown their best moves so often they come back faster.",
+    tiers: tiers(["Duelist", "Practiced Duelist", "Duelist Master"], [
+      { desc: "Special move cooldowns -5%.", effects: { moveCooldown: 0.05 } },
+      { desc: "Special move cooldowns -8%.", effects: { moveCooldown: 0.08 } },
+      { desc: "Special move cooldowns -12%.", effects: { moveCooldown: 0.12 } },
+    ]),
+  },
+  shadowblade: {
+    key: "shadowblade", name: "Shadowblade", kind: "evolved",
+    story: "{hero} has learned to strike where the enemy isn't looking.",
+    tiers: tiers(["Shadowblade", "Silent Shadowblade", "Shadowblade Master"], [
+      { desc: "Backstabs deal +10% damage.", effects: { backstabDamage: 0.1 } },
+      { desc: "Backstabs deal +15% damage.", effects: { backstabDamage: 0.15 } },
+      { desc: "Backstabs deal +20% damage.", effects: { backstabDamage: 0.2 } },
+    ]),
+  },
+  untouchable: {
+    key: "untouchable", name: "Untouchable", kind: "evolved",
+    story: "Blow after blow has missed {hero}. It is starting to look deliberate.",
+    tiers: tiers(["Untouchable", "Elusive", "Truly Untouchable"], [
+      { desc: "+2% dodge (within the dodge cap).", effects: { dodge: 0.02 } },
+      { desc: "+3% dodge (within the dodge cap).", effects: { dodge: 0.03 } },
+      { desc: "+4% dodge (within the dodge cap).", effects: { dodge: 0.04 } },
+    ]),
+  },
 });
 
 export const TRAIT_KEYS = Object.freeze(Object.keys(TRAITS));
@@ -164,6 +210,7 @@ const EMPTY = Object.freeze({
   maxHp: 0, critChance: 0, agility: 0, defense: 0, berserk: 0, attackSpeed: 0, healBonus: 0,
   xpBonus: 0, goldFind: 0, damage: 0, damageTaken: 0, moveSpeed: 0,
   rangedCrit: 0, critDamage: 0, execute: 0, meleeDamage: 0, lowHpGuard: 0, eliteDamage: 0,
+  dodge: 0, castSuccess: 0, spellPower: 0, supportPower: 0, moveCooldown: 0, backstabDamage: 0,
 });
 
 // Summed quality effects for one hero, plus the guild's Hall of Legends bonuses

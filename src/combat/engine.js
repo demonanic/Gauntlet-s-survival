@@ -6,7 +6,7 @@
 // accumulates XP gains, returned to the UI at wave end.
 import { drawGearMarks, heroGearMarks } from "./heroLook";
 import { heroLuck, luckEffects } from "./luck";
-import { BEASTS, CONTROL, ELEMENTS, MAGIC, SHIELD_CAP, castSuccessChance, heroBeast, knownSpells, maxMana as spellMaxMana, proficiency, spellPower, spellRadius, supportPower } from "./spells";
+import { BEASTS, CONTROL, ELEMENTS, MAGIC, SHIELD_CAP, SPELLS, castSuccessChance, heroBeast, knownSpells, maxMana as spellMaxMana, proficiency, spellPower, spellRadius, supportPower } from "./spells";
 import { SpellVfx } from "./spellVfx";
 import { BONDS, memorialDamage } from "../game/bonds";
 import * as C from "./config";
@@ -122,6 +122,8 @@ function classlessHeroDerived(hero) {
     abilityDamageMultiplier: 1,
     perkEffects: {},
     cooldownMultiplier: 1 - effects.cooldownReduction,
+    // Special moves only: the Duelist quality shortens their cooldowns too.
+    moveCooldownMultiplier: (1 - effects.cooldownReduction) * (1 - (traits.moveCooldown || 0)),
     damageReduction: effects.damageReduction,
     regeneration: effects.regeneration,
     regenerationBelowHalf: effects.regenerationBelowHalf,
@@ -412,7 +414,7 @@ export class Engine {
       const baselineDamage = Math.round(h.d.attack * capability.damageMultiplier * (1 + h.d.classlessEffects.weaponDamage));
       const sharedStrike = { id: capability.id, name: "Shared Strike",
         desc: `${baselineDamage} raw direct-hit weapon damage at baseline (150%); 12s cooldown; no resource cost.`,
-        damage: baselineDamage, cooldownSeconds: capability.cooldownSeconds * h.d.cooldownMultiplier,
+        damage: baselineDamage, cooldownSeconds: masteredMove(capability, moveRank(h.model, capability.id)).cooldownSeconds * h.d.moveCooldownMultiplier,
         resourceCost: capability.resourceCost, color: h.d.color, branch: "Basic",
         cooldown, available: h.alive && cooldown <= 0 && !!target && this._classlessCanPayActiveCost(h), targetMode: "enemy", range: h.d.range,
         reason: !h.alive ? "unavailable" : cooldown > 0 ? "cooldown" : !this._classlessCanPayActiveCost(h) ? "health_cost" : target ? null : "no_target" };
@@ -426,7 +428,7 @@ export class Engine {
         const validation = validateClasslessAbilityUse({ hero: { ...h.model, alive: h.alive, protect: h.protect, retreating: h.retreating },
           abilityId: definition.id, cooldown: abilityCooldown, battleActive: !this.ended,
           target: validationTarget, targetValid: !definition.requiresTarget || !!validationTarget });
-        const cooldownSeconds = definition.cooldownSeconds * h.d.cooldownMultiplier;
+        const cooldownSeconds = masteredMove(definition, moveRank(h.model, definition.id)).cooldownSeconds * h.d.moveCooldownMultiplier;
         const activeRemaining = definition.effect === "attack_speed_aura"
           ? Math.max(0, h.warCryUntil - this.time)
           : definition.effect === "interpose" ? Math.max(0, h.interposeTarget?.interposeUntil - this.time)
@@ -655,7 +657,7 @@ export class Engine {
     }
 
     this._chargeClasslessActiveCost(h, hpBeforeAbility);
-    const cooldown = definition.refundCooldownOnKill && killedTarget ? 0 : definition.cooldownSeconds * h.d.cooldownMultiplier;
+    const cooldown = definition.refundCooldownOnKill && killedTarget ? 0 : definition.cooldownSeconds * h.d.moveCooldownMultiplier;
     h.abilityCooldowns[definition.id] = cooldown;
     h.visualActionKind = definition.effect === "weapon_strike" || definition.effect === "weapon_cleave" || definition.effect === "phantom_strike" ? "attack" : null;
     h.visualActionStartedAt = this.time;
@@ -690,7 +692,7 @@ export class Engine {
     });
     this._chargeClasslessActiveCost(h, hpBeforeAbility);
     h.abilityCooldowns[HERO_BASELINE.sharedStrike.id] = masteredMove(HERO_BASELINE.sharedStrike, moveRank(h.model, HERO_BASELINE.sharedStrike.id)).cooldownSeconds
-      * h.d.cooldownMultiplier;
+      * h.d.moveCooldownMultiplier;
     this.actionCompletions.push({ index, result: "completed" });
     return true;
   }
@@ -2884,6 +2886,7 @@ export class Engine {
     }
     if (announce) this._callout(h, spell.name.toUpperCase(), spell.color, BIG_SPELLS.has(spellId));
     (this.spellSuccesses[h.i] ||= {})[spellId] = ((this.spellSuccesses[h.i] || {})[spellId] || 0) + 1;
+    this._tally(h, SPELLS[spellId]?.support ? "supportCasts" : "casts", 1);
     const staff = getEquippedHeroWeaponType(h.model) === "staff";
     const damage = (h.d.attack || 0) * spellPower(h.model, spellId, { staff });
     const sourceId = "H" + h.i;
@@ -3020,6 +3023,7 @@ export class Engine {
     }
     if (announce) this._callout(h, spell.name.toUpperCase(), spell.color, false);
     (this.spellSuccesses[h.i] ||= {})[spellId] = ((this.spellSuccesses[h.i] || {})[spellId] || 0) + 1;
+    this._tally(h, SPELLS[spellId]?.support ? "supportCasts" : "casts", 1);
     const staff = getEquippedHeroWeaponType(h.model) === "staff";
     const power = supportPower(h.model, spellId, { staff });
     const rank = this.vfx ? proficiency(h.model, spell.element) : 1;

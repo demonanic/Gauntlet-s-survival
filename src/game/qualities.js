@@ -13,6 +13,9 @@ import { EVOLVED_KEYS, INNATE_KEYS, TRAITS, heroQuality } from "../combat/traits
 export const HISTORY_KEYS = Object.freeze([
   "trips", "fights", "wins", "kills", "eliteKills", "bossKills", "meleeHits", "rangedHits", "crits", "damage", "taken",
   "heals", "nearDeaths", "knockouts", "sneaks", "ambushes", "lowMoraleWins",
+  // Mastery qualities: successful damage or control casts, support casts,
+  // landed special moves, backstabs and dodges.
+  "casts", "supportCasts", "moves", "backstabs", "dodges",
 ]);
 
 // Levels at which a hero can develop a new quality (the guild retires heroes at 20).
@@ -55,8 +58,9 @@ export function normalizeQualityFields(hero) {
 export function recordFight(hero, battleStats = {}, { victory, morale, ambush }) {
   hero.history ||= emptyHistory();
   const history = hero.history;
-  for (const key of ["kills", "eliteKills", "bossKills", "meleeHits", "rangedHits", "crits", "heals"]) {
-    history[key] += Math.max(0, Math.round(Number(battleStats[key]) || 0));
+  for (const key of ["kills", "eliteKills", "bossKills", "meleeHits", "rangedHits", "crits", "heals",
+    "casts", "supportCasts", "moves", "backstabs", "dodges"]) {
+    history[key] = (history[key] || 0) + Math.max(0, Math.round(Number(battleStats[key]) || 0));
   }
   history.damage += Math.round(Number(battleStats.damage) || 0);
   history.taken += Math.round(Number(battleStats.taken) || 0);
@@ -86,6 +90,15 @@ function specialization(history, mine) {
 }
 
 const perFight = (history, key) => history[key] / Math.max(1, history.fights);
+// Score per unit of rate for the mastery qualities, calibrated on measured
+// fights (Nov 2026): a caster lands 13-29 attack or control spells and 4-9
+// support spells a fight; a sword hero dodges 2-10 times and 15-35% of their
+// hits are backstabs. Tier 1 needs a habit above the usual (see TIER_SCORES).
+const SPELLWRIGHT_RATE = 0.1;
+const LIFEBINDER_RATE = 0.25;
+const DUELIST_RATE = 0.8;
+const SHADOWBLADE_RATE = 4;
+const UNTOUCHABLE_RATE = 0.25;
 
 const SCORES = {
   marksman: (history) => specialization(history, "rangedHits"),
@@ -97,6 +110,12 @@ const SCORES = {
   fieldSurgeon: (history) => (history.heals >= 10 ? Math.max(0, (perFight(history, "heals") - 0.15) * 6) : 0),
   unshakable: (history) => history.ambushes * 0.08,
   rallyingHeart: (history) => history.lowMoraleWins * 0.15,
+  // Rates per fight, once there's enough on record to mean something.
+  spellwright: (history) => (history.casts >= 30 ? perFight(history, "casts") * SPELLWRIGHT_RATE : 0),
+  lifebinder: (history) => (history.supportCasts >= 20 ? perFight(history, "supportCasts") * LIFEBINDER_RATE : 0),
+  duelist: (history) => (history.moves >= 30 ? perFight(history, "moves") * DUELIST_RATE : 0),
+  shadowblade: (history) => (history.backstabs >= 50 && history.meleeHits > 0 ? (history.backstabs / history.meleeHits) * SHADOWBLADE_RATE : 0),
+  untouchable: (history) => (history.dodges >= 40 ? perFight(history, "dodges") * UNTOUCHABLE_RATE : 0),
 };
 
 const tierFor = (score) => TIER_SCORES.reduce((tier, threshold, index) => (score >= threshold ? index + 1 : tier), 0);

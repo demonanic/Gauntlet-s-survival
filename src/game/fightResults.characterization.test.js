@@ -14,25 +14,25 @@ import { getRegion } from "./regions";
 const T0 = Date.UTC(2026, 0, 1, 12);
 
 // Recorded in CI on the code before the move (expedition.js as of 05eb19e).
-// Cases that run real fights were re-recorded when Mastery (combat/mastery.js)
-// began saving per-hero counts: with hero.mastery left out of the hash, every
-// case still matched its original recording (checked in CI, Nov 2026).
+// Re-recorded when Mastery (combat/mastery.js) began saving per-hero counts
+// (hero.mastery, five new hero.history counters): with exactly those left out,
+// every case produced the same state as the code before it (checked Nov 2026).
 const GOLDEN = {
-  "victory, ambush": "d1fdfde3d9142ef4",
-  "victory with a hero down": "ca4b339b7c18c722",
-  "defeat": "92686cf7ab8e202b",
-  "defeat with a second chance": "b5f12ac82212984c",
-  "boss defeat with a second chance": "47175c066bd0f42c",
-  "boss victory": "820ad2be3d834b71",
-  "rotating boss victory": "a8919aad7d58a175",
-  "nemesis slain by its victim": "f9cf9fc20633d864",
-  "legendary victory": "b9355659b94347d9",
-  "rift return": "e7b4e24fad16a07b",
-  "rift overrun": "ae86912155d1c03d",
-  "unattended trip, gutter": "e4277f033ab3d75e",
-  "unattended trip, boneyard": "82d6cec4e0893683",
-  "unattended trip, frostfang": "b402b586efeb8e5c",
-  "unattended trip, rift": "bbb4e8b4fb1d7168",
+  "victory, ambush": "d78fe548b1ebcd1f",
+  "victory with a hero down": "d0bfce96d880be3e",
+  "defeat": "244e9f81910221da",
+  "defeat with a second chance": "ca80f85ee59fb691",
+  "boss defeat with a second chance": "e5b40c836ab4c9f5",
+  "boss victory": "022d6b9f02fec97b",
+  "rotating boss victory": "ec1958c3999676d5",
+  "nemesis slain by its victim": "d5ff64d42c55ed3c",
+  "legendary victory": "1c0f9bad4d12713a",
+  "rift return": "5944787a3d247c04",
+  "rift overrun": "358d8d27b23271ff",
+  "unattended trip, gutter": "a51e5c0216af715b",
+  "unattended trip, boneyard": "100af3f3b26b3f93",
+  "unattended trip, frostfang": "d883ca552c080cfe",
+  "unattended trip, rift": "0b62566ca26ac3da",
 };
 
 function mulberry32(seed) {
