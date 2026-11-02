@@ -6,9 +6,12 @@
 import { mergeClasslessBattleResults } from "../combat/classlessBattleResults";
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import * as C from "../combat/config";
-import { ARROW_RECOVERY, CONSUMABLES, GEAR_SLOTS, crystalInfo, heroArrowCount, heroUsesArrows } from "../combat/gear";
+import { ARROW_RECOVERY, CONSUMABLES, GEAR_SLOTS, WEAPON_PROFILES, crystalInfo, heroArrowCount, heroUsesArrows } from "../combat/gear";
 import { PET_MOD_LEVELS, PET_SPECIES, PET_XP_SHARE } from "../combat/pets";
 import { ELEMENTS, ROMAN, SPELLS, recordCasts } from "../combat/spells";
+import { recordMastery } from "../combat/mastery";
+import { getUnlockedClasslessAbilities } from "../combat/classlessAbilities";
+import { HERO_BASELINE } from "../combat/heroModel";
 import { heroTraitEffects, roadEffect } from "../combat/traits";
 import { LEGENDARY } from "./adventure";
 import { BOND_NAMES, recordSharedWin } from "./bonds";
@@ -28,6 +31,20 @@ import { BOSS_RANK_SCALING, CHAMPIONS, bossForRank, championFor } from "./region
 const AFTER_FIGHT_HEAL = 0.25;
 
 // Endless Rift bounty paid for the waves cleared on one run.
+// "Brann's Execution reaches mastery III." and the like, for the trip feed.
+export function masteryLine(hero, { kind, id, rank }) {
+  const name = hero.identity.name;
+  const roman = ROMAN[rank - 1];
+  if (kind === "move") {
+    const move = id === HERO_BASELINE.sharedStrike.id ? "Shared Strike"
+      : getUnlockedClasslessAbilities(hero).find((ability) => ability.id === id)?.name || "special move";
+    return `${name}'s ${move} reaches mastery ${roman}.`;
+  }
+  if (kind === "weapon") return `${name} reaches ${(WEAPON_PROFILES[id]?.label || id).toLowerCase()} mastery ${roman}.`;
+  if (kind === "dodge") return `${name}'s footwork sharpens: evasion mastery ${roman}.`;
+  return `${name} strikes from the shadows more surely: backstab mastery ${roman}.`;
+}
+
 export function riftBounty(wavesCleared) {
   return 10 * wavesCleared;
 }
@@ -68,6 +85,10 @@ export function applyFightResult(state, region, { victory, party, xpGains, gold,
       addFeed(run, at, up.kind === "spell"
         ? `${saved.identity.name}'s ${SPELLS[up.id].name} reaches rank ${ROMAN[up.rank - 1]}.`
         : `${saved.identity.name} grows more skilled with ${ELEMENTS[up.id].name} magic (proficiency ${ROMAN[up.rank - 1]}).`, "good", up.kind === "element");
+    }
+    // Landed moves, weapon hits, dodges and backstabs build mastery.
+    for (const up of recordMastery(saved, runtime.battleStats, runtime.equipment?.weapon?.weaponType)) {
+      addFeed(run, at, masteryLine(saved, up), "good", up.rank >= 3);
     }
     const spent = Math.floor((runtime.arrowsSpent?.arrows || 0) * ARROW_RECOVERY);
     if (victory && spent > 0) recovered += returnArrows(state, saved, spent);

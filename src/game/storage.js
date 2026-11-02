@@ -7,6 +7,7 @@ import { paletteForShift } from "../combat/heroPalette";
 import { rollTrait, TRAITS } from "../combat/traits";
 import { bankLoot, migrateVaultItem, normalizeHeroGear } from "./items";
 import { normalizeAutoClear } from "./armory";
+import { normalizeMastery } from "../combat/mastery";
 import { normalizeQualityFields } from "./qualities";
 import { PET_SPECIES } from "../combat/pets";
 import { ECOLOGIES } from "./ecology";
@@ -22,9 +23,11 @@ function normalizeHeroExtras(hero) {
   const traits = (Array.isArray(hero.traits) ? hero.traits : []).filter((key) => TRAITS[key]);
   const shift = Number(hero.appearance?.hueShift);
   const pet = normalizePet(hero.pet);
+  const mastery = normalizeMastery(hero.mastery);
   return {
     ...normalizeQualityFields(hero),
     pet: pet || undefined,
+    mastery: mastery || undefined,
     traits: traits.length ? traits : [rollTrait()],
     appearance: Number.isFinite(shift) ? { ...hero.appearance, ...paletteForShift(shift) } : hero.appearance,
   };

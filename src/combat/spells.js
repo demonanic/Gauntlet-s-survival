@@ -6,6 +6,7 @@
 // unlock the element's other spells and, later, a second and third element.
 // Owner-approved design (Oct 2026).
 import { effectiveLuck } from "./luck";
+import { heroTraitEffects } from "./traits";
 
 export const ELEMENTS = Object.freeze({
   arcane: { name: "Arcane", color: "#E879F9" },
@@ -214,7 +215,8 @@ function intelligence(hero) {
 
 export function castSuccessChance(hero, element) {
   const chance = MAGIC.baseSuccess + MAGIC.successPerInt * Math.max(0, intelligence(hero) - 10)
-    + MAGIC.successPerLuck * effectiveLuck(hero?.combat?.stats?.luck) + MAGIC.successPerRank * (proficiency(hero, element) - 1);
+    + MAGIC.successPerLuck * effectiveLuck(hero?.combat?.stats?.luck) + MAGIC.successPerRank * (proficiency(hero, element) - 1)
+    + (heroTraitEffects(hero).castSuccess || 0);
   return Math.min(MAGIC.maxSuccess, Math.max(0.05, chance));
 }
 
@@ -224,7 +226,8 @@ export function spellPower(hero, spellId, { staff = false } = {}) {
   const rank = rankFor(spellCasts(hero, spellId));
   const elementBonus = spell.element === "arcane" ? MAGIC.arcaneBonus : MAGIC.elementBonus;
   return spell.power * (1 + MAGIC.rankPower * (rank - 1)) * (1 + elementBonus)
-    * (1 + MAGIC.intPower * Math.max(0, intelligence(hero) - 10)) * (staff ? 1 + MAGIC.staffPower : 1);
+    * (1 + MAGIC.intPower * Math.max(0, intelligence(hero) - 10)) * (staff ? 1 + MAGIC.staffPower : 1)
+    * (1 + (heroTraitEffects(hero).spellPower || 0));
 }
 
 // Strength of a support spell (a share of max HP, or a buff), scaled like
@@ -233,7 +236,8 @@ export function supportPower(hero, spellId, { staff = false } = {}) {
   const spell = SPELLS[spellId];
   const rank = rankFor(spellCasts(hero, spellId));
   return spell.power * (1 + MAGIC.rankPower * (rank - 1)) * (1 + MAGIC.elementBonus)
-    * (1 + MAGIC.intPower * Math.max(0, intelligence(hero) - 10)) * (staff ? 1 + MAGIC.staffPower : 1);
+    * (1 + MAGIC.intPower * Math.max(0, intelligence(hero) - 10)) * (staff ? 1 + MAGIC.staffPower : 1)
+    * (1 + (heroTraitEffects(hero).supportPower || 0));
 }
 
 export function spellRadius(hero, spellId) {

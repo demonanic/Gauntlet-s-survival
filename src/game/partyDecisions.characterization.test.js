@@ -14,18 +14,21 @@ const T0 = Date.UTC(2026, 0, 1, 12);
 const AT = T0 + 60_000;
 
 // Recorded in CI on the code before the move (expedition.js as of 3aa2c7d).
+// Re-recorded when Mastery (combat/mastery.js) began saving per-hero counts
+// (hero.mastery, five new hero.history counters): with exactly those left out,
+// every case produced the same state as the code before it (checked Nov 2026).
 const GOLDEN = {
-  "sighting, good odds: sneak": "57b568336f2ae319",
-  "sighting, poor odds, badly hurt: sneak": "a7f139a57f4d62c2",
-  "sighting, poor odds, healthy: fight": "fd9be69d6b008fa3",
-  "boss, worn down: leave": "cbee4c7dd15d92de",
-  "boss, healthy: fight": "28eb9f51e1a05181",
-  "merchant: decline": "985430ca9d85feb3",
-  "story, healthy": "4764d1a00d4e957c",
-  "story, badly hurt": "52fe1d3c9f904374",
-  "deeper, healthy: push": "79222edcae60b410",
-  "deeper, a hero down: home": "4e265a0dd1289867",
-  "deeper, worn down: home": "37bdec2fe18eb5c7",
+  "sighting, good odds: sneak": "208757f50a3e9299",
+  "sighting, poor odds, badly hurt: sneak": "88b46b34b857000c",
+  "sighting, poor odds, healthy: fight": "a4f57b81af8dc352",
+  "boss, worn down: leave": "4307ae09c5b4e557",
+  "boss, healthy: fight": "3afe1f82db32ab1c",
+  "merchant: decline": "ea8c358bc570fcf3",
+  "story, healthy": "359f5deb0daafd92",
+  "story, badly hurt": "792b1123d4c5fd07",
+  "deeper, healthy: push": "9f37b1e74ee85ca6",
+  "deeper, a hero down: home": "236f78558d26779b",
+  "deeper, worn down: home": "fafe5ae4d0865b17",
 };
 
 function mulberry32(seed) {

@@ -11,6 +11,7 @@ import { heroQualities } from "../combat/traits";
 import { fitTag, rankForSlot } from "../game/armory";
 import { MAX_NAME_LENGTH, cleanHeroName } from "../game/guild";
 import FamiliarPanel from "./FamiliarPanel";
+import MasteryPanel from "./MasteryPanel";
 import ItemDetails from "./ItemDetails";
 import { NeonButton } from "./ui";
 
@@ -208,6 +209,9 @@ export default function HeroGear({
             );
           })}
         </div>
+
+        <h3 className="mt-3 font-display text-sm font-bold text-cyan-200">MASTERY</h3>
+        <MasteryPanel hero={hero} />
 
         <h3 className="mt-3 font-display text-sm font-bold text-cyan-200">FAMILIAR</h3>
         <FamiliarPanel
