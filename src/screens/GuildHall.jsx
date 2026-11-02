@@ -2,20 +2,15 @@ import HallOfLegends from "../components/HallOfLegends";
 import NemesisBoard from "../components/NemesisBoard";
 import BondOffers from "../components/BondOffers";
 import HeroRow from "../components/HeroRow";
-import ItemDetails from "../components/ItemDetails";
+import VaultPanel from "../components/VaultPanel";
 import { NeonButton, Panel } from "../components/ui";
 import { heroStatus, recruitCost, treatmentCost } from "../game/guild";
 import { canRetire } from "../game/legacy";
-import { MAX_UPGRADE, RARITY_ORDER, reforgeCost, salvageValue, upgradeCost } from "../game/items";
-
-const byRarityThenSlot = (a, b) => RARITY_ORDER.indexOf(b.rarity) - RARITY_ORDER.indexOf(a.rarity)
-  || (b.tier || 1) - (a.tier || 1) || a.slot.localeCompare(b.slot);
 
 export default function GuildHall({
-  guild, now, onRecruit, onOpenPerks, onOpenGear, onSell, onSalvage, onUpgrade, onReforge, onTreat, onRetire, onBuyLegacy, onAnswerBond,
+  guild, now, onRecruit, onOpenPerks, onOpenGear, onSell, onSalvage, onUpgrade, onReforge, onTreat, onRetire, onBuyLegacy, onAnswerBond, onEquipBestParty, onToggleLock, onClearGear, onAutoClear,
 }) {
   const cost = recruitCost(guild);
-  const vault = [...guild.vault].sort(byRarityThenSlot);
   return (
     <div className="space-y-3">
       <Panel data-testid="roster">
@@ -67,47 +62,17 @@ export default function GuildHall({
         </p>
       </Panel>
 
-      <Panel data-testid="vault">
-        <div className="mb-1 flex items-baseline justify-between gap-2">
-          <h2 className="font-display text-base font-bold text-cyan-200">VAULT · {vault.length}</h2>
-          <span className="font-mono-g text-[11px] text-fuchsia-300" data-testid="essence">{guild.essence || 0}✦ essence</span>
-        </div>
-        <p className="mb-2 font-mono-g text-[10px] text-slate-500">
-          The Forge upgrades gear up to +{MAX_UPGRADE}; each level adds 15% of its base stats. Salvage spare gear for
-          essence, and spend essence at the Reforge to reroll an item&apos;s affixes. Equipped gear can be forged and
-          reforged from the hero&apos;s Gear screen.
-        </p>
-        {vault.length === 0 ? (
-          <p className="font-mono-g text-[11px] text-slate-400">No spare gear yet. Enemies drop gear on expeditions; elites and bosses drop the best.</p>
-        ) : (
-          <ul className="space-y-1 font-mono-g text-[11px]">
-            {vault.map((item) => (
-              <li key={item.id} className="flex items-center justify-between gap-2 border-b border-white/5 pb-1">
-                <ItemDetails item={item} showSlot />
-                <div className="flex shrink-0 flex-col gap-1">
-                  {(item.upgrade || 0) < MAX_UPGRADE && (
-                    <NeonButton color="#FF6600" disabled={guild.gold < upgradeCost(item)} onClick={() => onUpgrade(item.id)} data-testid={`upgrade-${item.id}`}>
-                      Forge {upgradeCost(item)}g
-                    </NeonButton>
-                  )}
-                  {reforgeCost(item) && (
-                    <NeonButton
-                      color="#E879F9"
-                      disabled={(guild.essence || 0) < reforgeCost(item).essence || guild.gold < reforgeCost(item).gold}
-                      onClick={() => onReforge(item.id)}
-                      data-testid={`reforge-${item.id}`}
-                    >
-                      Reforge {reforgeCost(item).essence}✦
-                    </NeonButton>
-                  )}
-                  <NeonButton color="#94A3B8" onClick={() => onSell(item.id)} data-testid={`sell-${item.id}`}>Sell {item.value}g</NeonButton>
-                  <NeonButton color="#A78BFA" onClick={() => onSalvage(item.id)} data-testid={`salvage-${item.id}`}>Salvage +{salvageValue(item)}✦</NeonButton>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Panel>
+      <VaultPanel
+        guild={guild}
+        onSell={onSell}
+        onSalvage={onSalvage}
+        onUpgrade={onUpgrade}
+        onReforge={onReforge}
+        onToggleLock={onToggleLock}
+        onEquipBestParty={onEquipBestParty}
+        onClearGear={onClearGear}
+        onAutoClear={onAutoClear}
+      />
       <BondOffers guild={guild} onAnswer={onAnswerBond} />
       <NemesisBoard guild={guild} />
       <HallOfLegends guild={guild} onBuy={onBuyLegacy} />
