@@ -62,7 +62,7 @@ const EFFECT_LABELS = {
   N2: "Root the next target every 12 seconds (active)",
 };
 
-export default function ClasslessPerkTree({ hero, onPurchase, onAllocate, onLearnElement, onClose }) {
+export default function ClasslessPerkTree({ hero, onPurchase, onAllocate, onLearnElement, onChooseBeast, onClose }) {
   if (!hero || hero.cls || !hero.combat || !hero.progression) return null;
   const owned = new Set(hero.progression.ownedNodeIds || []);
   const branches = [...new Set(CANONICAL_NODES.map((node) => node.branch))];
@@ -98,7 +98,7 @@ export default function ClasslessPerkTree({ hero, onPurchase, onAllocate, onLear
             LUCK {heroLuck(hero)}: {describeLuck(heroLuck(hero)).join(" · ")}
           </p>
         </section>
-        <Spellbook hero={hero} onLearnElement={onLearnElement} />
+        <Spellbook hero={hero} onLearnElement={onLearnElement} onChooseBeast={onChooseBeast} />
         <div className="grid gap-3 sm:grid-cols-2">
           {branches.map((branch) => (
             <section key={branch} className="rounded-lg border border-white/10 p-2" aria-label={`${branch} perks`}>

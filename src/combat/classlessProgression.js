@@ -37,7 +37,7 @@ const NODE_PRESENTATION = {
   S3: ["Ambush", "First hit after 3 seconds without dealing damage gains +25%, once per target per combat."],
   S3a: ["Vanish", "Active · 25s cooldown · untargetable for 3 seconds; next hit gains +80% damage."],
   A1: ["Arcane Spark", "Unlocks Arcane damage capability and grants +8% Arcane damage; does not grant Library research."],
-  A2: ["Elementalism", "Choose an element in preparation (Fire, Ice, Poison, Lightning, Mind, or the support schools Restoration and Warding); +10% to its spells."],
+  A2: ["Elementalism", "Choose an element in preparation (Fire, Ice, Poison, Lightning, Mind, Restoration, Warding, Shadow or Wild Magic); +10% to its spells."],
   A2a: ["Chain Spark", "Elemental direct hits jump to up to 2 additional targets for 40% damage."],
   A3: ["Arcane Channel", "Active · 20s cooldown · single-target Arcane bolt for 175% Arcane damage; magic immunity applies."],
   A3a: ["Meteor", "Active · 25s cooldown · 2-second telegraph, then 180% Arcane damage in radius 4, up to 5 targets."],

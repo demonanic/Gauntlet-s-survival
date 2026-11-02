@@ -45,6 +45,13 @@ export const ICON_PATHS = Object.freeze({
   barrier: "M12 3l8 4.5v9L12 21l-8-4.5v-9z",
   empower: "M12 3l3 6h-6zM12 9v12M8 15h8",
   aegis: "M3 18a9 9 0 0 1 18 0zM12 9v-6",
+  veil: "M3 12s3.5-6 9-6s9 6 9 6s-3.5 6-9 6s-9-6-9-6zM4 20L20 4",
+  terror: "M12 3v12M12 19v.01M5 21h14L12 3z",
+  confusion: "M9 9a3 3 0 1 1 4 2.8c-.6.3-1 .9-1 1.6V15M12 19v.01",
+  ensnare: "M4 20c4-2 4-8 8-8s4 6 8 8M8 20c0-4 2-6 4-6s4 2 4 6",
+  thornfield: "M3 20h18M6 20l2-6l2 6M12 20l2-8l2 8M17 20l1.5-4l1.5 4",
+  summon: "M5 15l2-7l3 3l2-6l2 6l3-3l2 7zM7 19h10",
+  dominate: "M8 6a4 4 0 1 1 8 0v2H8zM6 8h12v4l-6 9l-6-9z",
 });
 
 // Icon per special move (Shared Strike is every hero's basic move).
@@ -58,6 +65,7 @@ export const MOVE_ICONS = Object.freeze({
 export const SPELL_SHAPE_ICONS = Object.freeze({
   bolt: "bolt", area: "burst", linger: "linger", meteor: "meteor",
   heal: "mend", renew: "renew", lifeline: "lifeline", barrier: "barrier", empower: "empower", aegis: "aegis",
+  veil: "veil", terror: "terror", confusion: "confusion", ensnare: "ensnare", thornfield: "thornfield", summon: "summon", dominate: "dominate",
 });
 
 // Moves and spells that hit hard enough to freeze the frame for a moment.

@@ -4,7 +4,7 @@ import * as C from "../combat/config";
 import { Engine } from "../combat/engine";
 import {
   MAGIC, RANK_CASTS, castSuccessChance, canCast, elementSlot, knownSpells, learnElement, maxMana, proficiency,
-  recordCasts, spellPower, supportPower,
+  recordCasts, spellPower, supportPower, heroBeast, chooseBeast,
 } from "../combat/spells";
 import { buildWildEncounter, createEncounterSim } from "./encounters";
 import { createGuild, currentEncounterParty, resolveEncounter, startExpedition } from "./guild";
@@ -359,5 +359,160 @@ describe("Restoration and Warding", () => {
     withRoll(0, () => engine._autoCast(h));
     expect(h.spellCooldowns.mend).toBeGreaterThan(0);
     expect(ally.ref.hp).toBeGreaterThan(ally.d.maxHp * 0.4);
+  });
+});
+
+describe("Shadow, Wild Magic and Dominate", () => {
+  const mage = (school, casts = {}, extra = {}) => caster({ nodes: ["A1", "A2"], elements: [school], casts, ...extra });
+  const ally = () => { const hero = caster({ nodes: [] }); hero.identity = { ...hero.identity, id: "ally" }; return hero; };
+  const fight = (heroes, enemies) => {
+    const engine = new Engine({ getContext: () => null }, createEncounterSim(heroes, 1), buildWildEncounter(getRegion("gutter"), 0, () => 0.5, { waves: 1 }), {});
+    engine.spawnQueue = [];
+    engine.active = enemies;
+    engine.heroes.forEach((h, i) => { h.x = 280 + i * 40; h.y = 420; });
+    return engine;
+  };
+  const cast = (engine, id, target) => withRoll(0, () => engine.castHeroSpell(0, id, target));
+
+  test("learned like elements; Dominate comes with Mind V", () => {
+    expect(knownSpells(mage("shadow")).map((s) => s.id)).toContain("veil");
+    expect(knownSpells(mage("wild", { ensnare: RANK_CASTS[3] })).map((s) => s.id)).toEqual(expect.arrayContaining(["ensnare", "thornfield", "summon_beast"]));
+    expect(knownSpells(mage("mind", { thought_lance: RANK_CASTS[3] })).map((s) => s.id)).not.toContain("dominate");
+    expect(knownSpells(mage("mind", { thought_lance: RANK_CASTS[4] })).map((s) => s.id)).toContain("dominate");
+  });
+
+  test("the spirit beast comes from the trait, a Spellbook choice, or Wild Magic V", () => {
+    expect(heroBeast({ ...mage("wild"), traits: ["brawny"] })).toBe("tiger");
+    expect(heroBeast({ ...mage("wild"), traits: ["reckless"] })).toBe("wasp");
+    expect(heroBeast({ ...mage("wild"), traits: [] })).toBe("wolf");
+    const picked = chooseBeast({ ...mage("wild"), traits: ["brawny"] }, "spider");
+    expect(heroBeast(picked.hero)).toBe("spider");
+    expect(heroBeast(chooseBeast(picked.hero, null).hero)).toBe("tiger");
+    expect(chooseBeast(mage("wild"), "dragon").ok).toBe(false);
+    expect(heroBeast(mage("wild", { ensnare: RANK_CASTS[4] }))).toBe("dragon");
+  });
+
+  test("Veil hides an ally and sharpens their next hit", () => {
+    const engine = fight([mage("shadow"), ally()], [foe()]);
+    const friend = engine.heroes[1];
+    expect(cast(engine, "veil", friend)).toBe(true);
+    expect(engine._isHeroUntargetable(friend)).toBe(true);
+    expect(friend.classlessCombatState.vanishDamagePending).toBeGreaterThan(0.4);
+  });
+
+  test("Terror sends foes fleeing; a boss only flinches", () => {
+    const grunt = foe("goblin", 300, 380, { damage: 5 });
+    const boss = foe("demon", 320, 390, { boss: true });
+    const engine = fight([mage("shadow", { veil: RANK_CASTS[1] })], [grunt, boss]);
+    expect(cast(engine, "terror", grunt)).toBe(true);
+    expect(grunt.fearUntil).toBeCloseTo(engine.time + 2.5);
+    expect(boss.fearUntil).toBeUndefined();
+    expect(boss.stunUntil).toBeCloseTo(engine.time + 0.5);
+    const h = engine.heroes[0];
+    const before = Math.hypot(grunt.x - h.x, grunt.y - h.y);
+    grunt.speed = 40;
+    engine._updateEnemy(grunt, 0.5);
+    expect(Math.hypot(grunt.x - h.x, grunt.y - h.y)).toBeGreaterThan(before);
+  });
+
+  test("Confusion turns a foe on its own side; bosses resist; elites for half as long", () => {
+    const victim = foe("goblin", 330, 300);
+    const turned = foe("orc", 335, 300, { damage: 20, atkCd: 0 });
+    const elite = foe("lieutenant", 360, 300);
+    const boss = foe("demon", 380, 300, { boss: true });
+    const engine = fight([mage("shadow", { veil: RANK_CASTS[3] })], [victim, turned, elite, boss]);
+    cast(engine, "confusion", turned);
+    expect(turned.confusedUntil).toBeCloseTo(engine.time + 4);
+    engine._updateEnemy(turned, 0.05);
+    expect(victim.hp).toBeLessThan(5000);
+    expect(victim.dmgBy.H0).toBeGreaterThan(0);
+    engine.heroes[0].spellCooldowns = {};
+    cast(engine, "confusion", boss);
+    expect(boss.confusedUntil).toBeUndefined();
+    engine.heroes[0].spellCooldowns = {};
+    engine.heroes[0].mana = engine.heroes[0].maxMana;
+    cast(engine, "confusion", elite);
+    expect(elite.confusedUntil).toBeCloseTo(engine.time + 2);
+  });
+
+  test("Ensnare and Thornfield root (less on bosses); Thornfield also bleeds", () => {
+    const a = foe("goblin", 320, 300);
+    const b = foe("goblin", 340, 310);
+    const boss = foe("demon", 600, 300, { boss: true });
+    const engine = fight([mage("wild", { ensnare: RANK_CASTS[1] })], [a, b, boss]);
+    cast(engine, "ensnare", boss);
+    expect(boss.rootUntil).toBeCloseTo(engine.time + 0.5);
+    engine.heroes[0].mana = engine.heroes[0].maxMana;
+    cast(engine, "thornfield", a);
+    expect(a.rootUntil).toBeGreaterThan(engine.time);
+    expect(b.rootUntil).toBeGreaterThan(engine.time);
+    expect(a.dots.some((dot) => dot.color === "#DC2626")).toBe(true);
+  });
+
+  test("Dominate takes an ordinary foe for the party, never an elite, boss or legend", () => {
+    const grunt = foe("orc", 320, 300, { damage: 30, atkCd: 0 });
+    const other = foe("goblin", 330, 300);
+    const elite = foe("lieutenant", 340, 300);
+    const legend = foe("orc", 345, 300, { legendary: true });
+    const engine = fight([mage("mind", { thought_lance: RANK_CASTS[4] }, { intelligence: 40 })], [grunt, other, elite, legend]);
+    const h = engine.heroes[0];
+    cast(engine, "dominate", elite);
+    expect(elite.dominatedUntil).toBeUndefined();
+    h.spellCooldowns = {}; h.mana = h.maxMana;
+    cast(engine, "dominate", legend);
+    expect(legend.dominatedUntil).toBeUndefined();
+    h.spellCooldowns = {}; h.mana = h.maxMana;
+    cast(engine, "dominate", grunt);
+    expect(grunt.dominatedUntil).toBeCloseTo(engine.time + 6);
+    expect(engine._isValidClasslessTarget(h, grunt)).toBe(false);
+    engine._updateEnemy(grunt, 0.05);
+    expect(other.hp).toBeLessThan(5000);
+  });
+
+  test("a spirit beast fights for its caster and leaves after 10 s; a rat swarm is three", () => {
+    const tigerMage = { ...mage("wild", { ensnare: RANK_CASTS[3] }), traits: ["brawny"] };
+    const prey = foe("goblin", 330, 380);
+    const engine = fight([tigerMage], [prey]);
+    expect(cast(engine, "summon_beast")).toBe(true);
+    const beast = engine.pets.find((pet) => pet.summoned);
+    expect(beast.stats.species).toBe("tiger");
+    expect(beast.maxHp).toBe(Math.round(engine.heroes[0].d.maxHp * 0.3));
+    // A second summon waits until this one is gone.
+    expect(engine.getHeroSpellStatus(0).find((spell) => spell.id === "summon_beast").available).toBe(false);
+    for (let i = 0; i < 40; i += 1) engine._updatePets(0.1);
+    expect(prey.hp).toBeLessThan(5000);
+    engine.time += 10;
+    engine._updatePets(0.1);
+    expect(engine.pets.some((pet) => pet.summoned)).toBe(false);
+
+    const ratMage = { ...mage("wild", { ensnare: RANK_CASTS[3] }), traits: ["scavenger"] };
+    const swarm = fight([ratMage], [foe()]);
+    cast(swarm, "summon_beast");
+    expect(swarm.pets.filter((pet) => pet.summoned)).toHaveLength(3);
+  });
+
+  test("a downed spirit beast doesn't take the partner's familiar bonus with it", () => {
+    const hero = { ...mage("wild", { ensnare: RANK_CASTS[3] }), traits: [] };
+    hero.pet = { species: "tortoise", name: "Shelly", level: 1, xp: 0, quality: "loyal", mods: {} };
+    const engine = fight([hero], [foe()]);
+    const guard = engine.heroes[0].petGuard;
+    cast(engine, "summon_beast");
+    const beast = engine.pets.find((pet) => pet.summoned);
+    beast.hp = 1;
+    engine._enemyHitPet(foe("orc", 0, 0, { damage: 50 }), beast);
+    expect(beast.down).toBe(true);
+    expect(engine.heroes[0].petGuard).toBe(guard);
+  });
+
+  test("on auto, Dominate keeps a mana reserve", () => {
+    const grunt = foe("orc", 320, 300, { damage: 30 });
+    const engine = fight([mage("mind", { thought_lance: RANK_CASTS[4] })], [grunt]);
+    const h = engine.heroes[0];
+    h.mana = 45;
+    withRoll(0, () => engine._autoCast(h));
+    expect(grunt.dominatedUntil).toBeUndefined();
+    h.mana = h.maxMana; h.castCd = 0; h.spellCooldowns = {};
+    withRoll(0, () => engine._autoCast(h));
+    expect(grunt.dominatedUntil).toBeGreaterThan(engine.time);
   });
 });

@@ -1,6 +1,6 @@
 import {
-  ELEMENTS, ELEMENT_EFFECTS, MAGIC, ROMAN, SCHOOLS, SPELLS, canCast, castSuccessChance, elementCasts, elementSlot,
-  heroMagic, knownSpells, maxMana, nextRankAt, proficiency, rankFor, spellCasts,
+  BEASTS, BEAST_KEYS, ELEMENTS, ELEMENT_EFFECTS, MAGIC, ROMAN, SCHOOLS, SPELLS, canCast, castSuccessChance, elementCasts, elementSlot,
+  heroBeast, heroMagic, knownSpells, maxMana, nextRankAt, proficiency, rankFor, spellCasts,
 } from "../combat/spells";
 
 const SLOT_REASONS = {
@@ -11,7 +11,7 @@ const SLOT_REASONS = {
 
 // A caster's spells: elements and proficiency, each spell's rank, and the
 // chance a cast lands. Elementalism picks the first element here.
-export default function Spellbook({ hero, onLearnElement }) {
+export default function Spellbook({ hero, onLearnElement, onChooseBeast }) {
   if (!canCast(hero)) return null;
   const learned = heroMagic(hero).elements;
   const slot = elementSlot(hero);
@@ -54,6 +54,28 @@ export default function Spellbook({ hero, onLearnElement }) {
           </div>
         );
       })}
+      {learned.includes("wild") && (
+        <div className="mb-2 font-mono-g text-[10px]" data-testid="spirit-beast">
+          <div className="text-lime-200">
+            Spirit beast: {BEASTS[heroBeast(hero)].name}
+            <span className="ml-1 text-slate-500">
+              {heroBeast(hero) === "dragon" ? "(Wild Magic V)" : heroMagic(hero).beast ? "(chosen)" : "(from their trait)"}
+            </span>
+          </div>
+          {heroBeast(hero) !== "dragon" && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {BEAST_KEYS.map((beast) => (
+                <button key={beast} type="button" onClick={() => onChooseBeast?.(beast === heroMagic(hero).beast ? null : beast)}
+                  aria-pressed={heroBeast(hero) === beast} data-testid={`beast-${beast}`}
+                  className="min-h-9 rounded border px-2 font-mono-g text-[10px]"
+                  style={{ borderColor: heroBeast(hero) === beast ? BEASTS[beast].color : `${BEASTS[beast].color}55`, color: BEASTS[beast].color }}>
+                  {BEASTS[beast].name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       {slot.ok ? (
         <div className="mt-1" data-testid="learn-element">
           <div className="mb-1 font-mono-g text-[10px] text-fuchsia-200">
