@@ -25,6 +25,7 @@ import {
 import { buyShopItem, rerollShop } from "./game/shop";
 import { isDebugMode } from "./game/debug";
 import { guildHints } from "./game/hints";
+import { equipBest, equipBestParty } from "./game/armory";
 import { assignPet, choosePetMod, openPetCrate, unassignPet } from "./game/pets";
 import { getRegion } from "./game/regions";
 import {
@@ -171,6 +172,7 @@ export default function App() {
           onOpenPerks={setPerkHeroId}
           onOpenGear={setGearHeroId}
           onSell={(itemId) => apply((current) => sellGear(current, itemId))}
+          onEquipBestParty={() => apply((current) => equipBestParty(current))}
           onSalvage={(itemId) => apply((current) => salvageGear(current, itemId))}
           onUpgrade={(itemId) => apply((current) => upgradeGear(current, itemId))}
           onReforge={(itemId) => apply((current) => reforgeGear(current, itemId))}
@@ -247,6 +249,7 @@ export default function App() {
           locked={!!guild.expedition?.heroIds.includes(gearHeroId)}
           onEquip={(itemId) => apply((current) => equipGear(current, gearHeroId, itemId))}
           onUnequip={(slot) => apply((current) => unequipGear(current, gearHeroId, slot))}
+          onEquipBest={() => apply((current) => equipBest(current, gearHeroId))}
           onLoadQuick={(index, key) => apply((current) => loadQuickSlot(current, gearHeroId, index, key))}
           onUnloadQuick={(index) => apply((current) => unloadQuickSlot(current, gearHeroId, index))}
           onUpgrade={(itemId) => apply((current) => upgradeGear(current, itemId))}

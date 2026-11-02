@@ -12,7 +12,7 @@ const byRarityThenSlot = (a, b) => RARITY_ORDER.indexOf(b.rarity) - RARITY_ORDER
   || (b.tier || 1) - (a.tier || 1) || a.slot.localeCompare(b.slot);
 
 export default function GuildHall({
-  guild, now, onRecruit, onOpenPerks, onOpenGear, onSell, onSalvage, onUpgrade, onReforge, onTreat, onRetire, onBuyLegacy, onAnswerBond,
+  guild, now, onRecruit, onOpenPerks, onOpenGear, onSell, onSalvage, onUpgrade, onReforge, onTreat, onRetire, onBuyLegacy, onAnswerBond, onEquipBestParty,
 }) {
   const cost = recruitCost(guild);
   const vault = [...guild.vault].sort(byRarityThenSlot);
@@ -72,6 +72,12 @@ export default function GuildHall({
           <h2 className="font-display text-base font-bold text-cyan-200">VAULT · {vault.length}</h2>
           <span className="font-mono-g text-[11px] text-fuchsia-300" data-testid="essence">{guild.essence || 0}✦ essence</span>
         </div>
+        {onEquipBestParty && vault.length > 0 && (
+          <div className="mb-2">
+            <NeonButton color="#39FF14" onClick={onEquipBestParty} data-testid="equip-best-party">Equip best for party</NeonButton>
+            <span className="ml-2 font-mono-g text-[10px] text-slate-500">Gives each hero at home the vault gear that suits their weapon best.</span>
+          </div>
+        )}
         <p className="mb-2 font-mono-g text-[10px] text-slate-500">
           The Forge upgrades gear up to +{MAX_UPGRADE}; each level adds 15% of its base stats. Salvage spare gear for
           essence, and spend essence at the Reforge to reroll an item&apos;s affixes. Equipped gear can be forged and
