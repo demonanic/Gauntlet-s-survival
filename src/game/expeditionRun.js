@@ -8,6 +8,7 @@ import { CONSUMABLES } from "../combat/gear";
 import { partyRoadEffects, roadEffect } from "../combat/traits";
 import { clampMorale } from "./adventure";
 import { bankLoot } from "./items";
+import { applyAutoClear } from "./armory";
 import { legacyBonuses } from "./legacy";
 import { recordHistory } from "./qualities";
 
@@ -166,9 +167,12 @@ export function completeExpedition(state, outcome, at) {
   run.outcome = outcome;
   state.gold += loot.gold;
   bankLoot(state, loot.items);
+  // The player's auto-clear setting (off by default) runs on the new gear.
+  const autoCleared = applyAutoClear(state, loot.items);
   state.lastReport = {
     regionId, outcome, loot, stats: run.stats, morale: run.morale, wavesCleared: run.wavesCleared, depth: run.depth || 0, endedAt: at,
     log: run.feed.map((entry) => entry.text),
+    ...(autoCleared ? { autoCleared } : {}),
   };
   state.expedition = null;
 }

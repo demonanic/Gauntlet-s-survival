@@ -6,6 +6,7 @@ import { emptyLegacy, syncGuildBonuses } from "./legacy";
 import { paletteForShift } from "../combat/heroPalette";
 import { rollTrait, TRAITS } from "../combat/traits";
 import { bankLoot, migrateVaultItem, normalizeHeroGear } from "./items";
+import { normalizeAutoClear } from "./armory";
 import { normalizeQualityFields } from "./qualities";
 import { PET_SPECIES } from "../combat/pets";
 import { ECOLOGIES } from "./ecology";
@@ -122,6 +123,10 @@ function normalizeGuild(parsed) {
       .filter((crate) => Array.isArray(crate?.options) && crate.options.length && crate.options.every((key) => PET_SPECIES[key])),
     legacy: { ...emptyLegacy(), ...(parsed.legacy && typeof parsed.legacy === "object" ? parsed.legacy : {}) },
   };
+  // The armory's auto-clear setting exists only once the player has set it.
+  const autoClear = normalizeAutoClear(parsed.autoClear);
+  if (autoClear) state.autoClear = autoClear;
+  else delete state.autoClear;
   state.candidate = parsed.candidate?.trait && TRAITS[parsed.candidate.trait] ? parsed.candidate : rollCandidate(state);
   retireOldExpedition(state);
   syncGuildBonuses(state);

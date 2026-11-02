@@ -341,6 +341,17 @@ function locateGear(state, itemId) {
   return {};
 }
 
+// Lock (or unlock) a piece, in the vault or worn: locked gear can't be sold
+// or salvaged, by hand or by the armory's clearing.
+export function toggleItemLock(state, itemId) {
+  const next = serializeGameState(state);
+  const { item } = locateGear(next, itemId);
+  if (!item) return { ok: false, reason: "unknown_item" };
+  if (item.locked) delete item.locked;
+  else item.locked = true;
+  return { ok: true, state: next };
+}
+
 // Forge upgrade. Works on vault gear and on gear worn by heroes who are home.
 export function upgradeGear(state, itemId) {
   const next = serializeGameState(state);
@@ -368,6 +379,7 @@ export function salvageGear(state, itemId) {
   const next = serializeGameState(state);
   const index = next.vault.findIndex((item) => item.id === itemId);
   if (index < 0) return { ok: false, reason: "unknown_item" };
+  if (next.vault[index].locked) return { ok: false, reason: "locked" };
   const [item] = next.vault.splice(index, 1);
   next.essence = (next.essence || 0) + salvageValue(item);
   return { ok: true, state: next };
@@ -542,6 +554,7 @@ export function sellGear(state, itemId) {
   const next = serializeGameState(state);
   const index = next.vault.findIndex((item) => item.id === itemId);
   if (index < 0) return { ok: false, reason: "unknown_item" };
+  if (next.vault[index].locked) return { ok: false, reason: "locked" };
   const [item] = next.vault.splice(index, 1);
   next.gold += Math.max(0, Math.round(item.value || 0));
   return { ok: true, state: next };

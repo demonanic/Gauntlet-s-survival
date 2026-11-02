@@ -141,6 +141,37 @@ A deliberately small model (not Demonanic's 11 slots), defined in `src/combat/ge
   Departure restocks every loaded slot from the stash and gives an arrowless archer
   plain arrows in a free slot.
 
+## Armory: best gear and clearing the vault (Nov 2026, `src/game/armory.js`)
+
+Owner request: the vault was hard to sort and to find the best gear per hero in; add bulk
+and automatic selling. Menus only: fights are unchanged (characterization hashes stable).
+
+- **Fit (`heroFit`, `ROLE_WEIGHTS`):** every stat a hero wears, set bonuses included,
+  weighted by their weapon. Swords value attack, crit, attack speed, lifesteal and cleave;
+  bows add volley and arrow saving; staffs weigh HP and defense a little more. Stats a hero
+  can't use are worth nothing (arrow saving without a bow). All value defense, HP,
+  resistances and on-hit effects. A hero is only offered their own weapon type; an
+  empty-handed hero can take any.
+- **Upgrade:** a swap that adds at least 1% fit (`UPGRADE_MIN`). The gear picker lists
+  the best piece first, tagged "Upgrade +N%", "About the same" or "Worse".
+- **Equip best** (hero sheet) fills every slot from the vault, never taking from another
+  hero. **Equip best for party** (vault) repeatedly makes the swap that adds the most fit
+  to any hero at home; cast-offs return to the vault and can go to someone else.
+- **Vault view:** filter by slot and rarity; sort by best for a chosen hero, newest,
+  rarity or sell value. Each piece says who it's an upgrade for (top three, best first)
+  or "Spare". ☆ locks a piece (vault or worn): it can't be sold or salvaged.
+- **Clear junk:** ticks unprotected gear that's no upgrade for any hero (home or away).
+  Protected: locked, forged, crystal-set, set pieces, Legendaries. One spare per slot
+  (per weapon type) is kept unless the vault already holds a piece for it. The player
+  can untick any, then sells or salvages them in one go after a confirmation with totals.
+- **Auto-clear (opt-in, `guild.autoClear`):** when an expedition comes home, new loot at
+  or below the chosen rarity (Common, Uncommon or Rare; default Uncommon, by selling) that
+  no hero needs and isn't protected is sold or salvaged. Set pieces, Legendaries and
+  locked gear are never touched. The return report shows the count and the gold or
+  essence. The field is absent until the player first changes the setting.
+- **Essence** has one use, the Reforge (reroll affixes on Uncommon to Epic). Selling pays
+  gold, salvaging pays essence.
+
 ## Environments (`src/game/environment.js`)
 
 | Environment | Region | On the road (per event, ×(1 − resist)) | In battle (×(1 − resist)) | Provision |

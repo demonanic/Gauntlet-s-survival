@@ -32,9 +32,10 @@ Last updated: 2026-11-01. At that point Phases 6 and 7 were merged (#34–#36) a
 
 ## What's next
 
-- **Now:** the architecture roadmap is paused after Phase 7 (all merged, #34–#37). Sam switched to feature work on special moves and spells; the agreed five-step plan is in `docs/DESIGN.md` ("Spells and familiars: the agreed plan"). Step 1 (battle screen) is merged (#38); step 2 (spell effects) is merged (#39); step 3 (Restoration and Warding) is merged (#40); step 4 (familiars as units) is merged (#41); step 5 (Shadow, Wild Magic, Dominate, spirit beasts) is draft PR #42, the last step of the plan. Each step needs Sam's go, and new visuals need his design check first.
+- **Now:** the architecture roadmap is paused after Phase 7 (all merged, #34–#37). Sam switched to feature work on special moves and spells; the agreed five-step plan is in `docs/DESIGN.md` ("Spells and familiars: the agreed plan"). Step 1 (battle screen) is merged (#38); step 2 (spell effects) is merged (#39); step 3 (Restoration and Warding) is merged (#40); step 4 (familiars as units) is merged (#41); step 5 (Shadow, Wild Magic, Dominate, spirit beasts) is merged (#42), finishing the plan. Next feature: the armory (best gear per hero, vault sorting, Clear junk, auto-clear; DESIGN.md "Armory"), draft PR #43. Each step needs Sam's go, and new visuals need his design check first.
+- **Checking screens:** npm is blocked here, so CI is the test runner; to see real screens, a temporary commit that prints `dist/assets` as base64 to the CI log can be decoded and served with Playwright, then dropped (never merged).
 - **Still owed:** a watched-fight browser check after 6D-1 and batches 2–3, plus the byte-identity probe and seeded runs for batches 2–3 (the sessions that made them could not install dependencies).
-- **Tests:** 475 (449 plus 15 fight-result and 11 party-decision characterization cases).
+- **Tests:** 527 (including 15 fight-result and 11 party-decision characterization cases).
 - **After that:** Phases 8 (A–D, split `engine.js`), 9, 10 and 11. The recommendation was to resume features (Endgame B/C/D) after Phase 7 and interleave phases 8–11.
 - **Sam's earlier decisions:**
   - The error boundary goes in its own reliability PR, not in Phase 6.

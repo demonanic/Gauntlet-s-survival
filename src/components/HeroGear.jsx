@@ -8,6 +8,7 @@ import {
   EXTRACT_COST, MAX_UPGRADE, formatGearStats, formatStatValue, gearStatDelta, heroCombatSummary, reforgeCost, upgradeCost,
 } from "../game/items";
 import { heroQualities } from "../combat/traits";
+import { fitTag, rankForSlot } from "../game/armory";
 import { MAX_NAME_LENGTH, cleanHeroName } from "../game/guild";
 import FamiliarPanel from "./FamiliarPanel";
 import ItemDetails from "./ItemDetails";
@@ -24,6 +25,15 @@ function DeltaText({ delta }) {
       </span>
     );
   });
+}
+
+const FIT_COLORS = { upgrade: "#39FF14", same: "#94A3B8", worse: "#F87171" };
+
+// How well a vault piece suits this hero, from their weapon's needs.
+function FitTag({ hero, item }) {
+  const tag = fitTag(hero, item);
+  if (!tag) return <div className="text-[10px] text-slate-500">Not their weapon type</div>;
+  return <div className="text-[10px] font-bold" style={{ color: FIT_COLORS[tag.kind] }} data-testid={`fit-${item.id}`}>{tag.text}</div>;
 }
 
 // Who the hero is: the quality they were born with and the ones their
@@ -118,14 +128,17 @@ function GearSpecials({ hero }) {
 // Per-hero gear sheet: seven gear slots plus two consumable quick slots.
 export default function HeroGear({
   hero, vault, stash, gold, essence = 0, locked, onEquip, onUnequip, onLoadQuick, onUnloadQuick, onUpgrade, onReforge, onRename,
-  onSupplyStyle, crystals = {}, onInfuse, onExtract, kennel = [], onAssignPet, onUnassignPet, onChoosePetMod, onClose,
+  onSupplyStyle, crystals = {}, onInfuse, onExtract, kennel = [], onAssignPet, onUnassignPet, onChoosePetMod, onEquipBest, onClose,
 }) {
   const [picking, setPicking] = useState(null); // { type: "gear", slot } | { type: "quick", index }
   const [renaming, setRenaming] = useState(null); // draft name while editing
   const summary = heroCombatSummary(hero);
   const equipment = hero.equipment || {};
   const quickSlots = hero.quickSlots || [];
-  const candidates = picking?.type === "gear" ? vault.filter((item) => item.slot === picking.slot) : [];
+  // Best fit for this hero first, each tagged Upgrade, About the same or Worse.
+  const candidates = picking?.type === "gear" ? rankForSlot(hero, vault, picking.slot).map(({ item }) => item) : [];
+  // Slots the vault could improve (not how many pieces would).
+  const upgrades = locked ? 0 : new Set(vault.filter((item) => fitTag(hero, item)?.kind === "upgrade").map((item) => item.slot)).size;
 
   return (
     <div className="fixed inset-0 z-[75] overflow-y-auto bg-black/85 p-3" data-testid="hero-gear">
@@ -168,7 +181,14 @@ export default function HeroGear({
           <p className="mt-2 font-mono-g text-[11px] text-yellow-300">This hero is on an expedition. Gear can be changed once they are home.</p>
         )}
 
-        <h3 className="mt-3 font-display text-sm font-bold text-cyan-200">GEAR</h3>
+        <div className="mt-3 flex items-center justify-between gap-2">
+          <h3 className="font-display text-sm font-bold text-cyan-200">GEAR</h3>
+          {onEquipBest && (
+            <NeonButton color="#39FF14" disabled={!upgrades} onClick={() => { onEquipBest(); setPicking(null); }} data-testid="equip-best">
+              {upgrades ? `Equip best (${upgrades} slot${upgrades === 1 ? "" : "s"})` : "Wearing the best"}
+            </NeonButton>
+          )}
+        </div>
         <div className="mt-1 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
           {GEAR_SLOTS.map((slot) => {
             const item = equipment[slot];
@@ -291,6 +311,7 @@ export default function HeroGear({
                 <li key={item.id} className="flex items-center justify-between gap-2 border-b border-white/5 pb-1">
                   <div className="min-w-0">
                     <ItemDetails item={item} />
+                    <FitTag hero={hero} item={item} />
                     <div className="text-[10px]"><DeltaText delta={gearStatDelta(item, equipment[picking.slot])} /></div>
                   </div>
                   <NeonButton color="#39FF14" onClick={() => { onEquip(item.id); setPicking(null); }} data-testid={`equip-${item.id}`}>Equip</NeonButton>
