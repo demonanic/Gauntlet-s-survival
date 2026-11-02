@@ -20,6 +20,7 @@ import { PET_BODIES, petMaxHp, petStats } from "./pets";
 import { drawFamiliar } from "./familiarSprites";
 import { BIG_MOVES, BIG_SPELLS, HIT_STOP_SECONDS, branchColor } from "./abilityLook";
 import { heroTraitEffects } from "./traits";
+import { masteredMove, masteryEffects, moveRank } from "./mastery";
 import { isNeonIdentityColor } from "./heroModel";
 import { heroSpriteFilter } from "./heroPalette";
 import { combatVfxAssetId, drawCombatVfx, getCombatVfxImage, projectileVfxAssetId } from "./combatVfx";
@@ -84,6 +85,8 @@ function classlessHeroDerived(hero) {
   const traits = heroTraitEffects(hero);
   // Gauntlet: the equipped weapon decides range, melee vs ranged, and pace.
   const weapon = heroWeaponProfile(hero);
+  // Mastery (mastery.js): weapon, dodge and backstab ranks. Rank I adds nothing.
+  const mastery = masteryEffects(hero, hero.equipment?.weapon?.weaponType);
   // Gauntlet environments (darkness, cold, heat, toxins), already reduced by
   // the hero's resistance: see game/environment.js.
   const env = hero.environment || null;
@@ -106,10 +109,14 @@ function classlessHeroDerived(hero) {
     agility: stats.agility + gear.agility + traits.agility,
     intelligence: stats.intelligence,
     critChance: Math.min(0.5, attack.criticalChance + effects.critChance + gear.critChance + traits.critChance
-      + ((weapon?.rangeMode ?? attack.rangeMode) === "midline" ? traits.rangedCrit : 0) + luck.critChance),
+      + ((weapon?.rangeMode ?? attack.rangeMode) === "midline" ? traits.rangedCrit : 0) + luck.critChance + mastery.critChance),
     critMult: Math.min(3, attack.criticalDamageMultiplier + effects.critDamage + gear.critDamage + traits.critDamage),
     // Luck's dodge shares agility's dodge cap.
-    dodge: Math.min(C.dodgeChance(Infinity), C.dodgeChance(stats.agility + gear.agility + traits.agility) + luck.dodge),
+    // So do evasion mastery and the Untouchable quality.
+    dodge: Math.min(C.dodgeChance(Infinity), C.dodgeChance(stats.agility + gear.agility + traits.agility) + luck.dodge
+      + mastery.dodge + (traits.dodge || 0)),
+    masteryWeaponDamage: mastery.weaponDamage,
+    backstabDamage: mastery.backstabDamage + (traits.backstabDamage || 0),
     lowHpDodge: 0,
     moveSpeedMultiplier: 1,
     abilityDamageMultiplier: 1,
@@ -187,6 +194,8 @@ const SAPPER_SPRINT_RANGE = 110;
 const HERO_BODY_RADIUS = 20;
 const ENEMY_BODY_RADIUS = (e) => (e.boss ? 33 : e.tier === "elite" ? 24 : 18);
 const BODY_PAD = 9;
+// Seconds a foe counts as busy with whoever it last attacked (backstabs).
+const BACKSTAB_WINDOW = 3;
 // Champion bosses: Warded heals this share of max HP at each ward; Swarming
 // keeps up to this many summons alive; Vampiric heals this share per hit.
 const CHAMPION_WARD = 0.15;
@@ -500,13 +509,19 @@ export class Engine {
       const branch = abilityId === HERO_BASELINE.sharedStrike.id ? "Basic" : getUnlockedClasslessAbilities(this.heroes[index].model).find((item) => item.id === abilityId)?.branch;
       const name = abilityId === HERO_BASELINE.sharedStrike.id ? "Shared Strike" : getUnlockedClasslessAbilities(this.heroes[index].model).find((item) => item.id === abilityId)?.name;
       this._callout(this.heroes[index], `${(name || "").toUpperCase()}!`, branchColor(branch), BIG_MOVES.has(abilityId));
+      // Every landed move counts toward its mastery (and the Duelist quality).
+      const uses = (this.heroes[index].model.battleStats ||= {}).moveUses ||= {};
+      uses[abilityId] = (uses[abilityId] || 0) + 1;
+      this._tally(this.heroes[index], "moves", 1);
     }
     return result;
   }
 
   executeClasslessAbility(index, abilityId, targetOrPoint = null) {
     const h = this.heroes[index];
-    const definition = getUnlockedClasslessAbilities(h?.model).find((item) => item.id === abilityId);
+    // A mastered move hits harder, lasts longer and comes back sooner.
+    const definition = masteredMove(getUnlockedClasslessAbilities(h?.model).find((item) => item.id === abilityId),
+      h ? moveRank(h.model, abilityId) : 1);
     if (!definition) return { ok: false, reason: "locked", abilityId };
     const target = definition.requiresTarget
       ? targetOrPoint?.enemy || targetOrPoint || this.active
@@ -624,7 +639,7 @@ export class Engine {
       const hit = this._applyHit({ sourceId: `H${h.i}`, target,
         dmg: h.d.attack * definition.damageMultiplier, magic: false, damageType: null,
         critChance: h.d.critChance, critMult: h.d.critMult,
-        heroIndex: h.i, ability: true, damageCategory: "weapon",
+        heroIndex: h.i, ability: true, damageCategory: "weapon", backstab: true,
         situationalBonus: targetWasTargetingHero ? 0 : definition.conditionalDamageBonus });
       if (!hit) {
         h.x = previousPosition.x;
@@ -662,7 +677,8 @@ export class Engine {
     this._applyHit({
       sourceId: `H${h.i}`,
       target,
-      dmg: h.d.attack * HERO_BASELINE.sharedStrike.damageMultiplier,
+      dmg: h.d.attack * HERO_BASELINE.sharedStrike.damageMultiplier * (masteredMove(HERO_BASELINE.sharedStrike, moveRank(h.model, HERO_BASELINE.sharedStrike.id)).damageMultiplier
+        / HERO_BASELINE.sharedStrike.damageMultiplier),
       magic: false,
       damageType: null,
       critChance: h.d.critChance,
@@ -673,7 +689,8 @@ export class Engine {
       damageCategory: "weapon",
     });
     this._chargeClasslessActiveCost(h, hpBeforeAbility);
-    h.abilityCooldowns[HERO_BASELINE.sharedStrike.id] = HERO_BASELINE.sharedStrike.cooldownSeconds * h.d.cooldownMultiplier;
+    h.abilityCooldowns[HERO_BASELINE.sharedStrike.id] = masteredMove(HERO_BASELINE.sharedStrike, moveRank(h.model, HERO_BASELINE.sharedStrike.id)).cooldownSeconds
+      * h.d.cooldownMultiplier;
     this.actionCompletions.push({ index, result: "completed" });
     return true;
   }
@@ -1825,7 +1842,14 @@ export class Engine {
   }
 
   // An enemy's blow lands on a familiar.
+  // Who a foe is fighting, for backstabs: whoever it last attacked.
+  _engage(e, obj) {
+    e.engagedWith = obj;
+    e.engagedUntil = this.time + BACKSTAB_WINDOW;
+  }
+
   _enemyHitPet(e, pet) {
+    this._engage(e, pet);
     if (pet.body.airborne && e.attackFx !== "napalm" && this.rng() < 0.5) {
       this._float(pet.x, pet.y - 14, "MISS", "#94A3B8");
       return;
@@ -2072,6 +2096,7 @@ export class Engine {
 
   _throwNapalm(e, target) {
     const obj = target.obj;
+    this._engage(e, obj);
     this.projectiles.push({
       kind: "napalm",
       sourceId: "E" + e.type,
@@ -2110,7 +2135,7 @@ export class Engine {
       if (v.kind === "hero") {
         const h = v.obj;
         if (this.rng() < this._heroDodgeChance(h, true)) {
-          this._float(h.x, h.y - 20, "DODGE", "#00F3FF");
+          this._float(h.x, h.y - 20, "DODGE", "#00F3FF"); this._tally(h, "dodges", 1);
           continue;
         }
         dmg = this._classlessReducedDamage(h, dmg);
@@ -2387,6 +2412,7 @@ export class Engine {
   _throwEnemyBolt(e, target, damage, color, magic = false) {
     const obj = target?.obj;
     if (!obj) return;
+    this._engage(e, obj);
     this.projectiles.push({
       kind: "enemyBolt",
       sourceId: "E" + e.type,
@@ -2427,7 +2453,7 @@ export class Engine {
       const h = obj;
       if (!h.alive || h.ref?.hp <= 0) return;
       if (this.rng() < this._heroDodgeChance(h)) {
-        this._float(h.x, h.y - 20, "DODGE", "#00F3FF");
+        this._float(h.x, h.y - 20, "DODGE", "#00F3FF"); this._tally(h, "dodges", 1);
         return;
       }
       let damage = this._classlessReducedDamage(h, p.dmg);
@@ -2453,10 +2479,11 @@ export class Engine {
       if (!blocker) return;
     }
     const h = blocker.obj;
+    this._engage(e, h);
     if (e.type === "warlock") {
       h.ref.shield = 0;
     }
-    if (this.rng() < this._heroDodgeChance(h)) { this._float(h.x, h.y - 20, "DODGE", "#00F3FF"); return; }
+    if (this.rng() < this._heroDodgeChance(h)) { this._float(h.x, h.y - 20, "DODGE", "#00F3FF"); this._tally(h, "dodges", 1); return; }
     // Gauntlet behavior families: predators maul the wounded; a Carrion
     // Priest's sacrifice empowers its allies for a while.
     const predator = e.families?.includes("predator") && h.ref.hp < h.d.maxHp * 0.5 ? 1.4 : 1;
@@ -2555,7 +2582,13 @@ export class Engine {
     target.hitUntil = this.time + 0.18;
     const echoMarks = this._takeClasslessEchoMarks(target, p.sourceId);
     let damage = p.dmg * affinity;
-    if (p.damageCategory === "weapon") damage *= 1 + effects.weaponDamage;
+    if (p.damageCategory === "weapon") damage *= (1 + effects.weaponDamage) * (1 + (hero.d.masteryWeaponDamage || 0));
+    // Backstab: a melee hit on a foe busy fighting someone else (it attacked
+    // another hero or a familiar in the last few seconds), or a Phantom
+    // Strike. Backstab mastery and Shadowblade add damage.
+    const backstab = p.damageCategory === "weapon" && !p.damageOverTime && !p.area
+      && (p.backstab || (hero.d.rangeMode === "melee" && target.engagedUntil > this.time && target.engagedWith !== hero));
+    if (backstab) damage *= 1 + (hero.d.backstabDamage || 0);
     // Gauntlet traits and Hall of Legends bonuses (Berserker below half HP).
     const traits = hero.d.traits;
     if (traits) damage *= 1 + traits.damage + (hero.ref.hp < hero.d.maxHp * 0.5 ? traits.berserk : 0);
@@ -2642,6 +2675,7 @@ export class Engine {
     if (p.damageCategory === "weapon") {
       this._tally(hero, hero.d.rangeMode === "melee" ? "meleeHits" : "rangedHits", 1);
       if (crit) this._tally(hero, "crits", 1);
+      if (backstab) this._tally(hero, "backstabs", 1);
     }
     this._tally(hero, "damage", damage);
     if (consumesVanish) state.vanishDamagePending = 0;

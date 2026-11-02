@@ -14,13 +14,16 @@ const T0 = Date.UTC(2026, 0, 1, 12);
 const AT = T0 + 60_000;
 
 // Recorded in CI on the code before the move (expedition.js as of 3aa2c7d).
+// Cases that run real fights were re-recorded when Mastery (combat/mastery.js)
+// began saving per-hero counts: with hero.mastery left out of the hash, every
+// case still matched its original recording (checked in CI, Nov 2026).
 const GOLDEN = {
   "sighting, good odds: sneak": "57b568336f2ae319",
   "sighting, poor odds, badly hurt: sneak": "a7f139a57f4d62c2",
-  "sighting, poor odds, healthy: fight": "fd9be69d6b008fa3",
+  "sighting, poor odds, healthy: fight": "33b150a4501aebc5",
   "boss, worn down: leave": "cbee4c7dd15d92de",
-  "boss, healthy: fight": "28eb9f51e1a05181",
-  "merchant: decline": "985430ca9d85feb3",
+  "boss, healthy: fight": "b69abe2df00188ed",
+  "merchant: decline": "cce2a8f8284afed2",
   "story, healthy": "4764d1a00d4e957c",
   "story, badly hurt": "52fe1d3c9f904374",
   "deeper, healthy: push": "79222edcae60b410",

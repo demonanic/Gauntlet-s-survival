@@ -14,6 +14,9 @@ import { getRegion } from "./regions";
 const T0 = Date.UTC(2026, 0, 1, 12);
 
 // Recorded in CI on the code before the move (expedition.js as of 05eb19e).
+// Cases that run real fights were re-recorded when Mastery (combat/mastery.js)
+// began saving per-hero counts: with hero.mastery left out of the hash, every
+// case still matched its original recording (checked in CI, Nov 2026).
 const GOLDEN = {
   "victory, ambush": "d1fdfde3d9142ef4",
   "victory with a hero down": "ca4b339b7c18c722",
@@ -26,10 +29,10 @@ const GOLDEN = {
   "legendary victory": "b9355659b94347d9",
   "rift return": "e7b4e24fad16a07b",
   "rift overrun": "ae86912155d1c03d",
-  "unattended trip, gutter": "bbf6abbedcad8501",
-  "unattended trip, boneyard": "b52a8e0f83057718",
-  "unattended trip, frostfang": "3fd6e7c52be95209",
-  "unattended trip, rift": "71fa8480457c4ed6",
+  "unattended trip, gutter": "e4277f033ab3d75e",
+  "unattended trip, boneyard": "82d6cec4e0893683",
+  "unattended trip, frostfang": "b402b586efeb8e5c",
+  "unattended trip, rift": "bbb4e8b4fb1d7168",
 };
 
 function mulberry32(seed) {
