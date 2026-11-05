@@ -27,6 +27,7 @@ import { getEnvironment } from "../src/game/environment";
 import { buyConsumable, equipGear, loadQuickSlot, sellGear, upgradeCost, upgradeGear } from "../src/game/items";
 import { heroQualities } from "../src/combat/traits";
 import { REGIONS, getRegion } from "../src/game/regions";
+import { regionOpen } from "../src/game/expedition";
 import { activePlayer, applySeedFlag, developHeroes } from "./simKit";
 import { buyShopItem, shopStock } from "../src/game/shop";
 
@@ -145,7 +146,8 @@ function chooseRun(state, clock, preferHarder) {
     .filter((hero) => (state.injuries[hero.identity.id] || 0) <= clock)
     .sort((a, b) => b.progression.level - a.progression.level).slice(0, 4);
   const topLevel = party[0]?.progression.level || 1;
-  const unlocked = CAMPAIGN.filter((region) => topLevel >= region.minLevel);
+  // As in the game: the level gate, and each region needs the one before it cleared.
+  const unlocked = CAMPAIGN.filter((region) => topLevel >= region.minLevel && regionOpen(state, region));
   // Stay in a region until it has been cleared twice, then push on.
   const region = [...unlocked].reverse().find((entry, index) => index === 0 && (preferHarder(entry) || unlocked.length === 1))
     || unlocked[unlocked.length - 2] || unlocked[0];
