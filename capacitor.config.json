@@ -1,0 +1,8 @@
+{
+  "appId": "com.buzzfuzz.gauntlet",
+  "appName": "Gauntlet's Survival",
+  "webDir": "dist",
+  "android": {
+    "backgroundColor": "#05060A"
+  }
+}

@@ -18,9 +18,21 @@ function unwrap({ data, error }) {
   return data;
 }
 
+// Where email links (confirmation, password reset) send the player: the game
+// itself, subfolder included (GitHub Pages serves it under /Gauntlet-s-survival/).
+// Inside the Android app the page lives at a local address no email can open,
+// so links go to the web game there.
+export const WEB_GAME_URL = "https://demonanic.github.io/Gauntlet-s-survival/";
+
+export function gameUrl(location = globalThis.location, base = import.meta.env?.BASE_URL || "/") {
+  if (!location) return undefined;
+  if (/^(https?:\/\/localhost|capacitor:)/.test(location.origin) && location.protocol !== "http:") return WEB_GAME_URL;
+  return `${location.origin}${base}`;
+}
+
 export async function signUp(email, password) {
   const data = unwrap(await cloud().auth.signUp({
-    email, password, options: { emailRedirectTo: globalThis.location?.origin },
+    email, password, options: { emailRedirectTo: gameUrl() },
   }));
   // With email confirmation on, Supabase returns no session until the link is clicked.
   return { user: data.user, needsConfirmation: !data.session };
@@ -34,12 +46,30 @@ export async function signOut() {
   unwrap(await cloud().auth.signOut());
 }
 
+// Emails a link that brings the player back to the game to set a new password.
+export async function requestPasswordReset(email) {
+  unwrap(await cloud().auth.resetPasswordForEmail(email, { redirectTo: gameUrl() }));
+}
+
+export async function setNewPassword(password) {
+  unwrap(await cloud().auth.updateUser({ password }));
+}
+
+// Deletes the signed-in account and its cloud save (public.delete_my_account,
+// see supabase/migrations). This device's save is left alone.
+export async function deleteAccount() {
+  unwrap(await cloud().rpc("delete_my_account"));
+  await cloud().auth.signOut({ scope: "local" }).catch(() => {});
+}
+
 export async function currentUser() {
   return unwrap(await cloud().auth.getSession()).session?.user || null;
 }
 
+// `callback(user, event)`; event "PASSWORD_RECOVERY" means the player arrived
+// from a reset link and should choose a new password.
 export function onAuthChange(callback) {
-  const { data } = cloud().auth.onAuthStateChange((_event, session) => callback(session?.user || null));
+  const { data } = cloud().auth.onAuthStateChange((event, session) => callback(session?.user || null, event));
   return () => data.subscription.unsubscribe();
 }
 

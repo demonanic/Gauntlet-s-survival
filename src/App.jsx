@@ -32,6 +32,7 @@ import {
   advanceTutorial, currentStep, nextTutorialStep, restartTutorial, skipTutorial, tutorialActive,
 } from "./game/tutorial";
 import { clearGuild, loadSave, saveGuild } from "./game/storage";
+import UpdateBanner from "./components/UpdateBanner";
 import Battle from "./screens/Battle";
 import ExpeditionBoard from "./screens/ExpeditionBoard";
 import GuildHall from "./screens/GuildHall";
@@ -119,6 +120,8 @@ export default function App() {
           <span className="font-mono-g text-sm font-bold text-yellow-300" data-testid="gold">{guild.gold}g</span>
         </div>
       </header>
+
+      <UpdateBanner hidden={inBattle} onBeforeReload={() => { if (boot.preserved) saveGuild(guild); }} />
 
       {saveNotice && (
         <div className="mb-3 rounded border border-yellow-400/50 bg-yellow-400/10 p-2 font-mono-g text-[11px] text-yellow-200" role="alert" data-testid="save-notice">
