@@ -168,7 +168,9 @@ same state as before).
   shielding spells +8/12/16%), Duelist (move cooldowns -5/8/12%), Shadowblade (backstab
   damage +10/15/20%), Untouchable (+2/3/4% dodge, inside the cap). Scores are per-fight
   rates calibrated on measured fights (see `SPELLWRIGHT_RATE` and the rest in
-  qualities.js).
+  qualities.js). Duelist was retuned after the campaign sim showed players who fire every
+  move landing 4-6 a fight and all reaching Duelist Master: `DUELIST_RATE` 0.8 → 0.35, so
+  that habit now earns tier 1 or 2 and tier 3 needs about 7 a fight.
 - **Measured** (local run, 24 seeded fights each; party of two swords, a bow and an Int 20
   Arcane/Restoration staff caster, common gear a tier low; the bow had no arrows loaded,
   so it didn't shoot): per hero per fight, a sword lands 55-78 hits, 7-21 backstabs and

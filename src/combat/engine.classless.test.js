@@ -640,6 +640,27 @@ describe("bounded classless combat adapter", () => {
     random.mockRestore();
   });
 
+  test("Phantom Strike: an ordinary foe next to the caster, or one that just attacked them, gives no bonus", () => {
+    const strike = (setup) => {
+      const hero = createHeroModel({ id: "phantom-ordinary" });
+      hero.progression.ownedNodeIds = ["I1", "I2", "I3"];
+      const engine = new Engine({ getContext: () => null }, testSim({ heroes: [hero] }), { enemies: [], total: 1 });
+      const runtimeHero = engine.heroes[0];
+      const target = enemy("ordinary", runtimeHero.x + setup.dx, runtimeHero.y, { hp: 500, maxHp: 500 });
+      engine.active = [target];
+      if (setup.engaged) engine._engage(target, setup.engaged === "caster" ? runtimeHero : { id: "someone else" });
+      const random = jest.spyOn(Math, "random").mockReturnValue(0.5);
+      expect(engine._selectEnemyTacticalTarget(target)).toBeNull();
+      expect(engine.useHeroAbility(0, "I3", target)).toMatchObject({ ok: true });
+      random.mockRestore();
+      return 500 - target.hp;
+    };
+    expect(strike({ dx: 20 })).toBe(16 * 1.5);
+    expect(strike({ dx: 120, engaged: "caster" })).toBe(16 * 1.5);
+    expect(strike({ dx: 20, engaged: "other" })).toBe(16 * 1.5 * 1.5);
+    expect(strike({ dx: 120 })).toBe(16 * 1.5 * 1.5);
+  });
+
   test("Shared Strike deals one 24 raw neutral hit, costs no resource, and enforces 12 seconds", () => {
     const { engine, sim, hero } = makeEngine();
     const target = enemy("primary", hero.x + 80, hero.y);
