@@ -169,7 +169,8 @@ describe("mastery qualities", () => {
     expect(keys({ casts: 600 })).toContain("spellwright");
     expect(keys({ casts: 200 })).not.toContain("spellwright");
     expect(keys({ supportCasts: 200 })).toContain("lifebinder");
-    expect(keys({ moves: 80 })).toContain("duelist");
+    expect(keys({ moves: 160 })).toContain("duelist");
+    expect(keys({ moves: 80 })).not.toContain("duelist");
     expect(keys({ backstabs: 300, meleeHits: 900 })).toContain("shadowblade");
     expect(keys({ dodges: 240 })).toContain("untouchable");
     expect(keys({ dodges: 120 })).not.toContain("untouchable");

@@ -93,10 +93,11 @@ const perFight = (history, key) => history[key] / Math.max(1, history.fights);
 // Score per unit of rate for the mastery qualities, calibrated on measured
 // fights (Nov 2026): a caster lands 13-29 attack or control spells and 4-9
 // support spells a fight; a sword hero dodges 2-10 times and 15-35% of their
-// hits are backstabs. Tier 1 needs a habit above the usual (see TIER_SCORES).
+// hits are backstabs; a player who fires every move the moment it's ready lands
+// 4-6 a fight. Tier 1 needs a habit above the usual (see TIER_SCORES).
 const SPELLWRIGHT_RATE = 0.1;
 const LIFEBINDER_RATE = 0.25;
-const DUELIST_RATE = 0.8;
+const DUELIST_RATE = 0.35;
 const SHADOWBLADE_RATE = 4;
 const UNTOUCHABLE_RATE = 0.25;
 
