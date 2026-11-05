@@ -360,3 +360,10 @@ Work on a branch and open a pull request against `main`. CI runs `npm test` and
 
 All rights reserved. This is a personal project, and no license is granted to copy,
 modify or redistribute the code or assets.
+
+## Android test app
+
+Every push to `main` builds an installable test APK (GitHub → Actions → android-apk →
+the latest run → Artifacts → gauntlet-debug-apk). Unzip it on the phone and open
+`app-debug.apk`; Android asks once to allow installs from that app. It's a debug build:
+fine for testing, not for the Play Store.

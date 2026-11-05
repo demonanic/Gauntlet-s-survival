@@ -141,6 +141,26 @@ A deliberately small model (not Demonanic's 11 slots), defined in `src/combat/ge
   Departure restocks every loaded slot from the stash and gives an arrowless archer
   plain arrows in a free slot.
 
+## Small fixes (Nov 2026)
+
+- **New-version banner** (`src/app/updateCheck.js`, `UpdateBanner.jsx`): each build writes
+  `version.json` and bakes its id in as `__BUILD_ID__` (vite.config.js; the commit on CI).
+  The page checks every 5 minutes and when the tab comes back; a different id shows "A new
+  version is ready · Tap to reload". Tapping saves, then loads `?v=<build>` so a cached
+  page isn't reused. Never during a live battle; never on the dev server.
+- **Cloud accounts** (`src/cloud/cloudSave.js`, `CloudSync.jsx`): "Forgot password?"
+  emails a reset link (`resetPasswordForEmail`); opening it signs the player in with a
+  "Choose a new password" form (`PASSWORD_RECOVERY`). "Delete account" asks for DELETE
+  typed, then calls `public.delete_my_account()` (migration 20261105220000), which removes
+  the caller's auth user; their cloud save cascades. This device's save is kept. Email
+  links go to the game's own address (they used to go to the site root); inside the
+  Android app they go to the web game. Supabase only follows links to addresses on its
+  allowed redirect list (Authentication → URL Configuration).
+- **Android test app** (`capacitor.config.json`, `.github/workflows/android.yml`): every
+  push to main (and manual runs) builds the web game, generates a Capacitor 7 Android
+  project and uploads a debug APK as the run's artifact (gauntlet-debug-apk). App id
+  com.buzzfuzz.gauntlet. Nothing Android-specific is committed besides the config.
+
 ## Regions open in order (Nov 2026, `regionOpen` in expedition.js)
 
 Owner request: tackle the progression wall. Measured cause (`npm run balance`, 12 guilds
@@ -970,8 +990,9 @@ ceiling; it now takes proportionally longer to reach.
 - **Boss walls:** progress past rank ~25 or Rift wave 50 depends on rare Epic drops and
   Masterworks; a deeper gear tier or prestige system would extend it.
 - **Cloud saves:** last write wins between devices that are both online; there is no
-  merge. Password reset and account deletion are not in the game UI yet.
-- **Mobile:** the canvas is portrait-first; a Capacitor Android shell like Demonanic's is
-  not set up yet.
+  merge. The free Supabase project pauses after a week without use (it was found paused
+  and restored on 2026-11-05); while paused, sign-in and sync fail.
+- **Mobile:** the Android app is a debug build for sideloading (see "Small fixes"); a
+  Play Store release needs a signing key and a store listing.
 - **Engine sync:** the copy will drift from Demonanic; port upstream fixes by hand or move
   to a shared package later.
