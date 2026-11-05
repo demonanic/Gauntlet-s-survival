@@ -1,8 +1,10 @@
 // The battle scene (Phase 8A): reads the engine's state and draws it; decides
-// nothing and changes nothing in the fight. Hero and enemy sprites are still
-// drawn by the engine's _drawHeroSprite / _drawEnemySprite (next step).
+// nothing and changes nothing in the fight. Sprites: heroSprites.js,
+// enemySprites.js, familiarSprites.js.
 import { combatVfxAssetId, drawCombatVfx, getCombatVfxImage } from "../combatVfx";
 import { drawFamiliar } from "../familiarSprites";
+import { drawEnemySprite } from "./enemySprites";
+import { drawHeroSprite } from "./heroSprites";
 import { FLOOR_Y, H, W } from "../arena";
 
 const combatVfxImages = new Map();
@@ -34,7 +36,7 @@ export function renderBattle(engine) {
   // enemies — top-down sprites face DOWN toward the party.
   for (const e of engine.active) {
     const r = e.boss ? 25 : e.tier === "elite" ? 16 : 11;
-    engine._drawEnemySprite(e);
+    drawEnemySprite(engine, e);
     bar(engine, e.x - r, e.y - r - 7, r * 2, 3, e.hp / e.maxHp, e.color);
     if (e.nemesisId && e.hp > 0) {
       ctx.save();
@@ -130,7 +132,7 @@ export function renderBattle(engine) {
       ctx.stroke();
       ctx.restore();
     }
-    engine._drawHeroSprite(h);
+    drawHeroSprite(engine, h);
     bar(engine, h.x - 18, h.y + 20, 36, 4, Math.max(0, h.ref.hp) / h.d.maxHp, h.d.color);
   }
   for (const pet of engine.pets) drawPet(engine, pet);
