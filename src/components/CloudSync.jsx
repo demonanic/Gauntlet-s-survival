@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  currentUser, fetchCloudSave, needsSaveChoice, onAuthChange, pushCloudSave, readLastSync, signIn, signOut, signUp,
-  summarizeSave, writeLastSync,
+  currentUser, deleteAccount, fetchCloudSave, needsSaveChoice, onAuthChange, pushCloudSave, readLastSync,
+  requestPasswordReset, setNewPassword, signIn, signOut, signUp, summarizeSave, writeLastSync,
 } from "../cloud/cloudSave";
 import { parseGuild } from "../game/storage";
 import { NeonButton, Panel } from "./ui";
@@ -34,6 +34,10 @@ export default function CloudSync({ guild, onLoadSave, localReplaced = false }) 
   const [choice, setChoice] = useState(null);
   const [status, setStatus] = useState({ kind: "idle" });
   const [form, setForm] = useState({ email: "", password: "", mode: "signIn", busy: false, message: null });
+  // Arrived from a reset email: ask for a new password.
+  const [recovering, setRecovering] = useState(false);
+  // Account deletion: typed confirmation, then the request.
+  const [deleting, setDeleting] = useState(null);
   const guildRef = useRef(guild);
   const userRef = useRef(null);
   const readyRef = useRef(false);
@@ -59,7 +63,13 @@ export default function CloudSync({ guild, onLoadSave, localReplaced = false }) 
 
   useEffect(() => {
     currentUser().then(setUser).catch(() => setUser(null));
-    return onAuthChange(setUser);
+    return onAuthChange((next, event) => {
+      setUser(next);
+      if (event === "PASSWORD_RECOVERY") {
+        setRecovering(true);
+        setOpen(true);
+      }
+    });
   }, []);
 
   // On sign-in: adopt the cloud save, keep this device's, or ask when both changed.
@@ -115,7 +125,17 @@ export default function CloudSync({ guild, onLoadSave, localReplaced = false }) 
     event.preventDefault();
     setForm((current) => ({ ...current, busy: true, message: null }));
     try {
-      if (form.mode === "signUp") {
+      if (recovering) {
+        await setNewPassword(form.password);
+        setRecovering(false);
+        setForm((current) => ({ ...current, busy: false, password: "", message: "Password changed." }));
+      } else if (form.mode === "reset") {
+        await requestPasswordReset(form.email.trim());
+        setForm((current) => ({
+          ...current, busy: false, mode: "signIn",
+          message: "If that email has an account, a reset link is on its way. Open it on this device.",
+        }));
+      } else if (form.mode === "signUp") {
         const { needsConfirmation } = await signUp(form.email.trim(), form.password);
         setForm((current) => ({
           ...current, busy: false, mode: "signIn", password: "",
@@ -129,6 +149,18 @@ export default function CloudSync({ guild, onLoadSave, localReplaced = false }) 
       }
     } catch (error) {
       setForm((current) => ({ ...current, busy: false, message: error.message }));
+    }
+  };
+
+  const removeAccount = async () => {
+    setDeleting((current) => ({ ...current, busy: true, message: null }));
+    try {
+      await deleteAccount();
+      setDeleting(null);
+      setUser(null);
+      setForm((current) => ({ ...current, message: "Account deleted. Your guild is still saved on this device." }));
+    } catch (error) {
+      setDeleting((current) => ({ ...current, busy: false, message: error.message }));
     }
   };
 
@@ -152,7 +184,20 @@ export default function CloudSync({ guild, onLoadSave, localReplaced = false }) 
         <div className="fixed inset-0 z-[85] flex items-center justify-center bg-black/80 p-4" data-testid="cloud-dialog">
           <Panel className="w-full max-w-sm">
             <h2 className="font-display text-lg font-bold text-cyan-200">CLOUD SAVE</h2>
-            {user ? (
+            {user && recovering ? (
+              <form className="mt-2 space-y-2" onSubmit={submit} data-testid="cloud-recovery">
+                <p className="font-mono-g text-[11px] text-slate-300">Choose a new password for {user.email}.</p>
+                <input
+                  type="password" required minLength={MIN_PASSWORD} placeholder={`New password (${MIN_PASSWORD}+ characters)`}
+                  autoComplete="new-password" value={form.password}
+                  onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
+                  className="w-full rounded border border-white/15 bg-black/40 px-2 py-2 font-mono-g text-xs outline-none focus:border-cyan-300"
+                  data-testid="cloud-new-password"
+                />
+                {form.message && <p className="font-mono-g text-[11px] text-yellow-300">{form.message}</p>}
+                <NeonButton type="submit" className="w-full" disabled={form.busy} data-testid="cloud-set-password">Set password</NeonButton>
+              </form>
+            ) : user ? (
               <div className="mt-2 space-y-2 font-mono-g text-[11px]">
                 <p className="text-slate-300">Signed in as <span className="text-cyan-200">{user.email}</span></p>
                 <p className="text-slate-400">
@@ -164,6 +209,36 @@ export default function CloudSync({ guild, onLoadSave, localReplaced = false }) 
                   <NeonButton color="#39FF14" onClick={push} disabled={!readyRef.current}>Sync now</NeonButton>
                   <NeonButton color="#FF2A5F" onClick={() => signOut().catch(() => {})}>Sign out</NeonButton>
                 </div>
+                {form.message && <p className="text-yellow-300">{form.message}</p>}
+                {deleting ? (
+                  <div className="space-y-1 rounded border border-red-400/50 p-2" data-testid="cloud-delete">
+                    <p className="text-red-200">
+                      This deletes your account and its cloud save for good. Your guild stays on this device. Type DELETE to confirm.
+                    </p>
+                    <input
+                      value={deleting.text}
+                      onChange={(event) => setDeleting((current) => ({ ...current, text: event.target.value }))}
+                      className="w-full rounded border border-white/15 bg-black/40 px-2 py-2 font-mono-g text-xs outline-none focus:border-red-300"
+                      data-testid="cloud-delete-confirm"
+                    />
+                    {deleting.message && <p className="text-red-300">{deleting.message}</p>}
+                    <div className="grid grid-cols-2 gap-2">
+                      <NeonButton color="#94A3B8" onClick={() => setDeleting(null)}>Cancel</NeonButton>
+                      <NeonButton color="#FF2A5F" disabled={deleting.text !== "DELETE" || deleting.busy} onClick={removeAccount} data-testid="cloud-delete-go">
+                        Delete account
+                      </NeonButton>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="w-full text-[10px] text-red-300 underline"
+                    onClick={() => setDeleting({ text: "", busy: false, message: null })}
+                    data-testid="cloud-delete-open"
+                  >
+                    Delete account
+                  </button>
+                )}
               </div>
             ) : (
               <form className="mt-2 space-y-2" onSubmit={submit}>
@@ -176,17 +251,29 @@ export default function CloudSync({ guild, onLoadSave, localReplaced = false }) 
                   className="w-full rounded border border-white/15 bg-black/40 px-2 py-2 font-mono-g text-xs outline-none focus:border-cyan-300"
                   data-testid="cloud-email"
                 />
-                <input
-                  type="password" required minLength={MIN_PASSWORD} placeholder={`Password (${MIN_PASSWORD}+ characters)`}
-                  autoComplete={form.mode === "signUp" ? "new-password" : "current-password"} value={form.password}
-                  onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
-                  className="w-full rounded border border-white/15 bg-black/40 px-2 py-2 font-mono-g text-xs outline-none focus:border-cyan-300"
-                  data-testid="cloud-password"
-                />
+                {form.mode !== "reset" && (
+                  <input
+                    type="password" required minLength={MIN_PASSWORD} placeholder={`Password (${MIN_PASSWORD}+ characters)`}
+                    autoComplete={form.mode === "signUp" ? "new-password" : "current-password"} value={form.password}
+                    onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
+                    className="w-full rounded border border-white/15 bg-black/40 px-2 py-2 font-mono-g text-xs outline-none focus:border-cyan-300"
+                    data-testid="cloud-password"
+                  />
+                )}
                 {form.message && <p className="font-mono-g text-[11px] text-yellow-300" data-testid="cloud-message">{form.message}</p>}
                 <NeonButton type="submit" className="w-full" disabled={form.busy} data-testid="cloud-submit">
-                  {form.mode === "signUp" ? "Create account" : "Sign in"}
+                  {form.mode === "signUp" ? "Create account" : form.mode === "reset" ? "Email me a reset link" : "Sign in"}
                 </NeonButton>
+                {form.mode !== "signUp" && (
+                  <button
+                    type="button"
+                    className="w-full font-mono-g text-[10px] text-slate-400 underline"
+                    onClick={() => setForm((current) => ({ ...current, mode: current.mode === "reset" ? "signIn" : "reset", message: null }))}
+                    data-testid="cloud-forgot"
+                  >
+                    {form.mode === "reset" ? "Back to sign in" : "Forgot password?"}
+                  </button>
+                )}
                 <button
                   type="button"
                   className="w-full font-mono-g text-[10px] text-slate-400 underline"
