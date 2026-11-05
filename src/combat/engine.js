@@ -49,6 +49,8 @@ function getCombatEffectImage(assetId) {
   return getCombatVfxImage(assetId, combatVfxImages);
 }
 
+const lastDrawn = new WeakMap();
+
 const MAX_COMBAT_EFFECTS = 180;
 const MAX_COMBAT_FLOATERS = 120;
 
@@ -310,7 +312,6 @@ export class Engine {
         visualActionStartedAt: 0,
         visualActionUntil: 0,
         hitUntil: 0,
-        lastDrawPosition: { x, y: HERO_Y },
         warCryUntil: 0,
         warCryAttackSpeedBonus: 0,
         interposeUntil: 0,
@@ -4196,7 +4197,10 @@ export class Engine {
 
   _drawHeroSprite(h) {
     const ctx = this.ctx;
-    const previous = h.lastDrawPosition || { x: h.x, y: h.y };
+    // Where this hero was last drawn (for the walk cycle): kept by the drawing
+    // code, not on the hero, so drawing changes nothing in the fight. A hero
+    // not yet drawn counts as standing at its starting point.
+    const previous = lastDrawn.get(h) || { x: h.home.x, y: h.home.y };
     const dx = h.x - previous.x, dy = h.y - previous.y;
     const moving = dx * dx + dy * dy > 0.12;
     const target = [h.facingTarget, h.manualTarget, h.currentTarget]
@@ -4287,8 +4291,7 @@ export class Engine {
       ctx.beginPath(); ctx.arc(h.x, h.y - 3, 22, 0, Math.PI * 2); ctx.stroke();
       ctx.restore();
     }
-    h.lastDrawPosition.x = h.x;
-    h.lastDrawPosition.y = h.y;
+    lastDrawn.set(h, { x: h.x, y: h.y });
   }
   _drawEnemySprite(e) {
     const ctx = this.ctx;
