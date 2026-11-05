@@ -1,0 +1,41 @@
+# Builds an installable Android test app (debug APK) from the web game with
+# Capacitor. The android/ project is generated fresh on every run, so nothing
+# Android-specific lives in the repo but capacitor.config.json.
+# Download it from the run's "Artifacts" (gauntlet-debug-apk), unzip, install.
+name: android-apk
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - capacitor.config.json
+      - .github/workflows/android.yml
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - run: npm ci
+      # Served from the app's root, not the Pages subfolder.
+      - run: npm run build
+      - run: npm install --no-save @capacitor/cli@7 @capacitor/core@7 @capacitor/android@7
+      - run: npx cap add android
+      - run: npx cap sync android
+      - run: ./gradlew assembleDebug
+        working-directory: android
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gauntlet-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
