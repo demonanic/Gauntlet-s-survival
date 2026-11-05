@@ -6,7 +6,7 @@
 // move changed behavior.
 import { createHash } from "node:crypto";
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
-import { withPendingFight } from "../test/expeditionFixtures";
+import { withPendingFight, openRegion } from "../test/expeditionFixtures";
 import { debugSetLevels } from "./debug";
 import { createGuild, currentEncounterParty, expeditionDurationMs, resolveEncounter, startExpedition, tick } from "./guild";
 import { getRegion } from "./regions";
@@ -17,21 +17,23 @@ const T0 = Date.UTC(2026, 0, 1, 12);
 // Re-recorded when Mastery (combat/mastery.js) began saving per-hero counts
 // (hero.mastery, five new hero.history counters): with exactly those left out,
 // every case produced the same state as the code before it (checked Nov 2026).
+// Re-recorded again when regions began opening in order (openRegion marks the
+// region before as cleared): with `clears` left out, every case matched.
 const GOLDEN = {
   "victory, ambush": "d78fe548b1ebcd1f",
-  "victory with a hero down": "d0bfce96d880be3e",
-  "defeat": "244e9f81910221da",
-  "defeat with a second chance": "ca80f85ee59fb691",
-  "boss defeat with a second chance": "e5b40c836ab4c9f5",
-  "boss victory": "022d6b9f02fec97b",
-  "rotating boss victory": "ec1958c3999676d5",
-  "nemesis slain by its victim": "d5ff64d42c55ed3c",
-  "legendary victory": "1c0f9bad4d12713a",
+  "victory with a hero down": "b42dad898c6c4ced",
+  "defeat": "d53a9d33dd6795e7",
+  "defeat with a second chance": "f756edfc95088f54",
+  "boss defeat with a second chance": "d9bffd6be6685305",
+  "boss victory": "2c41bb209fc657ac",
+  "rotating boss victory": "7ffb16932149dc5d",
+  "nemesis slain by its victim": "9aa14796128a78f8",
+  "legendary victory": "951a48f3b7633551",
   "rift return": "5944787a3d247c04",
   "rift overrun": "358d8d27b23271ff",
   "unattended trip, gutter": "a51e5c0216af715b",
-  "unattended trip, boneyard": "100af3f3b26b3f93",
-  "unattended trip, frostfang": "d883ca552c080cfe",
+  "unattended trip, boneyard": "07e5418738d25f5f",
+  "unattended trip, frostfang": "7df941d3c29060a4",
   "unattended trip, rift": "0b62566ca26ac3da",
 };
 
@@ -80,7 +82,7 @@ const ids = (state) => state.heroes.map((hero) => hero.identity.id);
 // A guild on a trip with a fight of `kind` waiting.
 function fightWaiting(regionId, level, kind, { revives = 0 } = {}) {
   const state = guild(level);
-  const started = startExpedition(state, regionId, ids(state), T0, () => 0.5, { revives });
+  const started = startExpedition(openRegion(state, regionId), regionId, ids(state), T0, () => 0.5, { revives });
   expect(started.ok).toBe(true);
   if (kind === "rift") return started.state;
   return withPendingFight(started.state, T0 + 60_000, kind);
@@ -189,7 +191,7 @@ for (const [regionId, level] of TRIPS) {
   CASES[`unattended trip, ${regionId}`] = () => {
     const rng = mulberry32(41);
     const state = guild(level);
-    const started = startExpedition(state, regionId, ids(state), T0, rng);
+    const started = startExpedition(openRegion(state, regionId), regionId, ids(state), T0, rng);
     expect(started.ok).toBe(true);
     const end = T0 + expeditionDurationMs(started.state, getRegion(regionId)) + 2 * 3_600_000;
     return tick({ ...started.state, lastTickAt: T0 }, end, { rng });

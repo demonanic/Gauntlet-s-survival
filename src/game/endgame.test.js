@@ -1,7 +1,7 @@
 import { Engine } from "../combat/engine";
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import { COMBAT_PACING, buildBossEncounter, buildEndlessWave, createEncounterSim, endlessWaveSource } from "./encounters";
-import { withPendingFight } from "../test/expeditionFixtures";
+import { withPendingFight, openRegion } from "../test/expeditionFixtures";
 import {
   choosePending, createGuild, currentEncounterWave, engagePending, resolveEncounter, riftBounty, startExpedition, treatInjury, treatmentCost,
 } from "./guild";
@@ -121,7 +121,7 @@ describe("boss rotation", () => {
     const clearAshen = (rank) => {
       let state = { ...createGuild(), bossRank: rank };
       state.heroes[0].progression.level = 6;
-      state = startExpedition(state, "ashen", [heroId(state)], T0).state;
+      state = startExpedition(openRegion(state, "ashen"), "ashen", [heroId(state)], T0).state;
       withPendingFight(state, T0 + 1000, "boss");
       const party = structuredClone(state.heroes.slice(0, 1));
       const won = resolveEncounter(state, { victory: true, party, xpGains: {}, gold: 0, items: [] }, T0 + 2000).state;

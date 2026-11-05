@@ -1,5 +1,5 @@
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
-import { withoutArmor, withPendingFight } from "../test/expeditionFixtures";
+import { withoutArmor, withPendingFight, openRegion } from "../test/expeditionFixtures";
 import {
   ADVENTURE, WEATHER, conditionEffects, isNight, moraleDamageBonus, rollBanter, rollWeather, sneakChance,
 } from "./adventure";
@@ -9,6 +9,7 @@ import {
   choosePending, createGuild, currentEncounterParty, engagePending, heroStatus, recallExpedition, resolveEncounter,
   startExpedition, tick,
 } from "./guild";
+import { previousRegion, regionOpen } from "./expedition";
 import { getRegion } from "./regions";
 import { parseGuild } from "./storage";
 
@@ -157,10 +158,29 @@ describe("timed expeditions", () => {
     expect(trap.expedition.pending.kind).toBe("ambush");
   });
 
+  test("campaign regions open in order: each needs the one before it cleared", () => {
+    const state = plainGuild();
+    state.heroes[0].progression.level = 12;
+    const go = (guild, regionId) => startExpedition(guild, regionId, [ids(guild)[0]], T0);
+    expect(go(state, "gutter").ok).toBe(true);
+    expect(go(state, "boneyard")).toEqual({ ok: false, reason: "previous_region" });
+    expect(go(state, "rift").ok).toBe(true);
+    const gutter = { ...state, clears: { gutter: 1 } };
+    expect(go(gutter, "boneyard").ok).toBe(true);
+    expect(go(gutter, "frostfang")).toEqual({ ok: false, reason: "previous_region" });
+    // A guild that has cleared a later region keeps everything before it open.
+    const veteran = { ...state, clears: { ashen: 2 } };
+    for (const regionId of ["boneyard", "frostfang", "ashen", "blightmire"]) expect(go(veteran, regionId).ok).toBe(true);
+    expect(regionOpen(veteran, getRegion("gutter"))).toBe(true);
+    expect(previousRegion(getRegion("frostfang")).id).toBe("boneyard");
+    expect(previousRegion(getRegion("gutter"))).toBeNull();
+    expect(previousRegion(getRegion("rift"))).toBeNull();
+  });
+
   test("the end boss waits at the end of the timer; beating it conquers the region", () => {
     const state = plainGuild();
     state.heroes[0].progression.level = 3;
-    let run = startExpedition(state, "boneyard", [ids(state)[0]], T0, sightingRng).state;
+    let run = startExpedition(openRegion(state, "boneyard"), "boneyard", [ids(state)[0]], T0, sightingRng).state;
     run.expedition.endsAt = T0 + 1000;
     run = tick(run, T0 + 1000, { interactive: true });
     expect(run.expedition.pending).toMatchObject({ kind: "boss", label: "Lieutenant" });
@@ -335,7 +355,7 @@ describe("world events", () => {
   test("at camp, fallen heroes come around weak, and the badly hurt use a bandage", () => {
     const state = plainGuild();
     state.heroes[0].progression.level = 3;
-    let run = startExpedition(state, "boneyard", ids(state), T0, () => 0.999).state;
+    let run = startExpedition(openRegion(state, "boneyard"), "boneyard", ids(state), T0, () => 0.999).state;
     run.expedition.nextEventAt = T0 + 20 * MINUTE; // nothing else happens first
     run.expedition.campAt = T0 + 5_000; // camp right away, before natural healing adds up
     const [fallen, hurt, healthy] = run.heroes;
@@ -370,7 +390,7 @@ describe("world events", () => {
   test("long trips make camp halfway; scouting improves sneak odds and foraging finds supplies", () => {
     const state = plainGuild();
     state.heroes[0].progression.level = 3;
-    let run = startExpedition(state, "boneyard", [ids(state)[0]], T0, () => 0.999).state;
+    let run = startExpedition(openRegion(state, "boneyard"), "boneyard", [ids(state)[0]], T0, () => 0.999).state;
     const half = T0 + (getRegion("boneyard").durationMinutes * MINUTE) / 2;
     expect(run.expedition.campAt).toBe(half);
     expect(gutterRun().expedition.campAt).toBeNull();
@@ -434,7 +454,7 @@ describe("world events", () => {
   test("big moments are flagged for notifications", () => {
     const state = plainGuild();
     state.heroes[0].progression.level = 3;
-    let run = startExpedition(state, "boneyard", [ids(state)[0]], T0, () => 0.999).state;
+    let run = startExpedition(openRegion(state, "boneyard"), "boneyard", [ids(state)[0]], T0, () => 0.999).state;
     run.expedition.endsAt = T0 + 1000;
     run.expedition.campAt = null;
     run = tick(run, T0 + 1000, { interactive: true });

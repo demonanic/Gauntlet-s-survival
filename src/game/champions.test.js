@@ -4,7 +4,7 @@ import { buildBossEncounter, buildWildEncounter, createEncounterSim } from "./en
 import { choosePending, createGuild, currentEncounterParty, resolveEncounter, startExpedition } from "./guild";
 import { createGearItem } from "./items";
 import { CHAMPIONS, championFor, getRegion } from "./regions";
-import { withPendingFight } from "../test/expeditionFixtures";
+import { withPendingFight, openRegion } from "../test/expeditionFixtures";
 
 const T0 = 1_000_000;
 
@@ -81,7 +81,7 @@ describe("Champion bosses", () => {
     const clear = (rank) => {
       let state = { ...createGuild(), bossRank: rank };
       state.heroes[0].progression.level = 6;
-      state = startExpedition(state, "ashen", [state.heroes[0].identity.id], T0).state;
+      state = startExpedition(openRegion(state, "ashen"), "ashen", [state.heroes[0].identity.id], T0).state;
       withPendingFight(state, T0 + 1000, "boss");
       const party = structuredClone(currentEncounterParty(state));
       const won = resolveEncounter(state, { victory: true, party, xpGains: {}, gold: 0, items: [] }, T0 + 2000).state;
