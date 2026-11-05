@@ -3612,7 +3612,10 @@ export class Engine {
     const tactical = this._selectEnemyTacticalTarget(enemy);
     if (tactical) return tactical.kind === "hero" && tactical.obj === hero;
     if (enemy.boss) return this._nearestDefender(enemy.x, enemy.y, enemy.attackRange || 420)?.obj === hero;
-    return this._nearestHeroEntity(enemy.x, enemy.y, 30 + BODY_PAD) === hero;
+    // An ordinary foe is fighting whoever it attacked in the last few seconds
+    // (as for backstabs), else the hero right next to it.
+    if (enemy.engagedUntil > this.time) return enemy.engagedWith === hero;
+    return this._nearestHeroEntity(enemy.x, enemy.y, 30 + BODY_PAD)?.obj === hero;
   }
 
   // How close a melee hero must be to strike: weapon range, measured from the
