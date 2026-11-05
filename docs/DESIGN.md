@@ -141,6 +141,33 @@ A deliberately small model (not Demonanic's 11 slots), defined in `src/combat/ge
   Departure restocks every loaded slot from the stash and gives an arrowless archer
   plain arrows in a free slot.
 
+## Regions open in order (Nov 2026, `regionOpen` in expedition.js)
+
+Owner request: tackle the progression wall. Measured cause (`npm run balance`, 12 guilds
+per style): a region opened when the party's highest hero reached its level, and
+Frostfang opens at level 4, one level after the Boneyard. Guilds left the Gutter at
+level 3-4, skipped the Boneyard and its tier-2 gear, and idle players won 0-11% of
+Frostfang trips (mostly retreats) and about 20% of Ashen Keep trips; they only got past
+by out-levelling. The spells, familiars and armory work didn't move these numbers.
+
+Owner-approved fix: each campaign region also needs the one before it cleared. A region
+stays open if the guild has cleared it or any region after it, so a guild that has gone
+further keeps everything behind it (only clears are recorded, so a region entered but
+never cleared, with nothing later cleared, closes until the one before it is cleared).
+The Endless Rift is outside the order. No enemy numbers changed. The destinations list
+shows "Clear <region> first" on a closed region.
+
+| Idle players | Before | Regions in order |
+| --- | --- | --- |
+| Frostfang trips won | 0-11% | 63% |
+| Ashen Keep trips won | 19-20% | 100% |
+| Blightmire trips won | 39-57% | 71% |
+| Campaign finished | 137-193 min | 124-204 min |
+
+Active players: Frostfang and Ashen 100% of trips (before about 50% and 46-65%),
+Blightmire 86%. Gating on the party's average level as well was tried and only slowed
+idle players (147-266 min). `scripts/scenarios.js` opens the region it tests.
+
 ## Mastery: heroes improve at what they do (Nov 2026, `src/combat/mastery.js`)
 
 Owner request: reward heroes for using their special moves, weapons, dodges and

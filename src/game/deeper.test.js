@@ -2,7 +2,7 @@ import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import { DEEPER, deeperDanger, deeperRegion } from "./expedition";
 import { choosePending, createGuild, currentEncounterParty, recallExpedition, resolveEncounter, startExpedition, tick } from "./guild";
 import { getRegion } from "./regions";
-import { withPendingFight } from "../test/expeditionFixtures";
+import { withPendingFight, openRegion } from "../test/expeditionFixtures";
 
 const T0 = 1_000_000;
 
@@ -105,7 +105,7 @@ describe("pushing deeper", () => {
   test("beating an end boss leads to the same choice", () => {
     const state = plainGuild();
     state.heroes[0].progression.level = 3;
-    let run = startExpedition(state, "boneyard", [state.heroes[0].identity.id], T0, () => 0.5).state;
+    let run = startExpedition(openRegion(state, "boneyard"), "boneyard", [state.heroes[0].identity.id], T0, () => 0.5).state;
     withPendingFight(run, T0 + 1000, "boss");
     const party = structuredClone(currentEncounterParty(run));
     run = resolveEncounter(run, { victory: true, party, xpGains: {}, gold: 0, items: [] }, T0 + 2000).state;

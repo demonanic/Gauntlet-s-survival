@@ -1,3 +1,4 @@
+import { openRegion } from "../test/expeditionFixtures";
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import * as C from "../combat/config";
 import { Engine } from "../combat/engine";
@@ -40,7 +41,7 @@ function boneyardRun() {
   for (const hero of state.heroes) { hero.traits = []; hero.combat.hp = classlessMaxHp(hero); }
   const ids = state.heroes.map((hero) => hero.identity.id).slice(0, 3);
   for (const hero of state.heroes) hero.progression.level = Math.max(hero.progression.level, 3);
-  return startExpedition(state, "boneyard", ids, T0, () => 0.5).state;
+  return startExpedition(openRegion(state, "boneyard"), "boneyard", ids, T0, () => 0.5).state;
 }
 
 // Put a running expedition into an engaged fight against `wave`.

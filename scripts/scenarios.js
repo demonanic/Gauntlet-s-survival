@@ -28,6 +28,7 @@ import { debugSetLevels } from "../src/game/debug";
 import { ECOLOGIES } from "../src/game/ecology";
 import { buildBossEncounter, buildWildEncounter } from "../src/game/encounters";
 import { createGuild, expeditionDurationMs, recruitHero, startExpedition, tick } from "../src/game/guild";
+import { previousRegion } from "../src/game/expedition";
 import { simulateEncounter } from "../src/game/simulate";
 import { composeStats, createGearItem } from "../src/game/items";
 import { createPet } from "../src/game/pets";
@@ -114,6 +115,9 @@ function playTrips(region, scenario) {
     const ids = state.heroes.map((hero) => hero.identity.id);
     // Half the trips set out at noon, half at midnight (night means more ambushes).
     const start = new Date(2026, 0, 1, trip % 2 ? 0 : 12).getTime();
+    // Scenarios test one region on its own: open it as if the one before were cleared.
+    const before = previousRegion(getRegion(region));
+    if (before) state.clears[before.id] = Math.max(1, state.clears[before.id] || 0);
     const started = startExpedition(state, region, ids, start, Math.random, { revives: scenario.revives || 0 });
     if (!started.ok) throw new Error(`${scenario.name} could not start ${region}: ${started.reason}`);
     state = started.state;

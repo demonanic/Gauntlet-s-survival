@@ -25,7 +25,7 @@ import { recordHistory } from "./qualities";
 import { combatEnvironment, getEnvironment, heroResistance, rollEnvironmentEvent } from "./environment";
 import { createGearItem, randomCrystal, restockQuickSlots, tierMult } from "./items";
 import { legacyBonuses } from "./legacy";
-import { CHAMPIONS, getRegion } from "./regions";
+import { CHAMPIONS, REGIONS, getRegion } from "./regions";
 import { simulateEncounter } from "./simulate";
 import { buildFightOutcome } from "./fightOutcome";
 import { combatBonds, separation } from "./bonds";
@@ -119,6 +119,23 @@ function hurt(hero, fraction) {
 // balance scenarios use them to model revive items or ad revives.
 // `options.tutorial`: the tutorial's first trip, whose first event comes
 // quickly and is an easy encounter that waits for the player.
+// Campaign regions open in order: a region needs the one before it cleared
+// (as well as its level). A region the guild has cleared, or one before a
+// region it has cleared, stays open. The Endless Rift is outside the order.
+export function previousRegion(region) {
+  if (!region || region.endless) return null;
+  const campaign = REGIONS.filter((entry) => !entry.endless);
+  return campaign[campaign.indexOf(region) - 1] || null;
+}
+
+export function regionOpen(state, region) {
+  if (!region || region.endless) return true;
+  const campaign = REGIONS.filter((entry) => !entry.endless);
+  const index = campaign.indexOf(region);
+  if (index <= 0) return true;
+  return campaign.slice(index - 1).some((entry) => (state.clears?.[entry.id] || 0) > 0);
+}
+
 export function startExpedition(state, regionId, heroIds, now, rng = Math.random, { revives = 0, tutorial = false } = {}) {
   const region = getRegion(regionId);
   if (!region) return { ok: false, reason: "unknown_region" };
@@ -132,6 +149,7 @@ export function startExpedition(state, regionId, heroIds, now, rng = Math.random
   }
   const partyLevel = Math.max(...ids.map((id) => findHero(state, id).progression.level));
   if (partyLevel < region.minLevel) return { ok: false, reason: "level_required" };
+  if (!regionOpen(state, region)) return { ok: false, reason: "previous_region" };
 
   const next = serializeGameState(state);
   const durationMs = region.endless ? null : expeditionDurationMs(state, region);

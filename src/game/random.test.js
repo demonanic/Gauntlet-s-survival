@@ -1,7 +1,7 @@
 // Seedable randomness (roadmap Phase 4): the same seed and the same state give
 // the same result, and play without a seed still uses Math.random.
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
-import { withPendingFight } from "../test/expeditionFixtures";
+import { withPendingFight, openRegion } from "../test/expeditionFixtures";
 import { buildBossEncounter, buildEndlessWave, buildWildEncounter } from "./encounters";
 import { debugSetLevels } from "./debug";
 import { createGuild, startExpedition, tick } from "./guild";
@@ -121,7 +121,7 @@ describe("a seeded trip", () => {
   function playTrip(regionId, level, seed) {
     const rng = seededRandom(seed);
     let state = guildAt(level);
-    state = startExpedition(state, regionId, state.heroes.map((hero) => hero.identity.id), T0, rng).state;
+    state = startExpedition(openRegion(state, regionId), regionId, state.heroes.map((hero) => hero.identity.id), T0, rng).state;
     for (let step = 1; step <= 200 && state.expedition; step += 1) state = tick(state, T0 + step * 20 * MINUTE, { rng });
     expect(state.expedition).toBeNull();
     return withoutGearIds(state);
@@ -152,7 +152,7 @@ describe("a seeded trip", () => {
     // (Every hero is one, so a hero who falls in the fight still leaves one standing.)
     for (const hero of state.heroes) hero.traits = ["scavenger"];
     for (const hero of state.heroes) hero.history = { ...hero.history, fights: 20 };
-    state = startExpedition(state, "boneyard", state.heroes.map((hero) => hero.identity.id), T0, rng).state;
+    state = startExpedition(openRegion(state, "boneyard"), "boneyard", state.heroes.map((hero) => hero.identity.id), T0, rng).state;
     state = withPendingFight(state, T0 + 1000, "boss");
     // The fixture builds its wave with Math.random; build it from the seed.
     state.expedition.pending.wave = buildBossEncounter(getRegion("boneyard"), 0, rng);

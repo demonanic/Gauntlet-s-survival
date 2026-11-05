@@ -12,7 +12,7 @@ import {
 } from "./qualities";
 import { getRegion } from "./regions";
 import { parseGuild } from "./storage";
-import { withPendingFight } from "../test/expeditionFixtures";
+import { withPendingFight, openRegion } from "../test/expeditionFixtures";
 
 const T0 = 1_000_000;
 const STEP = 1 / 30;
@@ -253,7 +253,7 @@ describe("stalkers", () => {
     let state = plainGuild();
     state.heroes[0].progression.level = 3;
     state.heroes[0].traits = traits;
-    state = startExpedition(state, "boneyard", [state.heroes[0].identity.id], T0).state;
+    state = startExpedition(openRegion(state, "boneyard"), "boneyard", [state.heroes[0].identity.id], T0).state;
     state.expedition.stalker = { wave: buildStalkerEncounter(getRegion("boneyard"), 0.3, fixed(0.5)), since: T0, events: 0, detected: false, braced: false };
     return tick(state, state.expedition.nextEventAt, { interactive: true, rng });
   }
@@ -269,7 +269,7 @@ describe("stalkers", () => {
     let state = plainGuild();
     state.heroes[0].progression.level = 3;
     const ids = state.heroes.map((hero) => hero.identity.id);
-    state = startExpedition(state, "boneyard", ids, T0).state;
+    state = startExpedition(openRegion(state, "boneyard"), "boneyard", ids, T0).state;
     state.expedition.stalker = { wave: buildStalkerEncounter(getRegion("boneyard"), 0.3, fixed(0.5)), since: T0, events: 0, detected: false, braced: false };
     state.heroes[2].combat.hp = Math.round(classlessMaxHp(state.heroes[2]) * 0.2);
     const before = state.heroes[2].combat.hp;

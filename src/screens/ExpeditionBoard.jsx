@@ -6,6 +6,7 @@ import * as C from "../combat/config";
 import { GEAR_SETS, PROVISIONS, heroArrowCount, heroUsesArrows } from "../combat/gear";
 import { getEnvironment, heroResistance } from "../game/environment";
 import { REGIONS, bossForRank } from "../game/regions";
+import { previousRegion, regionOpen } from "../game/expedition";
 
 // Before sending a party: who will lack arrows, and how protected each hero is
 // against the region's environment (provisions are packed automatically).
@@ -93,6 +94,11 @@ export default function ExpeditionBoard({ guild, now, onLaunch }) {
               {guild.clears[entry.id] > 0 && (
                 <p className="font-mono-g text-[10px] text-emerald-300">Cleared ×{guild.clears[entry.id]}</p>
               )}
+              {!regionOpen(guild, entry) && (
+                <p className="font-mono-g text-[10px] text-amber-300" data-testid={`region-locked-${entry.id}`}>
+                  🔒 Clear {previousRegion(entry).name} first.
+                </p>
+              )}
             </button>
           ))}
         </div>
@@ -102,7 +108,7 @@ export default function ExpeditionBoard({ guild, now, onLaunch }) {
           <h2 className="font-display text-base font-bold text-cyan-200">PARTY · {selected.length}/{MAX_PARTY_SIZE}</h2>
           <NeonButton
             color={region.color}
-            disabled={busy || selected.length === 0 || partyLevel < region.minLevel}
+            disabled={busy || selected.length === 0 || partyLevel < region.minLevel || !regionOpen(guild, region)}
             onClick={() => { onLaunch(region.id, selected); setParty([]); }}
             data-testid="launch-expedition"
           >
@@ -112,6 +118,9 @@ export default function ExpeditionBoard({ guild, now, onLaunch }) {
         {busy && <p className="mb-2 font-mono-g text-[11px] text-yellow-300">A party is already out. Only one expedition at a time.</p>}
         {!busy && selected.length > 0 && partyLevel < region.minLevel && (
           <p className="mb-2 font-mono-g text-[11px] text-red-300">{region.name} needs a hero of level {region.minLevel}+.</p>
+        )}
+        {!busy && !regionOpen(guild, region) && (
+          <p className="mb-2 font-mono-g text-[11px] text-red-300">{region.name} opens once your guild clears {previousRegion(region).name}.</p>
         )}
         {!busy && selected.length > 0 && (
           <p className="mb-2 font-mono-g text-[10px] text-slate-400" data-testid="leader-note">

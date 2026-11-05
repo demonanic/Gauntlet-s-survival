@@ -6,7 +6,7 @@
 // the unmoved code.
 import { createHash } from "node:crypto";
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
-import { withPendingFight } from "../test/expeditionFixtures";
+import { withPendingFight, openRegion } from "../test/expeditionFixtures";
 import { debugSetLevels } from "./debug";
 import { createGuild, startExpedition, tick } from "./guild";
 
@@ -17,15 +17,17 @@ const AT = T0 + 60_000;
 // Re-recorded when Mastery (combat/mastery.js) began saving per-hero counts
 // (hero.mastery, five new hero.history counters): with exactly those left out,
 // every case produced the same state as the code before it (checked Nov 2026).
+// Re-recorded again when regions began opening in order (openRegion marks the
+// region before as cleared): with `clears` left out, every case matched.
 const GOLDEN = {
-  "sighting, good odds: sneak": "208757f50a3e9299",
-  "sighting, poor odds, badly hurt: sneak": "88b46b34b857000c",
-  "sighting, poor odds, healthy: fight": "a4f57b81af8dc352",
-  "boss, worn down: leave": "4307ae09c5b4e557",
-  "boss, healthy: fight": "3afe1f82db32ab1c",
+  "sighting, good odds: sneak": "8508e169540f1e7a",
+  "sighting, poor odds, badly hurt: sneak": "15eab051c9fd143e",
+  "sighting, poor odds, healthy: fight": "5b24c2c62e9e5b93",
+  "boss, worn down: leave": "29b3bec5acd06835",
+  "boss, healthy: fight": "c1e6abbe5c4bf126",
   "merchant: decline": "ea8c358bc570fcf3",
-  "story, healthy": "359f5deb0daafd92",
-  "story, badly hurt": "792b1123d4c5fd07",
+  "story, healthy": "131e8abe24277193",
+  "story, badly hurt": "eee2ee8fede92da7",
   "deeper, healthy: push": "9f37b1e74ee85ca6",
   "deeper, a hero down: home": "236f78558d26779b",
   "deeper, worn down: home": "fafe5ae4d0865b17",
@@ -67,7 +69,7 @@ function pinned(seed, body) {
 function waiting(regionId, level, pending, { hp = 1, down = [] } = {}) {
   let state = createGuild();
   if (level > 1) state = debugSetLevels(state, level).state;
-  const started = startExpedition(state, regionId, state.heroes.map((hero) => hero.identity.id), T0, () => 0.5);
+  const started = startExpedition(openRegion(state, regionId), regionId, state.heroes.map((hero) => hero.identity.id), T0, () => 0.5);
   expect(started.ok).toBe(true);
   state = started.state;
   state.heroes.forEach((hero, index) => {

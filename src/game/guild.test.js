@@ -2,7 +2,7 @@ import {
   createGuild, recruitCost, recruitHero, startExpedition, tick,
 } from "./guild";
 import { loadGuild, saveGuild } from "./storage";
-import { withoutArmor } from "../test/expeditionFixtures";
+import { withoutArmor, openRegion } from "../test/expeditionFixtures";
 
 const T0 = 1_000_000;
 const ids = (state) => state.heroes.map((hero) => hero.identity.id);
@@ -46,7 +46,7 @@ describe("guild basics", () => {
 
   test("rejects regions above the party's level", () => {
     const state = createGuild();
-    expect(startExpedition(state, "boneyard", ids(state), T0)).toEqual({ ok: false, reason: "level_required" });
+    expect(startExpedition(openRegion(state, "boneyard"), "boneyard", ids(state), T0)).toEqual({ ok: false, reason: "level_required" });
   });
 
   test("resting at the guild heals wounded heroes", () => {

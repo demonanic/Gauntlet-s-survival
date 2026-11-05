@@ -6,7 +6,7 @@ import { heroGearMarks } from "../combat/heroLook";
 import { heroRoadEffects, partyRoadEffects } from "../combat/traits";
 import { buildWildEncounter, createEncounterSim } from "./encounters";
 import { choosePending, createGuild, resolveEncounter, startExpedition } from "./guild";
-import { withPendingFight } from "../test/expeditionFixtures";
+import { withPendingFight, openRegion } from "../test/expeditionFixtures";
 import {
   CRYSTAL_PRICE, EXTRACT_COST, buyCrystal, createGearItem, extractCrystal, fuseCrystals, infuseCrystal, setSupplyStyle,
 } from "./items";
@@ -154,7 +154,7 @@ describe("familiars", () => {
       const ids = state.heroes.slice(0, 2).map((hero) => hero.identity.id);
       state.heroes[0].progression.level = level;
       state.heroes[1].progression.level = 12;
-      state = startExpedition(state, "ashen", ids, 0).state;
+      state = startExpedition(openRegion(state, "ashen"), "ashen", ids, 0).state;
       withPendingFight(state, 1000, "boss");
       const party = structuredClone(state.heroes.slice(0, 2));
       const won = resolveEncounter(state, { victory: true, party, xpGains: {}, gold: 0, items: [] }, 2000).state;

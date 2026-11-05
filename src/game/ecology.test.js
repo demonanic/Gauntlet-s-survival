@@ -1,3 +1,4 @@
+import { openRegion } from "../test/expeditionFixtures";
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import * as C from "../combat/config";
 import { Engine } from "../combat/engine";
@@ -192,7 +193,7 @@ describe("composition", () => {
   test("a formation is read by its signs at first, by name once the guild knows it", () => {
     let state = createGuild();
     state.heroes[0].progression.level = 4;
-    state = startExpedition(state, "frostfang", [state.heroes[0].identity.id], 0).state;
+    state = startExpedition(openRegion(state, "frostfang"), "frostfang", [state.heroes[0].identity.id], 0).state;
     const wave = buildWildEncounter(getRegion("frostfang"), 0, fixed(0.01));
     expect(wave.ecology).toBe("huntPack");
     expect(wave.enemies.map((enemy) => enemy.type)).toEqual(["watcher", "harrier", "harrier"]);

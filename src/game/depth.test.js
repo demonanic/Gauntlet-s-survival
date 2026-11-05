@@ -10,7 +10,7 @@ import {
   salvageGear, salvageValue,
 } from "./items";
 import { REGIONS, getRegion } from "./regions";
-import { withPendingFight } from "../test/expeditionFixtures";
+import { withPendingFight, openRegion } from "../test/expeditionFixtures";
 
 const T0 = 1_000_000;
 const STEP = 1 / 30;
@@ -247,7 +247,7 @@ describe("environments", () => {
     const state = createGuild();
     state.heroes[0].progression.level = 6;
     state.stash.coolingSalve = 1;
-    const started = startExpedition(state, "ashen", state.heroes.map((hero) => hero.identity.id), T0).state;
+    const started = startExpedition(openRegion(state, "ashen"), "ashen", state.heroes.map((hero) => hero.identity.id), T0).state;
     expect(started.expedition.packed).toEqual([state.heroes[0].identity.id]);
     expect(started.stash.coolingSalve).toBe(0);
     const party = currentEncounterParty(started);
