@@ -234,7 +234,12 @@ The steps follow `docs/LEGACY_MANIFEST.md`. 6A was its own PR. From 6B on, Sam a
 
 ### Phase 8: Split `combat/engine.js`
 
-- [ ] 8A Renderer: drawing reads engine state only and decides nothing; unattended results unchanged.
+- [x] 8A Renderer: drawing reads engine state only and decides nothing; unattended results unchanged.
+  - Drawing fingerprint (`src/combat/render.characterization.test.js`): five seeded fights (Gutter, Boneyard boss, Frostfang, Ashen boss, Blightmire) played 900 frames each on a fake canvas that records every drawing call (about 100,000 to 290,000 calls per fight, with spells, spell effects, familiars, callouts and hit-stop); the hash of each record was taken in CI on the code before the move, twice, with the same result.
+  - The hero's last drawn position (walk cycle) moved off the hero into the drawing code; a test checks that drawing five frames leaves the fight's state unchanged.
+  - The battle scene, callout and familiar drawing (`render/battleRenderer.js`), hero sprites (`render/heroSprites.js`) and enemy sprites (`render/enemySprites.js`) left `engine.js`; `render()` hands over to `renderBattle(engine)`. Arena size in `arena.js`. Two drawing helpers nothing called were removed (`_glowShape`, `_bracketSquare`).
+  - `_hud()` stays in the engine: it reports numbers to the Battle screen during updates, not drawing. `_drawArrow` stays too: despite its name it spends arrows.
+  - After each step: all five drawing fingerprints and all 26 fight-result hashes unchanged; `engine.js` 4,569 → about 3,790 lines.
 - [ ] 8B Enemy behavior: per-enemy handlers, migrated in small groups with seeded behavior tests.
 - [ ] 8C Hero abilities and spells: one family at a time, after characterizing cooldowns, costs, damage, effects and targeting.
 - [ ] 8D Other responsibilities, each with its own design and PR.
@@ -318,3 +323,4 @@ Decisions (Sam, 2026-11-01, reviewing Phase 5):
 | 2026-11-01 | Batch 3 merged | #36 | Merged `3aa2c7d` (squash) on CI |
 | 2026-11-01 | Phase 7 second step: party decisions | #37 | 11 characterization cases recorded on the old code, then the policy moved to `partyDecisions.js`; CI 475 tests, all 26 hashes unchanged. Probe, seeded runs, browser not run |
 | 2026-11-01 | Phase 7 second step merged | #37 | Merged `3c8df41` (squash) on CI. Sam paused the roadmap here for feature work (special moves and spells; plan in DESIGN.md) |
+| 2026-11-05 | Phase 8A renderer out of the engine | #48 | Drawing fingerprints (five seeded fights) recorded in CI before the move; unchanged after each of three steps, as are the 26 fight-result hashes |
