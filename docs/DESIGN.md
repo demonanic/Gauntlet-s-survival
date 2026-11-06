@@ -141,6 +141,23 @@ A deliberately small model (not Demonanic's 11 slots), defined in `src/combat/ge
   Departure restocks every loaded slot from the stash and gives an arrowless archer
   plain arrows in a free slot.
 
+## Spells and moves, part 4: Conjuration and Mirror Self (Nov 2026, `SPELLS`, `ELEMENTALS`, `heroes/conjured.js`)
+
+Owner-approved plan (Sam: blades go by spell rank; summons stack; "a sword spinning in mid air: anything that gets close just gets hurt"). Draft PR #59; numbers below are waiting on Sam.
+
+- **Conjuration**, a new school (blue, `#60A5FA`; learned like any other with Elementalism). Two spells, at I and IV (no II spell).
+  - **Spectral Blades** (I, 20 mana, 18 s, 10 s): one sword per spell rank (I–V). Foes can't hit them. Each blade flies to a foe near the party (blades spread over the closest foes, within 320 of the caster; a new pick every 1.5 s), spins around it, and cuts every foe within 22 px of it (plus the foe's body) once a second for 25% of the caster's attack, scaled by spell power. With no foe it circles the caster.
+  - **Summon Elemental** (IV, 34 mana, 30 s, 12 s): an elemental of the caster's best other school (highest proficiency; ties: the first learned; none: Arcane). 30% of the caster's HP, foes can hit it, one hit a second for 50% of the caster's attack (scaled by spell power) with its school's touch: Fire burns (30%), Ice slows (30%), Poison poisons (40%), Lightning arcs to another foe (50%), Mind stuns 0.3 s (bosses a third), Shadow blinds (30% miss for 2 s; bosses half), Wild Magic webs (1 s every 4 s). Support schools' elementals hit for half and, every second, help allies within 120: Restoration heals 3% of max HP (within the 4% a second regeneration limit), Warding shields 2% (up to the shield cap), Enchanting has them attack and move 10% faster. The Spellbook shows which elemental a hero would call.
+- **Mirror Self** (Shadow V, 30 mana, 35 s, 8 s): a copy of the caster with 40% of their attack and HP (fixed, not scaled by rank), using their basic attack (melee, or ranged up to 240; a bow copy needs no arrows). When it appears, half (rounded up) of the ordinary foes on the caster (fighting them, or within 110) turn on it until it goes; bosses don't. It's drawn as the caster, see-through.
+- **Stacking:** each summon is one at a time per caster, but blades, an elemental and a spirit beast can all be out together.
+- **On auto:** blades once a foe is within 200 of the party, keeping the 20 mana reserve; the elemental like the spirit beast (a foe in the fight, the reserve); Mirror Self when the caster is under 60% and was hit in the last 1.5 s.
+- **Measured** (sword with a wolf, bow with 40 arrows, the tested caster at V, a Fire III caster; level 8, common tier-1 gear, wild fights at depth 0.8; 120 seeded fights each; wins, damage the party took, the tested caster's share of the party's damage). Frostfang wild / Ashen wild / Blightmire wild / Boneyard boss:
+  - Fire V: 116 / 87 / 47 / 120 wins; 613 / 914 / 1095 / 326 taken; 31–34%. Restoration V: 120 / 119 / 95 / 120; 691 / 971 / 1287 / 430. Fire V + Ice V: 119 / 86 / 42 / 120.
+  - Conjuration V (Arcane elemental): 119 / 108 / 62 / 120 wins; 487 / 728 / 1024 / 231 taken; 44–46%; fights 15–20% shorter. Blades 1,500–3,650 damage a fight (2–6 casts); the elemental 270–470 (about 2 casts).
+  - The same with blades off: 117 / 86 / 45 / 120; with the elemental off: 119 / 108 / 67 / 120 (the elemental doesn't pay for its mana). Restoration V + Conjuration V: 120 / 120 / 97 / 120, and 120 / 120 / 110 / 120 with the elemental off.
+  - Mirror Self: never cast on auto (Shadow V's numbers match with it off). Cast by hand whenever a foe is within 150 of the caster: about 0.7–1 cast a fight, about 50 damage, wins and damage taken unchanged (119 / 96 / 50 / 120). Orcs, lieutenants, ghosts, Warlocks and foes with a role pick their own targets before a taunt counts (as with the tortoise), so most foes in these regions aren't fooled.
+  - Options tried (not shipped): blades at 15% a cut: 119 / 100 / 52 / 120 without the elemental (near Fire V + a little); the elemental at 80% damage, 40% HP, 24 mana: adds 7 / 5 wins in Ashen / Blightmire over blades alone; Mirror Self at 60% and pulling every ordinary foe on the caster: still unchanged (46 Blightmire wins).
+
 ## Spells and moves, part 3: Enchanting and two wards (Nov 2026, `SPELLS`, `heroes/spells.js`)
 
 Owner-approved plan, reshaped after measuring.
