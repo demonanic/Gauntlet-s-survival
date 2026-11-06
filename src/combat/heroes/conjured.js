@@ -1,5 +1,5 @@
-// Conjuration summons (spells part 4, Nov 2026): Spectral Blades and the
-// summoned elemental. Engine
+// Conjuration summons (spells part 4, Nov 2026): Spectral Blades, the
+// summoned elemental and Shadow's Mirror Self. Engine
 // methods, mixed in by engine.js like the other heroes/ files. The blades are
 // kept in the engine's pets list so they leave like a spirit beast does, but
 // they're `untouchable`: foes never target them (see _nearestPetInReach).
@@ -58,6 +58,38 @@ export const conjuredMethods = {
     this.pets.push(pet);
     this.vfx?.beastSpawn(pet, rank);
     this._float(h.x, h.y - 30, pet.name.toUpperCase(), color);
+  },
+
+  // Mirror Self (Shadow V): a copy of the caster with `spell.damage` of their
+  // attack and `spell.hp` of their HP, using their basic attack (no spells or
+  // moves; a bow copy needs no arrows). Half (`spell.pull`, rounded up) of
+  // the ordinary foes on the caster (fighting them, or within 110) turn on it
+  // until it goes. Bosses don't, as with every taunt.
+  _summonMirror(h, spell, rank) {
+    const color = ELEMENTS.shadow.color;
+    const maxHp = Math.max(1, Math.round(h.d.maxHp * spell.hp));
+    const melee = h.d.rangeMode === "melee";
+    const pet = {
+      owner: h, name: "Mirror", summoned: true, summonKind: "mirror", school: "shadow", glow: color,
+      until: this.time + spell.seconds, level: rank * 2,
+      stats: { species: "mirror", color, guard: 0, attack: {
+        range: melee ? 30 : Math.min(h.d.range || 200, 240), moveSpeed: h.d.movementSpeed || 120, interval: Math.max(0.3, h.d.rate || 1),
+        damage: (h.d.attack || 0) * spell.damage, mark: 0, burn: 0, bleed: 0, slow: 0, lifelink: 0, poison: 0, pounce: 0, web: null, cone: 0,
+      } },
+      body: { hp: spell.hp, weight: 1, airborne: false, taunt: null },
+      hp: maxHp, maxHp, down: false, hurtAt: -99, strikeAt: -99, face: 1, moving: false,
+      x: h.x + 26, y: h.y, cd: 0.4, supportCd: 0, tauntCd: 0, webCd: 0, pounced: false, target: h.currentTarget?.hp > 0 ? h.currentTarget : null,
+    };
+    this.pets.push(pet);
+    this.vfx?.beastSpawn(pet, rank);
+    const onCaster = this.active
+      .filter((e) => e.hp > 0 && !e.boss && !(e.dominatedUntil > this.time) && !(e.confusedUntil > this.time)
+        && ((e.engagedWith === h && e.engagedUntil > this.time) || Math.hypot(e.x - h.x, e.y - h.y) <= 110))
+      .sort((a, b) => Math.hypot(a.x - h.x, a.y - h.y) - Math.hypot(b.x - h.x, b.y - h.y));
+    const pulled = onCaster.slice(0, Math.ceil(onCaster.length * spell.pull));
+    for (const e of pulled) { e.tauntedBy = pet; e.tauntUntil = pet.until; }
+    this._float(h.x, h.y - 30, pulled.length ? `MIRROR SELF · ${pulled.length} FOOLED` : "MIRROR SELF", color);
+    return pulled.length;
   },
 
   // A support elemental's help, once a second, for every ally within reach.

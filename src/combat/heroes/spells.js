@@ -10,7 +10,7 @@ import { getEquippedHeroWeaponType } from "../heroWeapon";
 // The order an unattended caster weighs its support spells in.
 // Iron Skin and Spellguard come after Barrier (owner's call after measuring):
 // on auto they're cast only when Barrier isn't ready.
-const SUPPORT_PRIORITY = Object.freeze(["lifeline", "heal", "veil", "renew", "barrier", "iron_skin", "spellguard", "aegis", "empower",
+const SUPPORT_PRIORITY = Object.freeze(["lifeline", "heal", "veil", "mirror", "renew", "barrier", "iron_skin", "spellguard", "aegis", "empower",
   "haste", "true_aim", "kindred", "quiver", "insight", "summon", "elemental", "blades"]);
 // Foes whose shots are magic (Spellguard's concern on auto).
 const MAGIC_SHOOTERS = Object.freeze(new Set(["warlock", "carrionPriest", "lesserNecromancer", "watcher"]));
@@ -246,6 +246,11 @@ export const heroSpellMethods = {
         return lowest(open.filter((ally) => frac(ally) < 0.7 && underAttack(ally) && threatened(ally)));
       }
       // Each summon is one at a time, but they stack with each other (owner's call).
+      // Mirror Self: on auto, when the caster is hurt (under 60%) and under attack.
+      case "mirror": {
+        if (this.pets.some((pet) => pet.summonKind === "mirror" && pet.owner === h && !pet.down) || !this.active.some((enemy) => enemy.hp > 0)) return null;
+        return !auto || (frac(h) < 0.6 && underAttack(h)) ? h : null;
+      }
       case "summon":
       case "elemental":
       case "blades": {
@@ -322,6 +327,8 @@ export const heroSpellMethods = {
       this.vfx?.aura("veil", target, spell.seconds, rank, () => this._isHeroUntargetable(target));
     } else if (spell.shape === "summon") {
       this._summonBeast(h, spell, power, rank);
+    } else if (spell.shape === "mirror") {
+      this._summonMirror(h, spell, rank);
     } else if (spell.shape === "elemental") {
       this._summonElemental(h, spell, power, rank);
     } else if (spell.shape === "blades") {

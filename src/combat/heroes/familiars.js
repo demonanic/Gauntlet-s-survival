@@ -16,6 +16,8 @@ export const familiarMethods = {
     const leaving = this.pets.filter((pet) => pet.summoned && (pet.down || this.time >= pet.until || !pet.owner.alive));
     if (leaving.length) {
       for (const pet of leaving) this.vfx?.beastFade(pet);
+      // Foes fooled by a Mirror Self that's gone stop chasing it.
+      for (const pet of leaving) if (pet.summonKind === "mirror") for (const enemy of this.active) if (enemy.tauntedBy === pet) enemy.tauntUntil = 0;
       this.pets = this.pets.filter((pet) => !leaving.includes(pet));
     }
     for (const pet of this.pets) {

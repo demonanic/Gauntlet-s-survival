@@ -128,6 +128,9 @@ export const SPELLS = Object.freeze({
   // foe within `reach` of them every `interval` s.
   spectral_blades: { name: "Spectral Blades", element: "conjuration", shape: "blades", power: 1, damage: 0.25, reach: 22, interval: 1, mana: 20, cooldown: 18, seconds: 10, unlock: 1, support: true, desc: "one spinning sword per spell rank (up to 5) for 10 s; they can't be hit and cut foes that come close" },
   summon_elemental: { name: "Summon Elemental", element: "conjuration", shape: "elemental", power: 1, damage: 0.5, hp: 0.3, mana: 34, cooldown: 30, seconds: 12, unlock: 4, support: true, desc: "an elemental of the caster's best other school fights for 12 s" },
+  // Mirror Self (Shadow V): a fixed 40% copy (not scaled by rank); half the
+  // foes on the caster turn on it.
+  mirror_self: { name: "Mirror Self", element: "shadow", shape: "mirror", power: 0, damage: 0.4, hp: 0.4, pull: 0.5, mana: 30, cooldown: 35, seconds: 8, unlock: 5, support: true, desc: "a 40% copy of the caster fights for 8 s; half the foes on the caster turn on it" },
   expose: { name: "Expose", element: "mind", shape: "expose", power: 0, bonus: 0.3, mana: 20, cooldown: 16, range: 300, seconds: 6, unlock: 4, desc: "the party's main kind of damage hits it 30% harder for 6 s" },
 });
 
@@ -193,7 +196,7 @@ export const ELEMENT_EFFECTS = Object.freeze({
   arcane: "pure arcane damage",
   restoration: "heals allies; spell heals ignore the regeneration limit",
   warding: "shields and strengthens allies",
-  shadow: "hides allies; frightens, confuses, blinds and disarms foes",
+  shadow: "hides allies; frightens, confuses, blinds and disarms foes; at V, a mirror copy",
   wild: "roots foes; calls a spirit beast",
   enchanting: "speeds, sharpens and strengthens allies",
   conjuration: "spinning blades and an elemental fight beside the caster",

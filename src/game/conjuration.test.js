@@ -206,3 +206,62 @@ describe("Conjuration: Summon Elemental", () => {
     expect(engine.getHeroSpellStatus(0).find((s) => s.id === "summon_elemental").available).toBe(false);
   });
 });
+
+describe("Shadow: Mirror Self", () => {
+  const shade = (weapon = "sword") => ({ weapon, elements: ["shadow"], casts: { veil: RANK_CASTS[4] } });
+  const mirror = (engine) => engine.pets.find((pet) => pet.summonKind === "mirror");
+
+  test("opens at Shadow V", () => {
+    const [hero] = heroes([shade()]);
+    expect(knownSpells(hero).map((s) => s.id)).toContain("mirror_self");
+    const four = { ...hero, magic: { elements: ["shadow"], casts: { veil: RANK_CASTS[3] } } };
+    expect(knownSpells(four).map((s) => s.id)).not.toContain("mirror_self");
+  });
+
+  test("a 40% copy for 8 s that half the foes on the caster turn on", () => {
+    // Goblins: orcs and role foes peel to their own picks before a taunt counts (as with the tortoise).
+    const orcs = [foe(300, 390, { type: "goblin" }), foe(320, 395, { type: "goblin" }), foe(280, 395, { type: "goblin" }), foe(310, 100, { type: "goblin" })];
+    const engine = fight([shade()], orcs);
+    const h = engine.heroes[0];
+    expect(cast(engine, "mirror_self", null)).toBe(true);
+    const copy = mirror(engine);
+    expect(copy.maxHp).toBe(Math.round(h.d.maxHp * 0.4));
+    expect(copy.stats.attack.damage).toBeCloseTo(h.d.attack * 0.4);
+    expect(copy.stats.attack.range).toBe(30);
+    // Three foes are on the caster (the fourth is far off): two turn.
+    expect(orcs.filter((e) => e.tauntedBy === copy)).toHaveLength(2);
+    expect(orcs[3].tauntedBy).toBeUndefined();
+    // A fooled foe goes for the copy, not the hero.
+    const fooled = orcs.find((e) => e.tauntedBy === copy);
+    fooled.x = copy.x; fooled.y = copy.y - 20; fooled.atkCd = 0;
+    const hp = h.ref.hp;
+    withRoll(0.99, () => enemyTurn(engine, fooled, 0.05));
+    expect(copy.hp).toBeLessThan(copy.maxHp);
+    expect(h.ref.hp).toBe(hp);
+    // When it goes, the foes stop chasing it.
+    engine.time += 8;
+    engine._updatePets(0.1);
+    expect(mirror(engine)).toBeUndefined();
+    expect(fooled.tauntUntil).toBe(0);
+  });
+
+  test("a bow copy shoots from range; bosses aren't fooled", () => {
+    const boss = foe(300, 395, { boss: true });
+    const engine = fight([shade("bow")], [boss]);
+    cast(engine, "mirror_self", null);
+    expect(mirror(engine).stats.attack.range).toBeGreaterThan(30);
+    expect(boss.tauntedBy).toBeUndefined();
+  });
+
+  test("on auto: only when the caster is under 60% and under attack", () => {
+    const engine = fight([shade()], [foe(300, 390)]);
+    const h = engine.heroes[0];
+    const spell = engine.getHeroSpellStatus(0).find((s) => s.id === "mirror_self");
+    expect(engine._supportTarget(h, spell, true)).toBeNull();
+    h.ref.hp = h.d.maxHp * 0.5;
+    expect(engine._supportTarget(h, spell, true)).toBeNull();
+    h.lastHurtAt = engine.time;
+    expect(engine._supportTarget(h, spell, true)).toBe(h);
+    expect(engine._supportTarget(h, spell, false)).toBe(h);
+  });
+});
