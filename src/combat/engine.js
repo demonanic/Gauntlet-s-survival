@@ -12,6 +12,7 @@ import { clutchMethods } from "./heroes/clutch";
 import { familiarMethods } from "./heroes/familiars";
 import { heroMoveMethods } from "./heroes/moves";
 import { quickSlotMethods } from "./heroes/quickSlots";
+import { partyOrderMethods } from "./heroes/orders";
 import { heroSpellMethods } from "./heroes/spells";
 import { enemyTurn, tacticalTarget } from "./enemies/turn";
 import { BODY_PAD, BULWARK_COVER, BULWARK_GUARD, BULWARK_GUARD_RADIUS } from "./enemies/tuning";
@@ -28,7 +29,7 @@ import { heroTraitEffects } from "./traits";
 import { masteryEffects } from "./mastery";
 import { projectileVfxAssetId } from "./combatVfx";
 import { renderBattle } from "./render/battleRenderer";
-import { FLOOR_Y, H, HERO_Y, W } from "./arena";
+import { ENEMY_BODY_RADIUS, FLOOR_Y, H, HERO_BODY_RADIUS, HERO_Y, W } from "./arena";
 import { defaultRandom } from "../game/random";
 
 const MAX_COMBAT_EFFECTS = 180;
@@ -142,12 +143,6 @@ const KITE_MARGIN = 18;
 // try to get this far outside its blast.
 const DODGE_WARNING = 0.8;
 const DODGE_CLEARANCE = 8;
-// Body radii for collisions, sized to the drawn art so units don't pile on top
-// of each other. They grew by 4-5 px (Oct 2026); every melee reach grew by
-// BODY_PAD, the extra distance between two touching bodies, so who can hit
-// whom from contact is unchanged (BODY_PAD lives in enemies/tuning.js).
-const HERO_BODY_RADIUS = 20;
-const ENEMY_BODY_RADIUS = (e) => (e.boss ? 33 : e.tier === "elite" ? 24 : 18);
 function laneX(i) { return (W / LANES) * (i + 0.5); }
 
 export const LAYOUT = { W, H, HERO_Y, FLOOR_Y };
@@ -296,32 +291,8 @@ export class Engine {
   stop() { this.running = false; }
   setSpeed(s) { this.speed = s; }
 
-  setSelectedHero(index) {
-    this.selectedHero = Number.isInteger(index) ? index : null;
-    return true;
-  }
 
-  setTargetSelection(index) {
-    const h = this.heroes[index];
-    this.targetingHero = h?.alive && h.d.rangeMode === "midline" ? index : null;
-    return this.targetingHero !== null;
-  }
 
-  getRangedTargetStatus(index) {
-    const h = this.heroes[index];
-    if (!h?.alive || h.d.rangeMode !== "midline") return null;
-    const targets = this.active
-      .filter((enemy) => this._isValidClasslessTarget(h, enemy))
-      .map((enemy) => ({
-        type: enemy.type,
-        name: enemy.name || enemy.type,
-        hp: Math.max(0, Math.round(enemy.hp)),
-        maxHp: Math.max(1, Math.round(enemy.maxHp)),
-        distance: Math.round(Math.hypot(enemy.x - h.x, enemy.y - h.y)),
-        enemy,
-      }));
-    return { heroName: h.ref.name, range: Math.round(h.d.range), targets };
-  }
 
   // In range to be hit: melee reach (from the edge of the target's body) for
   // swords, weapon range for everything else.
@@ -338,13 +309,6 @@ export class Engine {
     return !!hero && hero.untargetableUntil > this.time;
   }
 
-  getRangedTargetAt(index, x, y) {
-    const status = this.getRangedTargetStatus(index);
-    if (!status) return null;
-    return status.targets
-      .filter((target) => Math.hypot(target.enemy.x - x, target.enemy.y - y) <= 80)
-      .sort((a, b) => Math.hypot(a.enemy.x - x, a.enemy.y - y) - Math.hypot(b.enemy.x - x, b.enemy.y - y))[0] || null;
-  }
 
 
 
@@ -356,166 +320,17 @@ export class Engine {
 
 
 
-  setHeroManual(index, manual) {
-    const h = this.heroes[index];
-    if (!h) return false;
-    this._completeTacticalAction(index, "cancelled");
-    h.manual = !!manual;
-    h.ref.manual = !!manual;
-    if (!h.manual) {
-      h.manualTarget = null;
-      h.manualPoint = null;
-    }
-    h.rallyPoint = null;
-    h.rallyHold = false;
-    h.retreating = false;
-    this.selectedHero = index;
-    return true;
-  }
 
 
 
-  // The living foe under a tap at (x, y), if any (a little slack for fingers).
-  enemyAt(x, y, slack = 14) {
-    let best = null, bd = Infinity;
-    for (const e of this.active) {
-      if (e.hp <= 0 || e._dead) continue;
-      const d = Math.hypot(e.x - x, e.y - y);
-      if (d <= ENEMY_BODY_RADIUS(e) + slack && d < bd) { bd = d; best = e; }
-    }
-    return best;
-  }
 
-  commandHeroAttack(index, target) {
-    const h = this.heroes[index];
-    if (!h || !h.alive || !target || target.hp <= 0) return false;
-    if (!this._isValidClasslessTarget(h, target)) return false;
-    h.manual = true;
-    h.ref.manual = true;
-    h.manualTarget = target;
-    h.pendingTacticalAction = "attack";
-    h.manualPoint = null;
-    h.rallyPoint = null;
-    h.rallyHold = false;
-    this.selectedHero = index;
-    return true;
-  }
 
-  retreatHero(index) {
-    const h = this.heroes[index];
-    if (!h || !h.alive) return false;
-    h.manual = true;
-    h.ref.manual = true;
-    h.manualTarget = null;
-    h.manualPoint = null;
-    h.rallyPoint = null;
-    h.rallyHold = false;
-    h.retreating = true;
-    h.pendingTacticalAction = "retreat";
-    this.selectedHero = index;
-    return true;
-  }
 
-  rallyHeroes(index) {
-    const leader = this.heroes[index];
-    if (!leader || !leader.alive) return false;
 
-    // The hero issuing RALLY is the rally anchor. Everyone else moves to
-    // that hero's current position; the caller itself must NOT fall back
-    // to its original home position after issuing the command.
-    const point = { x: leader.x, y: leader.y };
 
-    for (const h of this.heroes) {
-      if (!h.alive) continue;
-      h.retreating = false;
-      h.manualTarget = null;
-      h.manualPoint = null;
-      h.rallyHold = h === leader;
-      h.rallyPoint = h === leader ? null : { ...point };
-    }
-    leader.pendingTacticalAction = "rally";
 
-    return true;
-  }
 
-  commandHeroMoveTo(index, x, y) {
-    const h = this.heroes[index];
-    if (!h || !h.alive) return false;
 
-    h.manual = true;
-    h.ref.manual = true;
-    h.manualTarget = null;
-    h.manualPoint = {
-      x: Math.max(12, Math.min(W - 12, x)),
-      y: Math.max(12, Math.min(FLOOR_Y - 12, y)),
-    };
-    h.pendingTacticalAction = "move";
-    h.rallyPoint = null;
-    h.rallyHold = false;
-    h.retreating = false;
-    this.selectedHero = index;
-    return true;
-  }
-
-  cancelTacticalAction(index) {
-    const h = this.heroes[index];
-    if (!h) return false;
-    if (h.pendingTacticalAction === "rally") {
-      for (const ally of this.heroes) {
-        ally.rallyPoint = null;
-        ally.rallyHold = false;
-      }
-    }
-    h.manualPoint = null;
-    h.manualTarget = null;
-    h.rallyPoint = null;
-    h.rallyHold = false;
-    h.retreating = false;
-    return this._completeTacticalAction(index, "cancelled");
-  }
-
-  _completeTacticalAction(index, result) {
-    const h = this.heroes[index];
-    if (!h?.pendingTacticalAction) return false;
-    h.pendingTacticalAction = null;
-    this.actionCompletions.push({ index, result });
-    return true;
-  }
-
-  _flushActionCompletions() {
-    const pending = [];
-    for (const completion of this.actionCompletions) {
-      if (completion.effects?.some((effect) => this.effects.includes(effect))) {
-        pending.push(completion);
-      } else {
-        this.cb.onActionResolved?.({ index: completion.index, result: completion.result });
-      }
-    }
-    this.actionCompletions = pending;
-  }
-
-  commandHeroAttackAt(index, x, y) {
-    const hero = this.heroes[index];
-    if (!hero?.alive) return false;
-    if (hero.d.range >= 130) {
-      const target = this.getRangedTargetAt(index, x, y);
-      return target ? this.commandHeroAttack(index, target.enemy) : false;
-    }
-
-    const target = this.active.reduce((best, e) => {
-      if (e.hp <= 0) return best;
-      const d = Math.hypot(e.x - x, e.y - y);
-      // Give phone taps a generous target radius without making distant
-      // enemies accidentally selectable.
-      if (d > 80) return best;
-      if (!best) return e;
-      return d < Math.hypot(best.x - x, best.y - y) ? e : best;
-    }, null);
-
-    // TARGET mode is intentionally target-only. Tapping empty ground does not
-    // silently turn into a MOVE command.
-    return target ? this.commandHeroAttack(index, target) : false;
-  }
 
 
 
@@ -1923,8 +1738,9 @@ export class Engine {
 // Engine methods defined in their own files: enemy attacks, shots, bombs and
 // support helpers (enemies/attacks.js), familiars (heroes/familiars.js), hero
 // special moves (heroes/moves.js), hero spells (heroes/spells.js), quick
-// slots and arrows (heroes/quickSlots.js) and Clutch (heroes/clutch.js).
-Object.assign(Engine.prototype, enemyAttackMethods, familiarMethods, heroMoveMethods, heroSpellMethods, quickSlotMethods, clutchMethods);
+// slots and arrows (heroes/quickSlots.js), Clutch (heroes/clutch.js) and
+// party orders (heroes/orders.js).
+Object.assign(Engine.prototype, enemyAttackMethods, familiarMethods, heroMoveMethods, heroSpellMethods, quickSlotMethods, clutchMethods, partyOrderMethods);
 
 function pickLane(engine) {
   // Encounter squads fan out across the top edge; there are no lanes to defend.
