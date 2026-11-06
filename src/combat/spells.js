@@ -167,11 +167,11 @@ export const ELEMENT_EFFECTS = Object.freeze({
   ice: "slows by 30% for 2.5 s",
   poison: "poisons for 40% more over 5 s",
   electric: "arcs to one more foe for 50%",
-  mind: "stuns for 0.6 s",
+  mind: "stuns for 0.6 s; hexes weaken foes",
   arcane: "pure arcane damage",
   restoration: "heals allies; spell heals ignore the regeneration limit",
   warding: "shields and strengthens allies",
-  shadow: "hides allies; frightens and confuses foes",
+  shadow: "hides allies; frightens, confuses, blinds and disarms foes",
   wild: "roots foes; calls a spirit beast",
 });
 
