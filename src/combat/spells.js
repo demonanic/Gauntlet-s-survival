@@ -20,8 +20,9 @@ export const ELEMENTS = Object.freeze({
   shadow: { name: "Shadow", color: "#8EA3C7" },
   wild: { name: "Wild Magic", color: "#9BE15D" },
   enchanting: { name: "Enchanting", color: "#F472B6" },
+  conjuration: { name: "Conjuration", color: "#60A5FA" },
 });
-export const SCHOOLS = Object.freeze(["fire", "ice", "poison", "electric", "mind", "restoration", "warding", "shadow", "wild", "enchanting"]);
+export const SCHOOLS = Object.freeze(["fire", "ice", "poison", "electric", "mind", "restoration", "warding", "shadow", "wild", "enchanting", "conjuration"]);
 // Schools whose spells help the party instead of hurting a foe (owner-approved,
 // Nov 2026). Their spells need no enemy target.
 export const SUPPORT_SCHOOLS = Object.freeze(["restoration", "warding", "enchanting"]);
@@ -120,6 +121,17 @@ export const SPELLS = Object.freeze({
   insight: { name: "Insight", element: "enchanting", shape: "insight", power: 0, amount: 0.25, mana: 24, cooldown: 60, unlock: 4, support: true, desc: "the party earns 25% more XP from the rest of this fight (once a fight)" },
   iron_skin: { name: "Iron Skin", element: "warding", shape: "iron_skin", power: 0, amount: 0.75, mana: 22, cooldown: 25, range: 300, seconds: 6, unlock: 2, support: true, desc: "an ally takes 75% less from melee hits and arrows for 6 s" },
   spellguard: { name: "Spellguard", element: "warding", shape: "spellguard", power: 0, amount: 0.75, mana: 22, cooldown: 25, range: 300, seconds: 6, unlock: 2, support: true, desc: "an ally takes 75% less from magic bolts and bombs for 6 s" },
+  // Conjuration (spells part 4, Nov 2026). Summons that fight beside the
+  // caster and stack with a spirit beast (owner's call). `damage`:
+  // each hit as a share of the caster's attack, before spell power.
+  // Spectral Blades: one sword per spell rank; they can't be hit, and cut every
+  // foe within `reach` of them every `interval` s. Blades at 15% and the
+  // elemental at 80% / 40% HP / 24 mana: owner's picks after measuring.
+  spectral_blades: { name: "Spectral Blades", element: "conjuration", shape: "blades", power: 1, damage: 0.15, reach: 22, interval: 1, mana: 20, cooldown: 18, seconds: 10, unlock: 1, support: true, desc: "one spinning sword per spell rank (up to 5) for 10 s; they can't be hit and cut foes that come close" },
+  summon_elemental: { name: "Summon Elemental", element: "conjuration", shape: "elemental", power: 1, damage: 0.8, hp: 0.4, mana: 24, cooldown: 30, seconds: 12, unlock: 4, support: true, desc: "an elemental of the caster's best other school fights for 12 s" },
+  // Mirror Self (Shadow V): a fixed 60% copy (not scaled by rank); every foe
+  // on the caster but a boss turns on it (owner's pick after measuring).
+  mirror_self: { name: "Mirror Self", element: "shadow", shape: "mirror", power: 0, damage: 0.6, hp: 0.6, pull: 1, mana: 30, cooldown: 35, seconds: 8, unlock: 5, support: true, desc: "a 60% copy of the caster fights for 8 s; every foe on the caster but a boss turns on it" },
   expose: { name: "Expose", element: "mind", shape: "expose", power: 0, bonus: 0.3, mana: 20, cooldown: 16, range: 300, seconds: 6, unlock: 4, desc: "the party's main kind of damage hits it 30% harder for 6 s" },
 });
 
@@ -185,10 +197,43 @@ export const ELEMENT_EFFECTS = Object.freeze({
   arcane: "pure arcane damage",
   restoration: "heals allies; spell heals ignore the regeneration limit",
   warding: "shields and strengthens allies",
-  shadow: "hides allies; frightens, confuses, blinds and disarms foes",
+  shadow: "hides allies; frightens, confuses, blinds and disarms foes; at V, a mirror copy",
   wild: "roots foes; calls a spirit beast",
   enchanting: "speeds, sharpens and strengthens allies",
+  conjuration: "spinning blades and an elemental fight beside the caster",
 });
+
+// Summon Elemental: the kind comes from the caster's best other school (highest
+// proficiency; ties go to the one learned first; none: Arcane). Each hits with
+// its school's touch. Support schools' elementals hit for half and help allies
+// within 120 every second instead: Restoration heals 3% of max HP, Warding
+// shields 2% (up to SHIELD_CAP), Enchanting has them attack and move 10% faster.
+export const ELEMENTALS = Object.freeze({
+  arcane: { range: 150, moveSpeed: 150 },
+  fire: { range: 30, moveSpeed: 160, burn: 0.3 },
+  ice: { range: 150, moveSpeed: 140, slow: 0.3 },
+  poison: { range: 30, moveSpeed: 160, poison: 0.4 },
+  electric: { range: 150, moveSpeed: 170, arc: 0.5 },
+  mind: { range: 150, moveSpeed: 140, stun: 0.3 },
+  shadow: { range: 30, moveSpeed: 180, blind: 0.3 },
+  wild: { range: 30, moveSpeed: 160, web: Object.freeze({ every: 4, seconds: 1 }) },
+  restoration: { range: 150, moveSpeed: 150, support: true, pulse: Object.freeze({ heal: 0.03 }) },
+  warding: { range: 30, moveSpeed: 140, support: true, pulse: Object.freeze({ shield: 0.02 }) },
+  enchanting: { range: 150, moveSpeed: 150, support: true, pulse: Object.freeze({ haste: 0.1 }) },
+});
+export const ELEMENTAL_PULSE_RADIUS = 120;
+
+// The school a hero's elemental comes from.
+export function heroElementalSchool(hero) {
+  let best = null, bestRank = 0;
+  for (const element of heroMagic(hero).elements || []) {
+    if (element === "conjuration" || !ELEMENTALS[element]) continue;
+    const rank = proficiency(hero, element);
+    if (rank > bestRank) { best = element; bestRank = rank; }
+  }
+  return best || "arcane";
+}
+
 
 // Shields from Barrier stack up to this share of a hero's max HP.
 export const SHIELD_CAP = 0.3;

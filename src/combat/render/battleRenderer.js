@@ -426,8 +426,26 @@ function drawCallouts(engine, ctx) {
 }
 
 // A small neon familiar, shaped by species, outlined in its partner's color.
+// A Mirror Self is drawn as its caster, see-through.
 function drawPet(engine, pet) {
+  if (pet.stats?.species === "mirror") { drawMirror(engine, pet); return; }
   drawFamiliar(engine.ctx, pet, engine.time);
+}
+
+// The caster's look at the mirror's place. The stand-in objects are kept
+// here, not on the pet, so drawing changes nothing in the fight.
+const mirrorViews = new WeakMap();
+function drawMirror(engine, pet) {
+  const h = pet.owner;
+  let view = mirrorViews.get(pet);
+  if (!view) { view = { home: { x: pet.x, y: pet.y } }; mirrorViews.set(pet, view); }
+  Object.assign(view, {
+    x: pet.x, y: pet.y, model: h.model, d: h.d, alive: !pet.down, protect: 1, hitUntil: pet.hurtAt + 0.2,
+    facingTarget: pet.target, manualTarget: null, currentTarget: null, retreating: false, manualPoint: null,
+    visualActionKind: "attack", visualActionStartedAt: pet.strikeAt, visualActionUntil: pet.strikeAt + 0.3,
+  });
+  drawHeroSprite(engine, view);
+  if (!pet.down && pet.hp < pet.maxHp) bar(engine, pet.x - 14, pet.y + 20, 28, 3, pet.hp / pet.maxHp, pet.stats.color);
 }
 
 function neonLine(engine, x1, y1, x2, y2, color, w) {

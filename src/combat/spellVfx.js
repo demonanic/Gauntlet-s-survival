@@ -28,6 +28,7 @@ export const ELEMENT_LOOKS = Object.freeze({
   shadow: { color: "#8EA3C7", light: "#E2E8F0" },
   wild: { color: "#9BE15D", light: "#E3FFC2" },
   enchanting: { color: "#F472B6", light: "#FCE7F3" },
+  conjuration: { color: "#60A5FA", light: "#DBEAFE" },
 });
 
 // Lingering effects the engine can attach to a foe or a hero.
@@ -149,8 +150,8 @@ export class SpellVfx {
 
   // The caster gathers power.
   cast(school, x, y, rank = 1) {
-    // Enchanting borrows Warding's shapes in its own colours.
-    const element = school === "enchanting" ? "warding" : school;
+    // Enchanting borrows Warding's shapes in its own colours; Conjuration, Arcane's.
+    const element = school === "enchanting" ? "warding" : school === "conjuration" ? "arcane" : school;
     const look = rankLook(element, rank);
     const { color, light } = ELEMENT_LOOKS[school] || ELEMENT_LOOKS.arcane;
     const R = this.rand;
@@ -638,8 +639,18 @@ export class SpellVfx {
   }
 
   // A spirit beast appears in a swirl of leaves; it leaves the same way.
+  // Conjured summons (`pet.school`) flash in and out in their school's colours.
   beastSpawn(pet, rank = 1) {
     const R = this.rand;
+    if (pet.school) {
+      const { color, light } = ELEMENT_LOOKS[pet.school] || ELEMENT_LOOKS.arcane;
+      this._add({ kind: "bloom", x: pet.x, y: pet.y - 4, r: 14 + rank * 2, color, life: 0.4 });
+      for (let i = 0; i < this._count(5); i += 1) {
+        const a = (i / 5) * TAU;
+        this._add({ kind: "mote", x: pet.x + Math.cos(a) * 12, y: pet.y + Math.sin(a) * 6, vx: Math.cos(a) * 30, vy: Math.sin(a) * 20 - 20, size: 2.4, color: R() < 0.5 ? color : light, life: 0.4 });
+      }
+      return;
+    }
     const { color } = ELEMENT_LOOKS.wild;
     this._add({ kind: "bloom", x: pet.x, y: pet.y - 4, r: 22 + rank * 3, color, life: 0.5 });
     for (let i = 0; i < this._count(10); i += 1) {
@@ -650,6 +661,13 @@ export class SpellVfx {
 
   beastFade(pet) {
     const R = this.rand;
+    if (pet.school) {
+      const { color, light } = ELEMENT_LOOKS[pet.school] || ELEMENT_LOOKS.arcane;
+      for (let i = 0; i < this._count(5); i += 1) {
+        this._add({ kind: "mote", x: pet.x + (R() - 0.5) * 12, y: pet.y - 4, vx: (R() - 0.5) * 30, vy: -20 - R() * 20, size: 2.4, color: R() < 0.5 ? color : light, life: 0.45 });
+      }
+      return;
+    }
     for (let i = 0; i < this._count(8); i += 1) {
       this._add({ kind: "leaf", x: pet.x + (R() - 0.5) * 16, y: pet.y - 4, vx: (R() - 0.5) * 50, vy: -30 - R() * 30, rot: R() * TAU, spin: 5, size: 2.6, color: ELEMENT_LOOKS.wild.color, life: 0.7, gravity: 60 });
     }

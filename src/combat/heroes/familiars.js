@@ -16,6 +16,8 @@ export const familiarMethods = {
     const leaving = this.pets.filter((pet) => pet.summoned && (pet.down || this.time >= pet.until || !pet.owner.alive));
     if (leaving.length) {
       for (const pet of leaving) this.vfx?.beastFade(pet);
+      // Foes fooled by a Mirror Self that's gone stop chasing it.
+      for (const pet of leaving) if (pet.summonKind === "mirror") for (const enemy of this.active) if (enemy.mirrorPet === pet) enemy.mirrorUntil = 0;
       this.pets = this.pets.filter((pet) => !leaving.includes(pet));
     }
     for (const pet of this.pets) {
@@ -23,6 +25,8 @@ export const familiarMethods = {
       const startX = pet.x;
       pet.moving = false;
       if (pet.down || !owner.alive) continue;
+      // Spectral Blades (heroes/conjured.js) take their own turn.
+      if (pet.untouchable) { this._bladeTurn(pet, dt); continue; }
       const moveTo = (tx, ty, speed, stopAt = 2) => {
         const dist = Math.hypot(tx - pet.x, ty - pet.y);
         if (dist > stopAt) {
@@ -37,6 +41,8 @@ export const familiarMethods = {
         (!best || Math.hypot(enemy.x - x, enemy.y - y) < Math.hypot(best.x - x, best.y - y) ? enemy : best), null);
       const { attack, support } = pet.stats;
       const species = pet.stats.species;
+      // A support school's elemental (heroes/conjured.js) helps allies as it fights.
+      if (pet.pulse) this._elementalPulse(pet, dt);
       if (support) {
         if (species === "tortoise") {
           // Between its partner and the nearest foe.
@@ -134,7 +140,7 @@ export const familiarMethods = {
   _nearestPetInReach(x, y, r) {
     let best = null, bd = Infinity;
     for (const pet of this.pets) {
-      if (pet.down || !pet.owner.alive) continue;
+      if (pet.down || !pet.owner.alive || pet.untouchable) continue;
       const d = Math.hypot(pet.x - x, pet.y - y);
       if (d > r) continue;
       const weighted = d / Math.max(0.1, pet.body.weight || 1);
@@ -179,6 +185,17 @@ export const familiarMethods = {
       this.vfx?.breath(pet, target, attack.cone);
     }
     if (attack.burn > 0) this._applyDot(target, damage * attack.burn, 3, "#FF6600", sourceId);
+    // Summoned elementals: Lightning arcs, Mind stuns, Shadow blinds.
+    if (attack.arc > 0) {
+      const other = this.active.find((enemy) => enemy !== target && enemy.hp > 0 && Math.hypot(enemy.x - target.x, enemy.y - target.y) <= 120);
+      if (other) { this.vfx?.arc("electric", target, other, 1); this._bonusDamage(other, damage * attack.arc, sourceId, color); }
+    }
+    if (attack.stun > 0) target.stunUntil = Math.max(target.stunUntil || 0, this.time + (target.boss ? attack.stun / 3 : attack.stun));
+    if (attack.blind > 0) {
+      const chance = attack.blind * (target.boss ? this._hexScale(target) : 1);
+      target.blindChance = target.blindUntil > this.time ? Math.max(target.blindChance || 0, chance) : chance;
+      target.blindUntil = Math.max(target.blindUntil || 0, this.time + 2);
+    }
     if (attack.bleed > 0) this._applyDot(target, damage * attack.bleed, 3, "#DC2626", sourceId);
     if (attack.lifelink > 0) this._classlessHeal(owner, damage * attack.lifelink);
     this._bonusDamage(target, damage, sourceId, color);

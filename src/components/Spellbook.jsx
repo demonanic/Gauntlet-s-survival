@@ -1,6 +1,6 @@
 import {
   BEASTS, BEAST_KEYS, ELEMENTS, ELEMENT_EFFECTS, MAGIC, ROMAN, SCHOOLS, SPELLS, canCast, castSuccessChance, elementCasts, elementSlot,
-  heroBeast, heroMagic, knownSpells, maxMana, nextRankAt, proficiency, rankFor, spellCasts,
+  heroBeast, heroElementalSchool, heroMagic, knownSpells, maxMana, nextRankAt, proficiency, rankFor, spellCasts,
 } from "../combat/spells";
 
 const SLOT_REASONS = {
@@ -75,6 +75,14 @@ export default function Spellbook({ hero, onLearnElement, onChooseBeast }) {
               ))}
             </div>
           )}
+        </div>
+      )}
+      {learned.includes("conjuration") && (
+        <div className="mb-2 font-mono-g text-[10px]" data-testid="elemental-school">
+          <div style={{ color: ELEMENTS[heroElementalSchool(hero)].color }}>
+            Elemental: {ELEMENTS[heroElementalSchool(hero)].name}
+            <span className="ml-1 text-slate-500">(from their best other school)</span>
+          </div>
         </div>
       )}
       {slot.ok ? (

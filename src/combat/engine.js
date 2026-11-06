@@ -9,6 +9,7 @@ import { CASTING, maxMana as spellMaxMana } from "./spells";
 import { BattleLog } from "./battleLog";
 import { enemyAttackMethods } from "./enemies/attacks";
 import { clutchMethods } from "./heroes/clutch";
+import { conjuredMethods } from "./heroes/conjured";
 import { familiarMethods } from "./heroes/familiars";
 import { heroMoveMethods } from "./heroes/moves";
 import { quickSlotMethods } from "./heroes/quickSlots";
@@ -1745,7 +1746,7 @@ export class Engine {
 // special moves (heroes/moves.js), hero spells (heroes/spells.js), quick
 // slots and arrows (heroes/quickSlots.js), Clutch (heroes/clutch.js) and
 // party orders (heroes/orders.js).
-Object.assign(Engine.prototype, enemyAttackMethods, familiarMethods, heroMoveMethods, heroSpellMethods, quickSlotMethods, clutchMethods, partyOrderMethods);
+Object.assign(Engine.prototype, enemyAttackMethods, familiarMethods, heroMoveMethods, heroSpellMethods, quickSlotMethods, clutchMethods, partyOrderMethods, conjuredMethods);
 
 function pickLane(engine) {
   // Encounter squads fan out across the top edge; there are no lanes to defend.

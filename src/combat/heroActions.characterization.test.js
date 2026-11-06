@@ -139,6 +139,8 @@ const CASES = {
   "spells by hand": () => fight({ heroes: casters(["fire", "mind"], ["shadow", "restoration"]), regionId: "ashen", seed: 335, frames: 1800, auto: false, script: tapSpells }),
   "spells by hand on a boss": () => fight({ heroes: casters(["mind", "warding"], ["shadow", "wild"]), regionId: "ashen", boss: true, straightToBoss: true, seed: 337, frames: 1200, auto: false, script: tapSpellsAtBoss }),
   "spells by hand on auto": () => fight({ heroes: casters(["electric", "shadow"], ["mind", "ice"]), regionId: "blightmire", seed: 336, frames: 1800, script: tapSpells }),
+  // Spells part 4: Spectral Blades, a Fire elemental and Mirror Self.
+  "conjuration and mirror self": () => fight({ heroes: casters(["fire", "conjuration"], ["shadow", "restoration"]), regionId: "ashen", seed: 338, frames: 1800, script: tapSpells }),
 };
 
 // Recorded in CI on the code before the move (Phase 8C).
@@ -153,13 +155,14 @@ const GOLDEN = {
   "Vanguard moves": "7646cae69d71990a",
   "Warden moves": "ad1eca7430423f77",
   "Wilds moves": "ad8297df7a117522",
+  "conjuration and mirror self": "2c07f5394e20b708",
   "fire and ice": "3e974a840e84e03d",
   "mind and shadow": "90d9c7aebf4291f8",
   "poison and lightning": "0d23c7231de48cc3",
   "restoration and warding": "6441e7b6bfb0f617",
-  "spells by hand": "50b52657b93c816a",
-  "spells by hand on a boss": "f70e04540671321d",
-  "spells by hand on auto": "d84043bc86b7f89b",
+  "spells by hand": "dc3eb893404a1607",
+  "spells by hand on a boss": "ed0a31c529ded4ac",
+  "spells by hand on auto": "4a69b6bbea412e68",
   "starter moves": "c4db6cdfaae10260",
   "wild and arcane": "e0ad4da28ed4e03b",
 };
