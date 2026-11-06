@@ -29,6 +29,18 @@ export const SUPPORT_SCHOOLS = Object.freeze(["restoration", "warding"]);
 export const RANK_CASTS = Object.freeze([0, 15, 45, 100, 200]);
 export const ROMAN = Object.freeze(["I", "II", "III", "IV", "V"]);
 
+// One spell at a time. Auto-cast waits `autoGap` after any cast. Casting by
+// hand inside `strainWindow` of the last cast strains the caster: each quick
+// cast in a row costs `strainPerCast` success (stacking). Taps while the caster
+// is busy go in a queue (up to `queueCap`), which plays out strain-free.
+export const CASTING = Object.freeze({
+  lock: 0.8, // the swing of one cast
+  autoGap: 2.5,
+  strainWindow: 2.5,
+  strainPerCast: 0.2,
+  queueCap: 3,
+});
+
 export const MAGIC = Object.freeze({
   baseSuccess: 0.6,
   successPerInt: 0.015, // per Intelligence point above 10

@@ -324,3 +324,4 @@ Decisions (Sam, 2026-11-01, reviewing Phase 5):
 | 2026-11-01 | Phase 7 second step: party decisions | #37 | 11 characterization cases recorded on the old code, then the policy moved to `partyDecisions.js`; CI 475 tests, all 26 hashes unchanged. Probe, seeded runs, browser not run |
 | 2026-11-01 | Phase 7 second step merged | #37 | Merged `3c8df41` (squash) on CI. Sam paused the roadmap here for feature work (special moves and spells; plan in DESIGN.md) |
 | 2026-11-05 | Phase 8A renderer out of the engine | #48 | Drawing fingerprints (five seeded fights) recorded in CI before the move; unchanged after each of three steps, as are the 26 fight-result hashes |
+| 2026-11-05 | One spell at a time (feature, not a phase) | #50 | Engine step: CI 566 tests; only the five drawing fingerprints changed, and they match main with the old numbers; re-recorded. Battle screen step: CI 566 tests, build |

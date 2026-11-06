@@ -354,7 +354,7 @@ describe("Restoration and Warding", () => {
     withRoll(0, () => engine._autoCast(h));
     expect(h.spellCooldowns.mend || 0).toBe(0);
     // (It cast a bolt at the foe instead; let its next cast come.)
-    h.castCd = 0;
+    h.castCd = 0; h.lastCastAt = -Infinity;
     ally.ref.hp = ally.d.maxHp * 0.4;
     withRoll(0, () => engine._autoCast(h));
     expect(h.spellCooldowns.mend).toBeGreaterThan(0);
@@ -511,7 +511,7 @@ describe("Shadow, Wild Magic and Dominate", () => {
     h.mana = 45;
     withRoll(0, () => engine._autoCast(h));
     expect(grunt.dominatedUntil).toBeUndefined();
-    h.mana = h.maxMana; h.castCd = 0; h.spellCooldowns = {};
+    h.mana = h.maxMana; h.castCd = 0; h.lastCastAt = -Infinity; h.spellCooldowns = {};
     withRoll(0, () => engine._autoCast(h));
     expect(grunt.dominatedUntil).toBeGreaterThan(engine.time);
   });

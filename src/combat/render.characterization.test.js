@@ -128,11 +128,11 @@ const CASES = {
 
 // Recorded in CI on the code before the renderer moved (Phase 8A).
 const GOLDEN = {
-  "boneyard boss": "11d0ed12bee431d8",
-  "frostfang wild": "b3846f3dca250d9c",
-  "ashen boss": "42da993541a06214",
-  "blightmire wild": "338889e8c93cf0b7",
-  "gutter wild": "684dd302bd53c4a1",
+  "boneyard boss": "18c9431b2e63c871",
+  "frostfang wild": "b892f7305313e654",
+  "ashen boss": "f25cb7715cab0855",
+  "blightmire wild": "d1d84e8e00bfad61",
+  "gutter wild": "0e53c7313d1898ec",
 };
 
 describe("drawing (characterization)", () => {
