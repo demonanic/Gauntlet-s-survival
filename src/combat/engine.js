@@ -4,12 +4,14 @@
 // enters from the TOP and hunts the hero party at the BOTTOM.
 // Simulation is separate from React; mutates a cloned `sim` fragment and
 // accumulates XP gains, returned to the UI at wave end.
-import { heroLuck, luckEffects } from "./luck";
+import { luckEffects } from "./luck";
 import { CASTING, maxMana as spellMaxMana } from "./spells";
 import { BattleLog } from "./battleLog";
 import { enemyAttackMethods } from "./enemies/attacks";
+import { clutchMethods } from "./heroes/clutch";
 import { familiarMethods } from "./heroes/familiars";
 import { heroMoveMethods } from "./heroes/moves";
+import { quickSlotMethods } from "./heroes/quickSlots";
 import { heroSpellMethods } from "./heroes/spells";
 import { enemyTurn, tacticalTarget } from "./enemies/turn";
 import { BODY_PAD, BULWARK_COVER, BULWARK_GUARD, BULWARK_GUARD_RADIUS } from "./enemies/tuning";
@@ -19,7 +21,7 @@ import * as C from "./config";
 import { HERO_BASELINE, statDefense } from "./heroModel";
 import { classlessCombatEffects, classlessMaxHp } from "./classlessCombatEffects";
 import { getEquippedHeroWeaponType } from "./heroWeapon";
-import { CONSUMABLES, QUICK_ITEM_COOLDOWN, healThreshold, heroGearStats, heroUsesArrows, heroWeaponProfile } from "./gear";
+import { heroGearStats, heroUsesArrows, heroWeaponProfile } from "./gear";
 import { PET_BODIES, petMaxHp, petStats } from "./pets";
 import { HIT_STOP_SECONDS } from "./abilityLook";
 import { heroTraitEffects } from "./traits";
@@ -128,20 +130,6 @@ const LANES = 5;
 const ENDLESS_WAVE_BREAK_SECONDS = 3;
 // Breather between the waves of an ordinary encounter.
 const WAVE_BREAK_SECONDS = 3;
-// Shots a bow gets out of one arrow (they are gathered and loosed again).
-const ARROW_SHOTS = 4;
-// Enemy body radii for collisions (bosses and elites need more room).
-// Clutch (Fortune perk F2a): once per hero per fight, when the next hit would
-// kill them, the fight slows down while the player picks Drink or Ultra Crit.
-export const CLUTCH = Object.freeze({
-  seconds: 5, // real seconds to choose
-  slowMotion: 0.2, // game speed while choosing
-  secondWind: 0.3, // heal when Drinking with no healing item
-  critChance: 0.15, // Ultra Crit base chance (+ Luck)
-  bossDamage: 0.25, // share of a boss's max HP an Ultra Crit takes
-  // Heroes whose nature picks the gamble when the player doesn't.
-  gamblers: Object.freeze(["reckless", "berserker"]),
-});
 // Ranged heroes on auto back away from an enemy whose body is within
 // KITE_RANGE, for the first KITE_WINDOW of each reload, at KITE_SPEED of their
 // normal pace (a backpedal, not a sprint: fast enemies still catch them),
@@ -163,6 +151,7 @@ const ENEMY_BODY_RADIUS = (e) => (e.boss ? 33 : e.tier === "elite" ? 24 : 18);
 function laneX(i) { return (W / LANES) * (i + 0.5); }
 
 export const LAYOUT = { W, H, HERO_Y, FLOOR_Y };
+export { CLUTCH } from "./heroes/clutch";
 export class Engine {
   constructor(canvas, sim, wave, callbacks = {}) {
     this.canvas = canvas;
@@ -528,99 +517,12 @@ export class Engine {
     return target ? this.commandHeroAttack(index, target) : false;
   }
 
-  // ---------------- Gauntlet quick slots ----------------
-  // Consumable stacks live on the hero model (h.model.quickSlots), which is the
-  // disposable sim copy, so spent items flow back with the post-battle party.
-  getHeroQuickSlots(index) {
-    const h = this.heroes[index];
-    if (!h) return [];
-    const slots = Array.isArray(h.model.quickSlots) ? h.model.quickSlots : [];
-    return slots.map((slot, i) => {
-      const item = slot && CONSUMABLES[slot.key];
-      if (!item || !(slot.qty > 0)) return { slot: i, empty: true };
-      return {
-        slot: i, key: item.key, name: item.name, short: item.short, color: item.color, desc: item.desc,
-        qty: slot.qty, cooldown: h.quickCd,
-        available: h.alive && h.quickCd <= 0 && !this.ended && this._quickItemUseful(h, item),
-      };
-    });
-  }
 
-  useQuickItem(index, slotIndex) {
-    const h = this.heroes[index];
-    const slot = h ? h.model.quickSlots?.[slotIndex] : null;
-    const item = slot && CONSUMABLES[slot.key];
-    if (!item || !(slot.qty > 0) || !h.alive || h.quickCd > 0 || this.ended || !this._quickItemUseful(h, item)) return false;
-    slot.qty -= 1;
-    h.quickCd = QUICK_ITEM_COOLDOWN;
-    if (item.heal) this._tally(h, "heals", 1);
-    if (item.heal) {
-      const amount = Math.min(h.d.maxHp - h.ref.hp, h.d.maxHp * item.heal * (1 + (h.d.traits?.healBonus || 0)) * (1 - (h.d.env?.healCut || 0)));
-      h.ref.hp += amount;
-      this._float(h.x, h.y - 18, `+${Math.round(amount)}`, "#39FF14");
-    }
-    if (item.shots) {
-      h.ammoShots = item.shots;
-      h.ammoBonus = item.damageBonus;
-      this._float(h.x, h.y - 18, "AMMO", item.color);
-    }
-    this.effects.push({ x: h.x, y: h.y, r: 16, life: 0.3, color: item.color, ring: true });
-    return true;
-  }
 
-  _quickItemUseful(h, item) {
-    if (item.arrow) return false; // arrows are drawn by the bow itself
-    if (item.heal) return h.ref.hp < h.d.maxHp;
-    if (item.shots) return !(h.ammoShots > 0);
-    return false;
-  }
 
-  // Heroes use their own quick slots: heals below the item's HP threshold
-  // (scaled by the hero's supply style), whetstones while an elite or boss is
-  // on the field. A hero told to save potions for bosses keeps them until one shows up.
-  _tickQuickItems(h, dt) {
-    h.quickCd = Math.max(0, h.quickCd - dt);
-    if (h.quickCd > 0) return;
-    const slots = Array.isArray(h.model.quickSlots) ? h.model.quickSlots : [];
-    const hpFraction = h.ref.hp / Math.max(1, h.d.maxHp);
-    const eliteOnField = this.active.some((e) => e.hp > 0 && (e.boss || e.tier === "elite"));
-    for (let i = 0; i < slots.length; i++) {
-      const item = slots[i] && CONSUMABLES[slots[i].key];
-      if (!item || !(slots[i].qty > 0)) continue;
-      const saving = item.key === "potion" && h.model.savePotions && !eliteOnField;
-      const wants = item.heal ? !saving && hpFraction < healThreshold(h.model, item) : !!item.autoVsElite && eliteOnField;
-      if (wants && this.useQuickItem(h.i, i)) return;
-    }
-  }
 
-  // The quick slot a bow hero draws arrows from: the first one holding any.
-  _arrowSlot(h) {
-    const slots = Array.isArray(h.model?.quickSlots) ? h.model.quickSlots : [];
-    return slots.find((slot) => slot && CONSUMABLES[slot.key]?.arrow && slot.qty > 0) || null;
-  }
 
-  // Draw an arrow for a shot. Arrows are gathered and loosed again during a
-  // fight, so only every ARROW_SHOTS-th shot spends one (and a quiver or
-  // Whisperwind may save even that). Returns the arrow's on-hit effect, or
-  // false when the quiver is empty.
-  _drawArrow(h) {
-    const slot = this._arrowSlot(h);
-    if (!slot) return false;
-    const item = CONSUMABLES[slot.key];
-    h.arrowShots = (h.arrowShots || 0) + 1;
-    if (h.arrowShots % ARROW_SHOTS === 0 && !(this.rng() < Math.min(0.75, h.d.gear?.arrowSaver || 0))) {
-      slot.qty -= 1;
-      h.model.arrowsSpent ||= {};
-      h.model.arrowsSpent[slot.key] = (h.model.arrowsSpent[slot.key] || 0) + 1;
-    }
-    return item.effect || null;
-  }
 
-  _consumeAmmoShot(src, isHero) {
-    if (!isHero || !(src.ammoShots > 0)) return 1;
-    src.ammoShots -= 1;
-    return 1 + (src.ammoBonus || 0);
-  }
 
   // Gauntlet scales summoned minions to the encounter through sim.makeMinion.
   // `master`: the boss that called it (a Vampiric master heals from its hits).
@@ -1701,105 +1603,12 @@ export class Engine {
 
 
 
-  // ---- Clutch ----
-  // What the hero picks if the player doesn't: gamblers go for the crit.
-  clutchDefault(h) {
-    return (h.model?.traits || []).some((trait) => CLUTCH.gamblers.includes(trait)) ? "crit" : "drink";
-  }
 
-  clutchCritChance(h) {
-    return Math.min(1, CLUTCH.critChance + luckEffects(heroLuck(h.model)).clutchChance);
-  }
 
-  _startClutch(h) {
-    h.clutchUsed = true;
-    this._float(h.x, h.y - 28, "CLUTCH!", "#FFE600");
-    this.effects.push({ kind: "guard", x: h.x, y: h.y, r: 30, life: 0.8, color: "#FFE600" });
-    // Without a player watching (headless fights), the hero decides at once.
-    if (!this.cb.onClutch) {
-      this.resolveClutch(this.clutchDefault(h), h);
-      return;
-    }
-    this.clutch = { hero: h, remaining: CLUTCH.seconds };
-    this.cb.onClutch(this._clutchInfo());
-  }
 
-  _clutchInfo() {
-    const h = this.clutch?.hero;
-    if (!h) return null;
-    const slot = this._clutchHealSlot(h);
-    return {
-      heroIndex: h.i, name: h.model?.identity?.name || "Hero", remaining: this.clutch.remaining,
-      critChance: this.clutchCritChance(h), drink: slot ? CONSUMABLES[slot.key].name : "Second wind",
-      auto: this.clutchDefault(h),
-    };
-  }
 
-  // Slow motion while the player chooses; the hero's nature decides on timeout.
-  _tickClutch(dt) {
-    const h = this.clutch.hero;
-    if (!h.alive || this.ended) {
-      this.clutch = null;
-      this.cb.onClutch?.(null);
-      return dt;
-    }
-    this.clutch.remaining -= dt / Math.max(0.01, this.speed);
-    if (this.clutch.remaining <= 0) {
-      this.resolveClutch(this.clutchDefault(h));
-      return dt;
-    }
-    return dt * CLUTCH.slowMotion;
-  }
 
-  _clutchHealSlot(h) {
-    const slots = Array.isArray(h.model?.quickSlots) ? h.model.quickSlots : [];
-    const heals = slots.filter((slot) => slot && CONSUMABLES[slot.key]?.heal && slot.qty > 0);
-    return heals.sort((a, b) => CONSUMABLES[b.key].heal - CONSUMABLES[a.key].heal)[0] || null;
-  }
 
-  // "drink": the best healing item in the quick slots, or a second wind.
-  // "crit": an Ultra Crit on the hero's target that kills it outright (a boss
-  // loses a share of its HP), if it lands.
-  resolveClutch(choice, hero = this.clutch?.hero) {
-    const h = hero;
-    if (!h) return false;
-    this.clutch = null;
-    this.cb.onClutch?.(null);
-    if (!h.alive) return false;
-    const record = { hero: h.i, choice: choice === "crit" ? "crit" : "drink", landed: false };
-    if (record.choice === "drink") {
-      const slot = this._clutchHealSlot(h);
-      const item = slot && CONSUMABLES[slot.key];
-      const fraction = item ? item.heal * (1 + (h.d.traits?.healBonus || 0)) * (1 - (h.d.env?.healCut || 0)) : CLUTCH.secondWind;
-      if (slot) {
-        slot.qty -= 1;
-        this._tally(h, "heals", 1);
-      }
-      const amount = Math.min(h.d.maxHp - h.ref.hp, h.d.maxHp * fraction);
-      h.ref.hp += amount;
-      record.landed = true;
-      this._float(h.x, h.y - 18, `${item ? "" : "SECOND WIND "}+${Math.round(amount)}`, "#39FF14");
-      this.effects.push({ x: h.x, y: h.y, r: 20, life: 0.4, color: "#39FF14", ring: true });
-    } else {
-      const target = [h.currentTarget, ...this.active].find((e) => e && e.hp > 0 && !e._dead);
-      if (target && this.rng() < this.clutchCritChance(h)) {
-        const sourceId = "H" + h.i;
-        const damage = target.boss ? target.maxHp * CLUTCH.bossDamage : target.hp;
-        target.hp = Math.max(0, target.hp - damage);
-        target.dmgBy[sourceId] = (target.dmgBy[sourceId] || 0) + damage;
-        this._tally(h, "damage", damage);
-        record.landed = true;
-        this._float(target.x, target.y - 26, `ULTRA CRIT ${Math.round(damage)}`, "#FFE600");
-        this.effects.push({ kind: "impact", x: target.x, y: target.y, r: 40, life: 0.6, color: "#FFE600" });
-        if (target.hp <= 0) this._killEnemy(target, sourceId);
-      } else {
-        this._float(h.x, h.y - 18, "MISSED", "#94A3B8");
-      }
-    }
-    this.clutches.push(record);
-    this._log("death", `Clutch: ${this._name(h)} ${record.choice === "drink" ? "drinks" : record.landed ? "lands an Ultra Crit" : "goes for the Ultra Crit and misses"}`);
-    return true;
-  }
 
 
 
@@ -2113,8 +1922,9 @@ export class Engine {
 
 // Engine methods defined in their own files: enemy attacks, shots, bombs and
 // support helpers (enemies/attacks.js), familiars (heroes/familiars.js), hero
-// special moves (heroes/moves.js) and hero spells (heroes/spells.js).
-Object.assign(Engine.prototype, enemyAttackMethods, familiarMethods, heroMoveMethods, heroSpellMethods);
+// special moves (heroes/moves.js), hero spells (heroes/spells.js), quick
+// slots and arrows (heroes/quickSlots.js) and Clutch (heroes/clutch.js).
+Object.assign(Engine.prototype, enemyAttackMethods, familiarMethods, heroMoveMethods, heroSpellMethods, quickSlotMethods, clutchMethods);
 
 function pickLane(engine) {
   // Encounter squads fan out across the top edge; there are no lanes to defend.
