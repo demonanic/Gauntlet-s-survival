@@ -274,6 +274,59 @@ function UnlockGuide({ hero, index }) {
   );
 }
 
+const HOLD_MS = 450;
+
+// One spell tile. Tap casts if the hero is free, else queues it (tap a queued
+// tile to cancel). Holding casts now, skipping the queue, at the strain cost.
+function SpellTile({ spell, index, locked, engine }) {
+  const hold = useRef({ timer: null, fired: false });
+  const short = spell.mana < spell.cost;
+  const cooling = spell.cooldown > 0;
+  const coolPct = cooling ? Math.min(100, Math.round((spell.cooldown / Math.max(0.01, spell.cooldownTotal || spell.cooldownSeconds)) * 100)) : 0;
+  const queuedAt = spell.queue ? spell.queue.indexOf(spell.id) : -1;
+  const clear = () => { clearTimeout(hold.current.timer); hold.current.timer = null; };
+  const start = () => {
+    hold.current.fired = false;
+    clear();
+    if (!spell.available || locked) return;
+    hold.current.timer = setTimeout(() => {
+      hold.current.fired = true;
+      engine?.castHeroSpell(index, spell.id, null, { announce: true });
+    }, HOLD_MS);
+  };
+  const tap = () => {
+    clear();
+    if (hold.current.fired) { hold.current.fired = false; return; }
+    engine?.queueHeroSpell(index, spell.id);
+  };
+  const line = queuedAt >= 0 ? `Queued #${queuedAt + 1} · tap to cancel`
+    : short ? `Needs ${spell.cost} mana` : cooling ? `Ready in ${Math.ceil(spell.cooldown)}s` : spell.noTarget ? "No one needs it"
+      : `${spell.free ? "Free" : `${spell.cost} mana`} · ${Math.round(spell.success * 100)}%${spell.strain > 0 ? ` (now ${Math.round(spell.nowSuccess * 100)}%)` : ""}`;
+  return (
+    <button
+      type="button"
+      disabled={(!spell.available && queuedAt < 0) || locked}
+      onPointerDown={start}
+      onPointerUp={() => { if (!hold.current.fired) clear(); }}
+      onPointerLeave={clear}
+      onPointerCancel={clear}
+      onContextMenu={(event) => event.preventDefault()}
+      onClick={tap}
+      className="relative flex min-h-[52px] select-none items-center gap-2 overflow-hidden rounded-lg border-2 bg-[#0d1017] px-2 py-1.5 text-left"
+      style={{ borderColor: spell.color, opacity: (short || spell.noTarget) && queuedAt < 0 ? 0.45 : 1, borderStyle: queuedAt >= 0 ? "dashed" : "solid", WebkitTouchCallout: "none" }}
+      title={`${spell.name} · ${spell.cost} mana · ${Math.round(spell.success * 100)}% to land`}
+      data-testid={`battle-spell-${index}-${spell.id}`}
+    >
+      {cooling && <span className="absolute inset-y-0 left-0" style={{ width: `${coolPct}%`, background: "rgba(5,8,10,0.75)" }} />}
+      <Icon path={spellIcon(spell)} size={22} color={spell.color} />
+      <span className="relative flex min-w-0 flex-col gap-0.5">
+        <span className="truncate font-mono-g text-[11px] font-bold" style={{ color: spell.color }}>{spell.name}</span>
+        <span className="font-mono-g text-[9px] text-slate-400">{line}</span>
+      </span>
+    </button>
+  );
+}
+
 // The selected hero's actions: special moves as big round buttons in their
 // perk branch's colour, spells as tiles in their element's colour, then the
 // quick-slot items. Moves are manual only; spells also cast on auto.
@@ -342,37 +395,38 @@ function ActionPanel({ hero, index, abilities, spells, quickSlots, moving, locke
         <>
           <div className="flex items-center justify-between">
             <h3 className="font-mono-g text-[10px] font-bold tracking-[0.12em] text-slate-400">SPELLS</h3>
-            <span className="font-mono-g text-[10px] text-violet-300">{mana.free ? "Next spell free · " : ""}{mana.mana} / {mana.maxMana} mana</span>
+            <span className="font-mono-g text-[10px] text-violet-300">
+              {mana.strain > 0 && <span className="text-amber-400" data-testid={`battle-strained-${index}`}>Strained −{Math.round(mana.strain * 100)}% · </span>}
+              {mana.free ? "Next spell free · " : ""}{mana.mana} / {mana.maxMana} mana
+            </span>
           </div>
           <Bar value={mana.mana} max={mana.maxMana} color="#A855F7" data-testid={`battle-mana-${index}`} />
+          {mana.queue?.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5" data-testid={`battle-queue-${index}`}>
+              <span className="font-mono-g text-[9px] text-slate-400">QUEUED</span>
+              {mana.queue.map((id, at) => {
+                const spell = spells.find((entry) => entry.id === id);
+                if (!spell) return null;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => engine?.unqueueHeroSpell(index, id)}
+                    aria-label={`Cancel queued ${spell.name}`}
+                    className="flex min-h-8 items-center gap-1 rounded border px-1.5 font-mono-g text-[9px]"
+                    style={{ borderColor: spell.color, color: spell.color }}
+                    data-testid={`battle-queued-${index}-${id}`}
+                  >
+                    {at + 1}. <Icon path={spellIcon(spell)} size={14} color={spell.color} /> ✕
+                  </button>
+                );
+              })}
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-2">
-            {spells.map((spell) => {
-              const short = spell.mana < spell.cost;
-              const cooling = spell.cooldown > 0;
-              const coolPct = cooling ? Math.min(100, Math.round((spell.cooldown / Math.max(0.01, spell.cooldownTotal || spell.cooldownSeconds)) * 100)) : 0;
-              return (
-                <button
-                  key={spell.id}
-                  type="button"
-                  disabled={!spell.available || locked}
-                  onClick={() => engine?.castHeroSpell(index, spell.id, null, { announce: true })}
-                  className="relative flex min-h-[52px] items-center gap-2 overflow-hidden rounded-lg border-2 bg-[#0d1017] px-2 py-1.5 text-left"
-                  style={{ borderColor: spell.color, opacity: short || spell.noTarget ? 0.45 : 1 }}
-                  title={`${spell.name} · ${spell.cost} mana · ${Math.round(spell.success * 100)}% to land`}
-                  data-testid={`battle-spell-${index}-${spell.id}`}
-                >
-                  {cooling && <span className="absolute inset-y-0 left-0" style={{ width: `${coolPct}%`, background: "rgba(5,8,10,0.75)" }} />}
-                  <Icon path={spellIcon(spell)} size={22} color={spell.color} />
-                  <span className="relative flex min-w-0 flex-col gap-0.5">
-                    <span className="truncate font-mono-g text-[11px] font-bold" style={{ color: spell.color }}>{spell.name}</span>
-                    <span className="font-mono-g text-[9px] text-slate-400">
-                      {short ? `Needs ${spell.cost} mana` : cooling ? `Ready in ${Math.ceil(spell.cooldown)}s` : spell.noTarget ? "No one needs it" : `${spell.free ? "Free" : `${spell.cost} mana`} · ${Math.round(spell.success * 100)}%`}
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
+            {spells.map((spell) => <SpellTile key={spell.id} spell={spell} index={index} locked={locked} engine={engine} />)}
           </div>
+          <p className="font-mono-g text-[9px] text-slate-500">Tap: cast, or queue if busy · Hold: cast now (strains)</p>
         </>
       )}
 
