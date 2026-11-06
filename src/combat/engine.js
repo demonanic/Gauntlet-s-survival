@@ -3161,6 +3161,16 @@ export class Engine {
 
   _castHex(h, spell, foe, rank) {
     this.vfx?.bolt(spell.element, h, foe, rank);
+    if (!spell.radius) { this._hexOne(h, spell, foe, rank); return; }
+    this.vfx?.area(spell.element, foe.x, foe.y, spell.radius, rank);
+    for (const victim of this._hexArea(foe, spell.radius)) this._hexOne(h, spell, victim, rank);
+  }
+
+  _hexArea(foe, radius) {
+    return this.active.filter((enemy) => enemy.hp > 0 && Math.hypot(enemy.x - foe.x, enemy.y - foe.y) <= radius);
+  }
+
+  _hexOne(h, spell, foe, rank) {
     if (foe.hp <= 0 || this._spellImmune(foe)) return;
     const scale = this._hexScale(foe);
     const until = this.time + spell.seconds;
@@ -3194,8 +3204,9 @@ export class Engine {
   }
 
   // The hex an unattended caster would cast now, and at whom: Silence on a
-  // foe with abilities, then Enfeeble, Disarm and Blind on a big foe in the
-  // thick of it (or one bearing down on a hurt hero), then Expose on a big foe.
+  // foe with abilities, then Enfeeble, Disarm and Blind where they take the
+  // most foes in the fight (a big one, 2+ foes, or one on a hurt hero), then
+  // Expose on a big foe.
   _autoHex(h, ready) {
     const hexes = ready.filter((spell) => HEX_SHAPES.has(spell.shape));
     if (!hexes.length) return null;
@@ -3216,8 +3227,13 @@ export class Engine {
     }
     for (const [shape, until] of [["enfeeble", "enfeebleUntil"], ["disarm", "disarmUntil"], ["blind", "blindUntil"]]) {
       const spell = by(shape);
-      const foe = spell && foes(spell, until).find((e) => (big(e) && pressing(e)) || onHurt(e));
-      if (foe) return { spell, foe };
+      if (!spell) continue;
+      // Fresh foes in the fight it would take, centred on each candidate.
+      const caught = (e) => this._hexArea(e, spell.radius).filter((other) => !other.magicImmune && !(other[until] > this.time) && pressing(other));
+      const best = foes(spell, until).map((e) => ({ e, n: caught(e).length, worth: caught(e).some(big) || caught(e).some(onHurt) }))
+        .filter((entry) => entry.n >= 2 || entry.worth)
+        .sort((a, b) => b.n - a.n)[0];
+      if (best) return { spell, foe: best.e };
     }
     const expose = by("expose");
     if (expose) {

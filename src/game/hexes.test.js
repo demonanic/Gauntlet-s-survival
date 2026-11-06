@@ -55,7 +55,7 @@ describe("hexes are learned like the rest of their school", () => {
 });
 
 describe("what each hex does", () => {
-  test("Blind: 75% of its attacks miss on an ordinary foe, half that on an elite, a quarter on a boss", () => {
+  test("Blind: 75% of their attacks miss; elites take it in full, bosses half", () => {
     const grunt = foe("orc");
     const elite = foe("orc", 320, 380, { tier: "elite" });
     const boss = foe("orc", 340, 380, { boss: true });
@@ -74,7 +74,7 @@ describe("what each hex does", () => {
     expect(h.ref.hp).toBeLessThan(hp);
   });
 
-  test("Enfeeble: the foe deals 75% less (bosses 18.75% less), in melee and with bolts", () => {
+  test("Enfeeble: foes deal 75% less (bosses 37.5% less), in melee and with bolts", () => {
     const grunt = foe("orc");
     const engine = fight([mind()], [grunt]);
     const h = engine.heroes[0];
@@ -92,9 +92,9 @@ describe("what each hex does", () => {
     expect(boss.enfeebleCut).toBeCloseTo(0.75 * HEX.boss);
   });
 
-  test("Disarm: no attacks for 3 s (elites 1.5 s, bosses 0.75 s)", () => {
+  test("Disarm: no attacks for 3 s (bosses 1.5 s)", () => {
     const grunt = foe("orc");
-    const boss = foe("orc", 320, 380, { boss: true });
+    const boss = foe("orc", 420, 380, { boss: true });
     const engine = fight([shadow()], [grunt, boss]);
     const h = engine.heroes[0];
     cast(engine, "disarm", grunt);
@@ -138,6 +138,21 @@ describe("what each hex does", () => {
     const before = grunt.hp;
     engine._spellHit(caster, grunt, 100, "mind", "H0", false);
     expect(before - grunt.hp).toBeCloseTo(130, 0);
+  });
+
+  test("Blind, Enfeeble and Disarm take every foe within 70 px of the target; Silence and Expose one", () => {
+    const a = foe("orc", 300, 380);
+    const b = foe("orc", 350, 380);
+    const far = foe("orc", 450, 380);
+    const engine = fight([mind({ casts: { thought_lance: RANK_CASTS[3] } })], [a, b, far]);
+    cast(engine, "enfeeble", a);
+    expect(a.enfeebleUntil).toBeGreaterThan(engine.time);
+    expect(b.enfeebleUntil).toBeGreaterThan(engine.time);
+    expect(far.enfeebleUntil).toBeUndefined();
+    engine.heroes[0].spellCooldowns = {};
+    cast(engine, "silence", a);
+    expect(a.silenceUntil).toBeGreaterThan(engine.time);
+    expect(b.silenceUntil).toBeUndefined();
   });
 
   test("magic-immune foes shrug hexes off", () => {
