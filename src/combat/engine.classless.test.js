@@ -1,3 +1,4 @@
+import { tacticalTarget } from "./enemies/turn";
 import { createHeroModel, HERO_BASELINE } from "./heroModel";
 import * as C from "./config";
 import { Engine } from "./engine";
@@ -634,7 +635,7 @@ describe("bounded classless combat adapter", () => {
     engine.active = [target];
     const random = jest.spyOn(Math, "random").mockReturnValue(0.5);
 
-    expect(engine._selectEnemyTacticalTarget(target).obj).toBe(runtimeHero);
+    expect(tacticalTarget(engine, target).obj).toBe(runtimeHero);
     expect(engine.useHeroAbility(0, "I3", target)).toMatchObject({ ok: true });
     expect(target.hp).toBe(500 - 16 * 1.5);
     random.mockRestore();
@@ -650,7 +651,7 @@ describe("bounded classless combat adapter", () => {
       engine.active = [target];
       if (setup.engaged) engine._engage(target, setup.engaged === "caster" ? runtimeHero : { id: "someone else" });
       const random = jest.spyOn(Math, "random").mockReturnValue(0.5);
-      expect(engine._selectEnemyTacticalTarget(target)).toBeNull();
+      expect(tacticalTarget(engine, target)).toBeNull();
       expect(engine.useHeroAbility(0, "I3", target)).toMatchObject({ ok: true });
       random.mockRestore();
       return 500 - target.hp;

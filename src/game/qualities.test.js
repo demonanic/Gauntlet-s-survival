@@ -1,3 +1,4 @@
+import { enemyTurn } from "../combat/enemies/turn";
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import * as C from "../combat/config";
 import { Engine } from "../combat/engine";
@@ -307,7 +308,7 @@ describe("enemy behavior families", () => {
       color: base.color, x, y, dmgBy: {}, atkCd: 0, affinities: {}, families: [...(C.ENEMY_FAMILIES[type] || [])], ...extra };
   };
   const think = (engine, unit, seconds = STEP) => {
-    for (let t = 0; t < seconds; t += STEP) { engine.time += STEP; unit.atkCd -= STEP; engine._updateEnemy(unit, STEP); }
+    for (let t = 0; t < seconds; t += STEP) { engine.time += STEP; unit.atkCd -= STEP; enemyTurn(engine, unit, STEP); }
   };
 
   test("harriers chase the most wounded hero and maul the wounded harder", () => {
