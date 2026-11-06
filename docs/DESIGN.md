@@ -141,6 +141,15 @@ A deliberately small model (not Demonanic's 11 slots), defined in `src/combat/ge
   Departure restocks every loaded slot from the stash and gives an arrowless archer
   plain arrows in a free slot.
 
+## Spell targets (Nov 2026, `markHeroTarget`, `heroSpellTarget`, `enemyAt` in engine.js)
+
+Owner-approved.
+
+- **Tap a foe** on the battle field: it becomes the shown hero's spell target (a four-arc reticle in the hero's colour). Tap it again to clear it.
+- Spells the player taps or queues go at the marked foe; queued spells aim at whatever is marked when they fire. Auto bolts and curses follow the mark while it's within 340 px. Out of range, spells fall back to the old choice (weapon target, then nearest) and the mark stays. A dead or turned (Dominated) foe clears it. Support, control and hex spells keep their own targeting.
+- **Move orders armed** (tap the hero's tab twice): a tap on a foe is an attack order (`commandHeroAttack`, which existed but had no button); a tap on the ground is a move, as before.
+- **Measured, not adopted (owner's call):** auto bolts on the weakest foe in range instead of the weapon target/nearest, for a sword, bow, Fire III and Ice III party, 120 seeded fights each (wins; damage taken): Frostfang wild 105 → 109, 648 → 631; Ashen wild 67 → 71, 926 → 901; Blightmire wild 36 → 40, 1121 → 1108; Boneyard boss 82 → 91, 944 → 872.
+
 ## Spells and moves, part 2: hexes (Nov 2026, `HEX` and the hex entries in `SPELLS`)
 
 Owner-approved plan ("75% for seconds"), then reshaped after measuring.

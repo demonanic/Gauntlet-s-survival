@@ -327,3 +327,5 @@ Decisions (Sam, 2026-11-01, reviewing Phase 5):
 | 2026-11-05 | One spell at a time (feature, not a phase) | #50 | Engine step: CI 566 tests; only the five drawing fingerprints changed, and they match main with the old numbers; re-recorded. Battle screen step: CI 566 tests, build |
 | 2026-11-05 | One spell at a time merged | #50 | Merged `668d570` (squash) on CI |
 | 2026-11-05 | Spells part 2: hexes (feature) | #51 | CI per commit (576–577 tests, build); fight-result and drawing hashes unchanged. Single-target hexes measured neutral; Sam chose area hexes (elites full, bosses half), measured a small gain |
+| 2026-11-05 | Spells part 2 merged | #51 | Merged `59239b8` (squash) on CI |
+| 2026-11-05 | Spell targets (feature) | #52 | CI 582 tests, build; hashes unchanged. Next per Sam: the battle log, then Phase 8B-8D |
