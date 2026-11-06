@@ -349,4 +349,4 @@ Decisions (Sam, 2026-11-01, reviewing Phase 5):
 | 2026-11-06 | Phase 8D | #57 | Familiars, quick slots, Clutch and party orders moved; every fingerprint and hash unchanged after each step; CI 651 tests. Phase 8 done |
 | 2026-11-06 | Phase 8D merged | #57 | Merged `d7e02c7` (squash) on CI. Phase 8 done |
 | 2026-11-06 | Spells part 3 (feature) | #58 | Enchanting and two wards; measured three times, reshaped on Sam's calls (longer buffs, wards after Barrier, party-wide Haste and True Aim); one hero fingerprint re-recorded (its Warding caster gained two spells) |
-| 2026-11-06 | Spells part 4 (feature) | #59 | Conjuration (Spectral Blades, Summon Elemental) and Mirror Self; measured with options for Sam; one new hero fingerprint, three re-recorded (their Shadow V casters gained Mirror Self) |
+| 2026-11-06 | Spells part 4 (feature) | #59 | Conjuration (Spectral Blades, Summon Elemental) and Mirror Self; measured, retuned on Sam's picks (blades 15%, stronger cheaper elemental, Mirror Self 60% fooling every non-boss foe); one new hero fingerprint, three re-recorded (their Shadow V casters gained Mirror Self) |

@@ -62,9 +62,10 @@ export const conjuredMethods = {
 
   // Mirror Self (Shadow V): a copy of the caster with `spell.damage` of their
   // attack and `spell.hp` of their HP, using their basic attack (no spells or
-  // moves; a bow copy needs no arrows). Half (`spell.pull`, rounded up) of
-  // the ordinary foes on the caster (fighting them, or within 110) turn on it
-  // until it goes. Bosses don't, as with every taunt.
+  // moves; a bow copy needs no arrows). `spell.pull` (rounded up) of the foes
+  // on the caster (fighting them, or within 110) turn on it until it goes or
+  // falls: unlike a taunt this takes every kind of foe, roles included
+  // (mirrorTurn in enemies/turn.js). Bosses aren't fooled.
   _summonMirror(h, spell, rank) {
     const color = ELEMENTS.shadow.color;
     const maxHp = Math.max(1, Math.round(h.d.maxHp * spell.hp));
@@ -87,7 +88,7 @@ export const conjuredMethods = {
         && ((e.engagedWith === h && e.engagedUntil > this.time) || Math.hypot(e.x - h.x, e.y - h.y) <= 110))
       .sort((a, b) => Math.hypot(a.x - h.x, a.y - h.y) - Math.hypot(b.x - h.x, b.y - h.y));
     const pulled = onCaster.slice(0, Math.ceil(onCaster.length * spell.pull));
-    for (const e of pulled) { e.tauntedBy = pet; e.tauntUntil = pet.until; }
+    for (const e of pulled) { e.mirrorPet = pet; e.mirrorUntil = pet.until; }
     this._float(h.x, h.y - 30, pulled.length ? `MIRROR SELF · ${pulled.length} FOOLED` : "MIRROR SELF", color);
     return pulled.length;
   },

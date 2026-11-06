@@ -18,6 +18,8 @@ export function enemyTurn(engine, e, dt) {
   // dominated one fights its own side.
   if (e.fearUntil > engine.time) { fleeTurn(engine, e, dt); return; }
   if (e.dominatedUntil > engine.time || e.confusedUntil > engine.time) { turncoatTurn(engine, e, dt); return; }
+  // Fooled by a Mirror Self (heroes/conjured.js): go for the copy.
+  if (e.mirrorUntil > engine.time) { if (mirrorTurn(engine, e, dt)) return; }
   // Boss special: a targeted, proximity-based napalm bottle.
   // It no longer damages every hero simultaneously. The target is the nearest
   // living hero inside the boss's configured attack range.
@@ -148,6 +150,23 @@ export function roleTurn(engine, e, dt) {
 
 
 // A frightened foe runs from the nearest hero and doesn't attack.
+// A foe fooled by a Mirror Self closes on the copy and strikes it, whatever
+// its usual way of fighting. Returns false once the copy is down or gone.
+export function mirrorTurn(engine, e, dt) {
+  const pet = e.mirrorPet;
+  if (!pet || pet.down || !engine.pets.includes(pet)) { e.mirrorUntil = 0; return false; }
+  const dist = Math.hypot(pet.x - e.x, pet.y - e.y) || 1;
+  if (dist <= 30 + BODY_PAD) {
+    if (e.atkCd <= 0) { engine._enemyHitPet(e, pet); e.atkCd = e.type === "orc" ? 1.15 : 1.0; }
+    return true;
+  }
+  if (e.rootUntil > engine.time) return true;
+  const speed = e.speed * (e._commanderBoost || 1) * (e.slowUntil > engine.time ? (e.slowMultiplier || 1) : 1);
+  e.x += ((pet.x - e.x) / dist) * speed * dt;
+  e.y += ((pet.y - e.y) / dist) * speed * dt;
+  return true;
+}
+
 export function fleeTurn(engine, e, dt) {
   if (e.rootUntil > engine.time) return;
   const hero = engine.heroes.filter((h) => h.alive).reduce((best, h) =>

@@ -61,7 +61,7 @@ Last updated: 2026-11-06, with spells part 4 open as draft PR #59.
   - #53: battle log, plus the battle field keeping half the screen;
   - #48 and #54–#57: Phase 8, splitting engine.js, plus Vampiric minions feeding their master and a dead Reaper/Dark Elf branch removed;
   - #58: spells part 3, Enchanting (Haste and True Aim party-wide, Endless Quiver, Kindred Bond, Insight) and the Iron Skin and Spellguard wards.
-- **Open:** draft PR #59, spells part 4: Conjuration (Spectral Blades, Summon Elemental) and Mirror Self (Shadow V). CI is green; numbers are in the PR and DESIGN.md. Measured: blades strong, the elemental doesn't pay for its mana, Mirror Self unchanged on auto and by hand. Waiting on Sam's pick from the options in the PR, then "Merge".
+- **Open:** draft PR #59, spells part 4: Conjuration (Spectral Blades, Summon Elemental) and Mirror Self (Shadow V). CI is green; numbers are in the PR and DESIGN.md. Retuned on Sam's picks (blades 15%; elemental 80% / 40% HP / 24 mana; Mirror Self 60%, fooling every non-boss foe on the caster). Measured: Conjuration a bit above Fire, the elemental now adds wins, Mirror Self still no measurable effect for a staff caster. Waiting on Sam's "Merge".
 - **Next (Sam's choice):**
   - **Phases 9–11:** one definition per enemy, performance measurements, final review (ROADMAP).
 - **Later, if Sam asks:** tuning after play (Restoration, familiars, control, armory percentages, mastery pace), a sound effects overhaul, a Play Store release.
@@ -111,5 +111,6 @@ Last updated: 2026-11-06, with spells part 4 open as draft PR #59.
   - Blightmire is the hardest wild region for mixed parties.
   - Restoration is the strongest support school in hard fights.
   - Iron Skin and Spellguard measure neutral on auto (they're tools to fire by hand).
-- Taunts (the tortoise, a spirit wolf, Mirror Self) don't reach orcs, lieutenants, ghosts, Warlocks or foes with a role: those pick their own targets first.
+- Taunts (the tortoise, a spirit wolf) don't reach orcs, lieutenants, ghosts, Warlocks or foes with a role: those pick their own targets first. Mirror Self has its own pull that reaches them all (bosses excepted).
+- Mirror Self measures neutral for a staff caster even after the rework; a melee Shadow hero hasn't been measured.
 - From reading the code (not tested): a spirit wolf's taunt can outlast the wolf. When it leaves (time up, or its caster down) while another familiar is out, foes it taunted keep chasing the spot for up to 2 s. Mirror Self clears its taunts when it goes; the wolf's wasn't changed.
