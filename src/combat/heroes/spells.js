@@ -8,7 +8,9 @@ import { BIG_SPELLS } from "../abilityLook";
 import { getEquippedHeroWeaponType } from "../heroWeapon";
 
 // The order an unattended caster weighs its support spells in.
-const SUPPORT_PRIORITY = Object.freeze(["lifeline", "heal", "veil", "iron_skin", "spellguard", "renew", "barrier", "aegis", "empower",
+// Iron Skin and Spellguard come after Barrier (owner's call after measuring):
+// on auto they're cast only when Barrier isn't ready.
+const SUPPORT_PRIORITY = Object.freeze(["lifeline", "heal", "veil", "renew", "barrier", "iron_skin", "spellguard", "aegis", "empower",
   "haste", "true_aim", "kindred", "quiver", "insight", "summon"]);
 // Foes whose shots are magic (Spellguard's concern on auto).
 const MAGIC_SHOOTERS = Object.freeze(new Set(["warlock", "carrionPriest", "lesserNecromancer", "watcher"]));

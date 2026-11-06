@@ -53,11 +53,11 @@ describe("Enchanting and the new wards", () => {
     expect(wards).toEqual(expect.arrayContaining(["iron_skin", "spellguard"]));
   });
 
-  test("Haste: +30% attack and move speed for 6 s, on top of the attack speed cap", () => {
+  test("Haste: +30% attack and move speed for 10 s, on top of the attack speed cap", () => {
     const engine = fight([enchanter, { weapon: "sword" }], [foe(300, 100)]);
     const ally = engine.heroes[1];
     cast(engine, "haste", ally);
-    expect(ally.hasteUntil).toBeCloseTo(engine.time + 6);
+    expect(ally.hasteUntil).toBeCloseTo(engine.time + 10);
     ally.cd = 10;
     engine.update(0.1);
     expect(ally.cd).toBeCloseTo(10 - 0.1 * 1.3, 5);
