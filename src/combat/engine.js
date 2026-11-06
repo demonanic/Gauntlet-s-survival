@@ -1372,32 +1372,34 @@ export class Engine {
     if (e.rootUntil > this.time) return;
     const moveSpeed = baseMoveSpeed * (e.slowUntil > this.time ? (e.slowMultiplier || 1) : 1);
 
-    // Reapers, orcs, lieutenants, ghosts, Dark Elves and Warlocks peel toward
-    // the heroes they pick (_selectEnemyTacticalTarget).
-    if (tactical && (e.type === "reaper" || e.type === "orc" || e.type === "lieutenant" || e.type === "ghost" || e.type === "darkElf" || e.type === "warlock")) {
+    // Orcs, lieutenants, ghosts and Warlocks peel toward the heroes they pick
+    // (_selectEnemyTacticalTarget). (Reapers and Dark Elves take their turns
+    // in enemies/roles.js; they only get here when no hero can be targeted,
+    // so they never peel.)
+    if (tactical && (e.type === "orc" || e.type === "lieutenant" || e.type === "ghost" || e.type === "warlock")) {
       const target = tactical.obj;
       const dist = Math.hypot(target.x - e.x, target.y - e.y) || 1;
-      // Dark Elves shoot from range; Warlocks cast ranged bolts while
-      // retaining their separate Mage-Hunter drain ability above.
-      const ranged = e.type === "darkElf" || e.type === "warlock";
-      const attackRange = e.type === "darkElf" ? 245 : e.type === "warlock" ? 225 : e.type === "reaper" ? 34 + BODY_PAD : 30 + BODY_PAD;
+      // Warlocks cast ranged bolts while retaining their separate
+      // Mage-Hunter drain ability above.
+      const ranged = e.type === "warlock";
+      const attackRange = ranged ? 225 : 30 + BODY_PAD;
       if (ranged && dist <= attackRange) {
         if (e.atkCd <= 0) {
-          this._throwEnemyBolt(e, tactical, e.type === "darkElf" ? e.damage * 1.15 : e.damage, e.type === "darkElf" ? "#F43F5E" : "#C026D3", e.type === "warlock");
-          e.atkCd = e.type === "darkElf" ? 1.35 : 1.65;
+          this._throwEnemyBolt(e, tactical, e.damage, "#C026D3", true);
+          e.atkCd = 1.65;
         }
         return;
       }
       if (!ranged && dist <= attackRange) {
         if (e.atkCd <= 0) {
           this._enemyAttack(e, tactical);
-          e.atkCd = e.type === "reaper" ? 0.72 : e.type === "orc" ? 1.15 : 0.9;
+          e.atkCd = e.type === "orc" ? 1.15 : 0.9;
         }
         return;
       }
       // Ranged enemies hold a firing lane; melee specialists peel toward
       // nearby targets but resume advancing if the target escapes.
-      const peelRange = e.type === "reaper" ? 260 : ranged ? 300 : 150;
+      const peelRange = ranged ? 300 : 150;
       if (dist <= peelRange) {
         if (ranged && dist < attackRange * 0.55) {
           e.x -= ((target.x - e.x) / dist) * moveSpeed * dt;
