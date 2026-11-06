@@ -48,7 +48,7 @@ These were judged to work well. A PR that weakens one needs an explicit reason t
 | 5 | Legacy reachability investigation (no edits) | F2, F9 | Done (#32, merged `50bdf0f`) |
 | 6 | Remove only verified legacy code, in small PRs | F2, F9 | In progress: 6A merged (#33); batch 1 (6B, 6C, 6D-1) merged (#34); batch 2 (6D-2, 6D-3, 6D-4) merged (#35); batch 3 (6D-5, Phase 7) merged (#36) |
 | 7 | Move fight results and rewards out of `expedition.js` | F6 | Done (#36 `3aa2c7d`, #37 `3c8df41`) |
-| 8 | Split `combat/engine.js`: A renderer, B enemy behavior, C hero abilities and spells, D the rest if justified | F1, F3 | Not started |
+| 8 | Split `combat/engine.js`: A renderer, B enemy behavior, C hero abilities and spells, D the rest if justified | F1, F3 | Done (#48, #54–#57) |
 | 9 | One definition per enemy; regional spawn data stays in regions | F3 | Not started |
 | 10 | Measure performance before any optimization | F8 | Not started |
 | 11 | Final architecture, regression and balance review | (all) | Not started |
@@ -249,7 +249,8 @@ The steps follow `docs/LEGACY_MANIFEST.md`. 6A was its own PR. From 6B on, Sam a
 - [x] 8C Hero abilities and spells: one family at a time, after characterizing cooldowns, costs, damage, effects and targeting (#56).
   - Hero moves and spells fingerprint (`src/combat/heroActions.characterization.test.js`): 19 seeded fights in which every special move (16) gets fired and every spell (36) gets cast: each perk branch's moves fired as they come ready, the starter moves, every school pair on auto, and spells by hand (queue, holds, marked targets, one on a boss). Heroes (cooldowns, mana, cast state, statuses), enemies, shots, familiars, meteors and pop-ups hashed every 6 frames; recorded in CI before anything moved. Checked by changing things on purpose: the cast swing, strain, the queue cap, hexes on bosses, Expose, Dominate, the shield cap, weakest-foe auto bolts, Smoke Bomb and Cleaving Strike's splash were each caught. (Test heroes carry arrows; the staff hero in move fights has Arcane Spark for Mana Surge.)
   - Spells (37 methods) moved to `combat/heroes/spells.js`, special moves (10 methods) to `combat/heroes/moves.js`, with the constants only they use; both stay engine methods (mixed into `Engine.prototype`) because the battle screen, enemy code, scripts and tests call them by name. After each step: all 19 hero fingerprints, all 39 enemy fingerprints and every other hash unchanged; `engine.js` 3,294 → 2,304 lines.
-- [ ] 8D Other responsibilities, each with its own design and PR.
+- [x] 8D Other responsibilities (#57, plan approved by Sam): familiars → `combat/heroes/familiars.js`; quick slots and arrows → `heroes/quickSlots.js`; Clutch → `heroes/clutch.js` (`engine.js` still exports `CLUTCH`); party orders and their targeting helpers → `heroes/orders.js`; hero and enemy body radii → `arena.js`; the unused `roundRect` removed. All engine methods, mixed into `Engine.prototype`. After each step: all 58 behavior fingerprints, the drawing fingerprints and the fight-result hashes unchanged.
+  - Phase 8 result: `engine.js` 4,569 → 1,748 lines. What stays: the constructor, the frame-by-frame update, the heroes' own attacks and damage pipeline, targeting, collisions, the HUD numbers, the end-of-fight check and the battle-log hooks. Drawing is in `combat/render/`, enemy behavior in `combat/enemies/`, hero spells, moves, familiars, quick slots, Clutch and orders in `combat/heroes/`.
 
 ### Phase 9: One definition per enemy
 
@@ -344,3 +345,5 @@ Decisions (Sam, 2026-11-01, reviewing Phase 5):
 | 2026-11-06 | Phase 8B second batch | #55 | Enemy turn and enemy attacks moved; after each step every fingerprint and hash unchanged; CI 632 tests. 8B done |
 | 2026-11-06 | Phase 8B second batch merged | #55 | Merged `dac4769` (squash) on CI |
 | 2026-11-06 | Phase 8C | #56 | Hero fingerprint (19 cases) recorded in CI; spells and moves moved; after each step every fingerprint and hash unchanged; CI 651 tests |
+| 2026-11-06 | Phase 8C merged | #56 | Merged `f05d80f` (squash) on CI |
+| 2026-11-06 | Phase 8D | #57 | Familiars, quick slots, Clutch and party orders moved; every fingerprint and hash unchanged after each step; CI 651 tests. Phase 8 done |
