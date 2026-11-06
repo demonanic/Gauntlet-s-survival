@@ -79,13 +79,22 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
     engine?.setSpeed(next);
   };
 
+  // With move orders armed, a tap on a foe is an attack order and a tap on the
+  // ground a move. Otherwise a tap on a foe marks it as the shown hero's spell
+  // target (tap it again to clear).
   const onCanvasTap = (event) => {
-    if (selected == null || !engine || result) return;
+    if (!engine || result) return;
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
     const x = (event.clientX - rect.left) * (canvas.width / rect.width);
     const y = (event.clientY - rect.top) * (canvas.height / rect.height);
-    engine.commandHeroMoveTo(selected, x, y);
+    const foe = engine.enemyAt(x, y);
+    if (selected != null) {
+      if (foe) engine.commandHeroAttack(selected, foe);
+      else engine.commandHeroMoveTo(selected, x, y);
+      return;
+    }
+    if (foe && shown != null) engine.markHeroTarget(shown, foe);
   };
 
   const finish = () => onComplete(result);
@@ -218,7 +227,7 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
         )}
       </footer>
       <p className="pb-2 text-center font-mono-g text-[9px] text-slate-500">
-        Tap a hero to see their moves; tap them again, then the field, to move them. Auto returns them to normal targeting.
+        Tap a hero to see their moves; tap a foe to aim their spells. Tap the hero again, then the field, to move them (or tap a foe to attack it). Auto returns them to normal targeting.
       </p>
     </div>
   );
@@ -426,6 +435,9 @@ function ActionPanel({ hero, index, abilities, spells, quickSlots, moving, locke
           <div className="grid grid-cols-2 gap-2">
             {spells.map((spell) => <SpellTile key={spell.id} spell={spell} index={index} locked={locked} engine={engine} />)}
           </div>
+          <p className="font-mono-g text-[9px] text-slate-500" data-testid={`battle-spell-target-${index}`}>
+            {engine?.heroSpellTarget(index) ? <>Target: <span className="text-slate-200">{engine.heroSpellTarget(index).name}</span> · tap it again to clear</> : "Target: nearest · tap a foe to aim spells"}
+          </p>
           <p className="font-mono-g text-[9px] text-slate-500">Tap: cast, or queue if busy · Hold: cast now (strains)</p>
         </>
       )}

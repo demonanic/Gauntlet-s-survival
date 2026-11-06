@@ -185,6 +185,8 @@ export const LAYOUT = { W, H, HERO_Y, FLOOR_Y };
 const SUPPORT_PRIORITY = Object.freeze(["lifeline", "heal", "veil", "renew", "barrier", "aegis", "empower", "summon"]);
 // Spells that hold foes (Shadow, Wild Magic, Dominate), cast at a foe.
 const CONTROL_SHAPES = Object.freeze(new Set(["terror", "confusion", "ensnare", "thornfield", "dominate"]));
+// Auto bolts and curses go at the weakest foe in range (see _autoCast).
+const AUTO_WEAKEST = true;
 const HEX_SHAPES = Object.freeze(new Set(["blind", "enfeeble", "silence", "disarm", "expose"]));
 // Foes with something for Silence to stop (boss abilities, spells, heals, summons, Blitz).
 const SILENCEABLE = Object.freeze(new Set(["warlock", "carrionPriest", "lesserNecromancer", "bandit"]));
@@ -742,6 +744,37 @@ export class Engine {
     h.retreating = false;
     this.selectedHero = index;
     return true;
+  }
+
+  // The foe the player marked for this hero's spells (tap a foe on the field).
+  // Spells the player taps or queues go at it, and so do auto bolts and curses
+  // when it's in range; out of range they fall back as before. A dead or
+  // turned foe clears the mark.
+  heroSpellTarget(index) {
+    const h = this.heroes[index];
+    const foe = h?.spellTarget;
+    if (!foe) return null;
+    if (foe.hp <= 0 || foe._dead || foe.dominatedUntil > this.time || !this.active.includes(foe)) { h.spellTarget = null; return null; }
+    return foe;
+  }
+
+  // Mark `enemy` (or clear the mark with null). Marking the marked foe again clears it.
+  markHeroTarget(index, enemy) {
+    const h = this.heroes[index];
+    if (!h || !h.alive) return false;
+    h.spellTarget = enemy && enemy.hp > 0 && enemy !== h.spellTarget ? enemy : null;
+    return true;
+  }
+
+  // The living foe under a tap at (x, y), if any (a little slack for fingers).
+  enemyAt(x, y, slack = 14) {
+    let best = null, bd = Infinity;
+    for (const e of this.active) {
+      if (e.hp <= 0 || e._dead) continue;
+      const d = Math.hypot(e.x - x, e.y - y);
+      if (d <= ENEMY_BODY_RADIUS(e) + slack && d < bd) { bd = d; best = e; }
+    }
+    return best;
   }
 
   commandHeroAttack(index, target) {
@@ -2921,7 +2954,7 @@ export class Engine {
     if (!spell?.available) return false;
     if (spell.support) return this._castSupport(h, spell, spellId, target, announce);
     const foe = (target && target.hp > 0 ? target : null)
-      || [h.manualTarget, h.currentTarget].find((enemy) => enemy?.hp > 0 && Math.hypot(enemy.x - h.x, enemy.y - h.y) <= spell.range)
+      || [this.heroSpellTarget(h.i), h.manualTarget, h.currentTarget].find((enemy) => enemy?.hp > 0 && Math.hypot(enemy.x - h.x, enemy.y - h.y) <= spell.range)
       || this._nearestEnemy(h.x, h.y, spell.range);
     if (!foe) return false;
     const success = this._spendCast(h, spell, spellId);
@@ -3540,7 +3573,14 @@ export class Engine {
     if (control) { this.castHeroSpell(h.i, control.spell.id, control.foe); return; }
     const hex = this._autoHex(h, ready);
     if (hex) { this.castHeroSpell(h.i, hex.spell.id, hex.foe); return; }
-    const target = [h.currentTarget].find((enemy) => enemy?.hp > 0 && !(enemy.dominatedUntil > this.time)) || this._nearestEnemy(h.x, h.y, 340);
+    // The player's mark if it's in reach; else the weakest foe in range (it
+    // finishes kills sooner; owner-approved after measuring, Nov 2026); else
+    // the weapon target or the nearest.
+    const marked = this.heroSpellTarget(h.i);
+    const weakest = AUTO_WEAKEST ? this.active.filter((enemy) => enemy.hp > 0 && !enemy._dead && !(enemy.dominatedUntil > this.time)
+      && Math.hypot(enemy.x - h.x, enemy.y - h.y) <= 300).sort((a, b) => a.hp - b.hp)[0] : null;
+    const target = [marked && Math.hypot(marked.x - h.x, marked.y - h.y) <= 340 ? marked : null, weakest, h.currentTarget]
+      .find((enemy) => enemy?.hp > 0 && !(enemy.dominatedUntil > this.time)) || this._nearestEnemy(h.x, h.y, 340);
     if (!target) return;
     const inRange = ready.filter((spell) => Math.hypot(target.x - h.x, target.y - h.y) <= spell.range);
     const crowd = (radius) => this.active.filter((enemy) => enemy.hp > 0 && Math.hypot(enemy.x - target.x, enemy.y - target.y) <= radius).length;

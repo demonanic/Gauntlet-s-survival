@@ -166,6 +166,25 @@ export function renderBattle(engine) {
     }
   }
 
+  // Spell marks: a reticle in the hero's colour on the foe they cast at.
+  for (const h of engine.heroes) {
+    const foe = h.alive && h.spellTarget;
+    if (!foe || foe.hp <= 0) continue;
+    const r = (foe.boss ? 30 : foe.tier === "elite" ? 21 : 16) + 1.5 * Math.sin(engine.time * 6 + h.i);
+    ctx.save();
+    ctx.strokeStyle = h.d.color;
+    ctx.lineWidth = 1.8;
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = h.d.color;
+    for (let k = 0; k < 4; k += 1) {
+      const a = (k / 4) * Math.PI * 2 + Math.PI / 4;
+      ctx.beginPath();
+      ctx.arc(foe.x, foe.y, r, a - 0.45, a + 0.45);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   // projectiles
   for (const p of engine.projectiles) {
     ctx.save();
