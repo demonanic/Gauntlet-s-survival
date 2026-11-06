@@ -247,7 +247,9 @@ function UnlockGuide({ hero, index }) {
       {spells ? spells.filter((line) => !line.done).map((line) => (
         <p key={line.element} className="text-slate-400" data-testid={`battle-next-spell-${index}-${line.element}`}>
           Next <span style={{ color: line.color }}>{line.name}</span> spell: <span className="text-slate-200">{line.spell}</span>
-          {line.perk ? ` · perk ${line.perk} (LV ${line.minLevel})` : ` · ${line.casts}/${line.needed} ${line.name} casts`}
+          {line.perk
+            ? line.perk === line.spell ? ` · its own perk (Arcana, LV ${line.minLevel})` : ` · perk ${line.perk} (LV ${line.minLevel})`
+            : ` · ${line.casts}/${line.needed} ${line.name} casts`}
         </p>
       )) : (
         <p className="text-slate-400" data-testid={`battle-no-spells-${index}`}>Spells: buy the <span className="text-fuchsia-300">Arcane Spark</span> perk (Arcana) to start casting.</p>
