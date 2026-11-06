@@ -325,3 +325,5 @@ Decisions (Sam, 2026-11-01, reviewing Phase 5):
 | 2026-11-01 | Phase 7 second step merged | #37 | Merged `3c8df41` (squash) on CI. Sam paused the roadmap here for feature work (special moves and spells; plan in DESIGN.md) |
 | 2026-11-05 | Phase 8A renderer out of the engine | #48 | Drawing fingerprints (five seeded fights) recorded in CI before the move; unchanged after each of three steps, as are the 26 fight-result hashes |
 | 2026-11-05 | One spell at a time (feature, not a phase) | #50 | Engine step: CI 566 tests; only the five drawing fingerprints changed, and they match main with the old numbers; re-recorded. Battle screen step: CI 566 tests, build |
+| 2026-11-05 | One spell at a time merged | #50 | Merged `668d570` (squash) on CI |
+| 2026-11-05 | Spells part 2: hexes (feature) | #51 | CI per commit (576–577 tests, build); fight-result and drawing hashes unchanged. Single-target hexes measured neutral; Sam chose area hexes (elites full, bosses half), measured a small gain |

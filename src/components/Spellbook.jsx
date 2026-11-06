@@ -47,6 +47,7 @@ export default function Spellbook({ hero, onLearnElement, onChooseBeast }) {
                   <li key={id} className={has ? "text-slate-200" : "text-slate-600"}>
                     {spell.name} {has ? `· rank ${ROMAN[rankFor(count) - 1]} (${rankNext ? `${count}/${rankNext}` : "max"})` : spell.node ? `· needs ${spell.node}` : `· proficiency ${ROMAN[spell.unlock - 1]}`}
                     <span className="ml-1 text-slate-500">{spell.mana} mana · {spell.cooldown}s</span>
+                    {spell.desc && <div className="text-[9px] text-slate-500">{spell.name}: {spell.desc}</div>}
                   </li>
                 );
               })}

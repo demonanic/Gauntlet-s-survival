@@ -5,7 +5,7 @@
 // Simulation is separate from React; mutates a cloned `sim` fragment and
 // accumulates XP gains, returned to the UI at wave end.
 import { heroLuck, luckEffects } from "./luck";
-import { BEASTS, CASTING, CONTROL, ELEMENTS, MAGIC, SHIELD_CAP, SPELLS, castSuccessChance, heroBeast, knownSpells, maxMana as spellMaxMana, proficiency, spellPower, spellRadius, supportPower } from "./spells";
+import { BEASTS, CASTING, CONTROL, ELEMENTS, HEX, MAGIC, SHIELD_CAP, SPELLS, castSuccessChance, heroBeast, knownSpells, maxMana as spellMaxMana, proficiency, spellPower, spellRadius, supportPower } from "./spells";
 import { SpellVfx } from "./spellVfx";
 import { BONDS, memorialDamage } from "../game/bonds";
 import * as C from "./config";
@@ -185,6 +185,9 @@ export const LAYOUT = { W, H, HERO_Y, FLOOR_Y };
 const SUPPORT_PRIORITY = Object.freeze(["lifeline", "heal", "veil", "renew", "barrier", "aegis", "empower", "summon"]);
 // Spells that hold foes (Shadow, Wild Magic, Dominate), cast at a foe.
 const CONTROL_SHAPES = Object.freeze(new Set(["terror", "confusion", "ensnare", "thornfield", "dominate"]));
+const HEX_SHAPES = Object.freeze(new Set(["blind", "enfeeble", "silence", "disarm", "expose"]));
+// Foes with something for Silence to stop (boss abilities, spells, heals, summons, Blitz).
+const SILENCEABLE = Object.freeze(new Set(["warlock", "carrionPriest", "lesserNecromancer", "bandit"]));
 
 export class Engine {
   constructor(canvas, sim, wave, callbacks = {}) {
@@ -1311,7 +1314,7 @@ export class Engine {
 
   _updateEnemy(e, dt) {
     if (e.nemesisId && this._nemesisTick(e, dt)) return;
-    if (e.champion) this._championTick(e, dt);
+    if (e.champion && !(e.silenceUntil > this.time)) this._championTick(e, dt);
     e.atkCd -= dt * (e.attackSlowUntil > this.time ? (e.attackSlowMultiplier || 1) : 1) * (e.attackSpeed || 1);
     if (e.stunUntil && e.stunUntil > this.time) return;
     // Shadow and Mind control: a frightened foe flees; a confused or
@@ -1321,7 +1324,8 @@ export class Engine {
     // Boss special: a targeted, proximity-based napalm bottle.
     // It no longer damages every hero simultaneously. The target is the nearest
     // living hero inside the boss's configured attack range.
-    if (e.boss) {
+    const silenced = e.silenceUntil > this.time;
+    if (e.boss && !silenced) {
       e.abilityCd = (e.abilityCd == null ? 5 : e.abilityCd) - dt;
       // Gauntlet boss identities: the Abomination enrages once, below 35% HP.
       if (e.type === "nuclearBehemoth" && !e.enraged && e.hp < e.maxHp * 0.35) {
@@ -1342,7 +1346,7 @@ export class Engine {
           if (this._nearestDefender(e.x, e.y, 110)) {
             e.abilityCd = e.enraged ? 3.5 : 5;
             this.effects.push({ x: e.x, y: e.y, r: 100, life: 0.45, color: "#84CC16", ring: true });
-            this._explodeNapalm(e.x, e.y, { dmg: e.damage * 1.1, splash: 100 });
+            this._explodeNapalm(e.x, e.y, { dmg: e.damage * 1.1 * this._hexDamage(e), splash: 100 });
           } else {
             e.abilityCd = 0.5;
           }
@@ -1387,7 +1391,7 @@ export class Engine {
     // and lieutenants reinforce nearby attackers.
     const tactical = this._selectEnemyTacticalTarget(e);
     const commanderBoost = e._commanderBoost || 1;
-    if (e.type === "warlock") {
+    if (e.type === "warlock" && !silenced) {
       e.abilityCd = (e.abilityCd == null ? 3 : e.abilityCd) - dt;
       if (e.abilityCd <= 0) {
         // Warlocks are Mage Hunters: Mage first, then any living hero.
@@ -1595,7 +1599,7 @@ export class Engine {
       // Protector: feeds on the weak. Sacrifices a dying ally (or eats a
       // corpse) to heal and empower the rest of the squad.
       e.feedCd = (e.feedCd ?? 3) - dt;
-      if (e.feedCd <= 0) {
+      if (e.feedCd <= 0 && !(e.silenceUntil > this.time)) {
         const victim = this.active.find((ally) => ally !== e && ally.hp > 0 && !ally.boss && ally.type !== "carrionPriest" &&
           ally.hp < ally.maxHp * 0.25 && Math.hypot(ally.x - e.x, ally.y - e.y) <= 220);
         const corpse = victim ? null : this._fallenNear(e, 220);
@@ -1668,7 +1672,7 @@ export class Engine {
         }
         return true;
       }
-      if (e.blitzCd <= 0 && dist > 60 && dist < 220 && !(e.blitzUntil > this.time)) {
+      if (e.blitzCd <= 0 && dist > 60 && dist < 220 && !(e.blitzUntil > this.time) && !(e.silenceUntil > this.time)) {
         e.blitzUntil = this.time + 0.45;
         e.blitzCd = 6;
         e.blitzStrike = true;
@@ -1722,11 +1726,12 @@ export class Engine {
         }
         return true;
       }
-      if (e.healCd <= 0) {
+      const silenced = e.silenceUntil > this.time;
+      if (e.healCd <= 0 && !silenced) {
         e.healCd = 4.5;
         this._healAllies(e, 200, 0.18, 1);
       }
-      if (e.raiseCd <= 0 && !e.raised_ && this._fallenNear(e, 240)) {
+      if (e.raiseCd <= 0 && !e.raised_ && !silenced && this._fallenNear(e, 240)) {
         e.raisingUntil = this.time + 1.5;
         e.raiseCd = 99;
         this._float(e.x, e.y - 20, "RAISE DEAD", e.color);
@@ -1879,13 +1884,15 @@ export class Engine {
   }
 
   _enemyHitPet(e, pet) {
+    if (e.disarmUntil > this.time) return;
     this._engage(e, pet);
+    if (this._hexMiss(e, pet)) return;
     if (pet.body.airborne && e.attackFx !== "napalm" && this.rng() < 0.5) {
       this._float(pet.x, pet.y - 14, "MISS", "#94A3B8");
       return;
     }
     const empowered = e.empoweredUntil > this.time ? 1.15 : 1;
-    const damage = e.damage * empowered * (1 - (pet.body.armor || 0));
+    const damage = e.damage * empowered * (1 - (pet.body.armor || 0)) * this._hexDamage(e);
     pet.hp = Math.max(0, pet.hp - damage);
     pet.hurtAt = this.time;
     this._float(pet.x, pet.y - 14, "-" + Math.round(damage), "#FF3366");
@@ -2038,7 +2045,7 @@ export class Engine {
   // A sapper's bomb: area damage around it; the sapper is gone either way.
   _detonate(e, strength) {
     e.detonated = true;
-    this._explodeNapalm(e.x, e.y, { dmg: e.damage * 6 * strength, splash: 72, color: "#FB923C" });
+    this._explodeNapalm(e.x, e.y, { dmg: e.damage * 6 * strength * this._hexDamage(e), splash: 72, color: "#FB923C" });
     this._float(e.x, e.y - 22, "BOOM", "#FB923C");
     this.effects.push({ kind: "impact", x: e.x, y: e.y, r: 36, life: 0.5, color: "#FB923C" });
     if (!e._dead) {
@@ -2138,7 +2145,7 @@ export class Engine {
       target: obj,
       targetKind: target.kind,
       spd: 250,
-      dmg: e.damage * 1.3,
+      dmg: e.damage * 1.3 * this._hexDamage(e),
       splash: e.splashRadius || 68,
       color: "#FF6600",
       t: 0,
@@ -2441,8 +2448,11 @@ export class Engine {
 
   _throwEnemyBolt(e, target, damage, color, magic = false) {
     const obj = target?.obj;
-    if (!obj) return;
+    if (!obj || e.disarmUntil > this.time) return;
     this._engage(e, obj);
+    // Blind decides now whether this shot will miss (no roll when not blinded).
+    const missed = e.blindUntil > this.time && this.rng() < e.blindChance;
+    damage *= this._hexDamage(e);
     this.projectiles.push({
       kind: "enemyBolt",
       sourceId: "E" + e.type,
@@ -2459,6 +2469,7 @@ export class Engine {
       targetKind: target.kind,
       spd: magic ? 300 : 390,
       dmg: damage,
+      missed,
       magic,
       color,
       visualType: magic ? "magic" : "arrow",
@@ -2479,6 +2490,7 @@ export class Engine {
     }
     const obj = p.target?.obj;
     if (!obj) return;
+    if (p.missed) { this._float(obj.x, obj.y - 20, "MISS", "#94A3B8"); return; }
     if (p.targetKind === "hero") {
       const h = obj;
       if (!h.alive || h.ref?.hp <= 0) return;
@@ -2508,9 +2520,11 @@ export class Engine {
       blocker = this._nearestDefender(e.x, e.y, attackRange);
       if (!blocker) return;
     }
+    if (e.disarmUntil > this.time) return;
     const h = blocker.obj;
     this._engage(e, h);
-    if (e.type === "warlock") {
+    if (this._hexMiss(e, h)) return;
+    if (e.type === "warlock" && !(e.silenceUntil > this.time)) {
       h.ref.shield = 0;
     }
     if (this.rng() < this._heroDodgeChance(h)) { this._float(h.x, h.y - 20, "DODGE", "#00F3FF"); this._tally(h, "dodges", 1); return; }
@@ -2518,7 +2532,7 @@ export class Engine {
     // Priest's sacrifice empowers its allies for a while.
     const predator = e.families?.includes("predator") && h.ref.hp < h.d.maxHp * 0.5 ? 1.4 : 1;
     const empowered = e.empoweredUntil > this.time ? 1.15 : 1;
-    const raw = e.damage * predator * empowered;
+    const raw = e.damage * predator * empowered * this._hexDamage(e);
     let dmg = this._classlessReducedDamage(h, raw);
     h.lastHitBy = e;
     if (h.ref.shield > 0) { const ab = Math.min(h.ref.shield, dmg); h.ref.shield -= ab; dmg -= ab; }
@@ -2631,6 +2645,8 @@ export class Engine {
     if (target.boss || target.tier === "elite") damage *= 1 + (traits?.eliteDamage || 0);
     // A hawk's mark: its partner hits the marked foe harder.
     if (target.petMarkUntil > this.time && target.petMarkOwner === hero.i) damage *= 1 + target.petMarkBonus;
+    // Expose (Mind): the party's main kind of damage hits harder.
+    if (target.exposeUntil > this.time && this._exposeMatches(target.exposeKind, hero, p.magic, p.damageCategory === "weapon")) damage *= 1 + target.exposeBonus;
     if (p.damageType === C.DAMAGE_TYPES.ARCANE) damage *= 1 + (effects.arcaneDamage || 0);
     let situationalBonus = p.situationalBonus || 0;
     if (p.ability) situationalBonus += hero.d.bloodPriceBonus || 0;
@@ -2943,6 +2959,8 @@ export class Engine {
       for (const victim of victims) this._spellHit(h, victim, damage, spell.element, sourceId, false);
       if (this.vfx) this.vfx.area(spell.element, foe.x, foe.y, radius, rank);
       else this.effects.push({ kind: "spell_area", x: foe.x, y: foe.y, r: radius, life: 0.6, color: spell.color, vfxSize: 52 });
+    } else if (HEX_SHAPES.has(spell.shape)) {
+      this._castHex(h, spell, foe, rank);
     } else if (CONTROL_SHAPES.has(spell.shape)) {
       this._castControl(h, spell, foe, damage, sourceId, rank);
     } else if (spell.shape === "linger") {
@@ -2981,6 +2999,7 @@ export class Engine {
 
   _spellHit(h, enemy, damage, element, sourceId, showName) {
     if (this._spellImmune(enemy)) return;
+    if (enemy.exposeUntil > this.time && enemy.exposeKind === "magic") damage *= 1 + enemy.exposeBonus;
     this._bonusDamage(enemy, damage, sourceId, ELEMENTS[element].color);
     this._tally(h, "damage", damage);
     if (enemy.hp > 0) this._spellElement(h, enemy, damage, element, sourceId, false);
@@ -3101,6 +3120,127 @@ export class Engine {
       }
     }
     return true;
+  }
+
+  // ---- hexes (Shadow: Blind, Disarm; Mind: Enfeeble, Silence, Expose) ------------
+
+  // How much of a hex this foe takes: elites half, bosses a quarter.
+  _hexScale(e) {
+    return e.boss ? HEX.boss : e.tier === "elite" ? HEX.elite : 1;
+  }
+
+  // Enfeeble: what's left of this foe's damage.
+  _hexDamage(e) {
+    return e.enfeebleUntil > this.time ? 1 - (e.enfeebleCut || 0) : 1;
+  }
+
+  // Blind: does this attack miss? Rolls only while the foe is blinded.
+  _hexMiss(e, victim) {
+    if (!(e.blindUntil > this.time) || !(this.rng() < e.blindChance)) return false;
+    this._float(victim.x, victim.y - 20, "MISS", "#94A3B8");
+    return true;
+  }
+
+  // Expose's kind: what most of the living party deals (ties: the caster's own).
+  _exposeKind(h) {
+    const kindOf = (hero) => {
+      const weapon = getEquippedHeroWeaponType(hero.model);
+      return weapon === "staff" ? "magic" : weapon === "bow" ? "ranged" : "melee";
+    };
+    const counts = {};
+    for (const hero of this.heroes) if (hero.alive) counts[kindOf(hero)] = (counts[kindOf(hero)] || 0) + 1;
+    const own = kindOf(h);
+    return Object.keys(counts).sort((a, b) => counts[b] - counts[a] || (b === own) - (a === own))[0] || own;
+  }
+
+  _exposeMatches(kind, hero, magic, weapon) {
+    if (kind === "magic") return !!magic;
+    if (!weapon || magic) return false;
+    return kind === "melee" ? hero.d.rangeMode === "melee" : hero.d.rangeMode !== "melee";
+  }
+
+  _castHex(h, spell, foe, rank) {
+    this.vfx?.bolt(spell.element, h, foe, rank);
+    if (!spell.radius) { this._hexOne(h, spell, foe, rank); return; }
+    this.vfx?.area(spell.element, foe.x, foe.y, spell.radius, rank);
+    for (const victim of this._hexArea(foe, spell.radius)) this._hexOne(h, spell, victim, rank);
+  }
+
+  _hexArea(foe, radius) {
+    return this.active.filter((enemy) => enemy.hp > 0 && Math.hypot(enemy.x - foe.x, enemy.y - foe.y) <= radius);
+  }
+
+  _hexOne(h, spell, foe, rank) {
+    if (foe.hp <= 0 || this._spellImmune(foe)) return;
+    const scale = this._hexScale(foe);
+    const until = this.time + spell.seconds;
+    let label = spell.name.toUpperCase();
+    let seconds = spell.seconds;
+    if (spell.shape === "blind") {
+      foe.blindChance = foe.blindUntil > this.time ? Math.max(foe.blindChance, spell.strength * scale) : spell.strength * scale;
+      foe.blindUntil = Math.max(foe.blindUntil || 0, until);
+      label = "BLINDED";
+    } else if (spell.shape === "enfeeble") {
+      foe.enfeebleCut = foe.enfeebleUntil > this.time ? Math.max(foe.enfeebleCut, spell.strength * scale) : spell.strength * scale;
+      foe.enfeebleUntil = Math.max(foe.enfeebleUntil || 0, until);
+      label = "ENFEEBLED";
+    } else if (spell.shape === "silence") {
+      seconds = spell.seconds * scale;
+      foe.silenceUntil = Math.max(foe.silenceUntil || 0, this.time + seconds);
+      foe.raisingUntil = null; // a raise in progress is broken off
+      label = "SILENCED";
+    } else if (spell.shape === "disarm") {
+      seconds = spell.seconds * scale;
+      foe.disarmUntil = Math.max(foe.disarmUntil || 0, this.time + seconds);
+      label = "DISARMED";
+    } else if (spell.shape === "expose") {
+      foe.exposeUntil = until;
+      foe.exposeKind = this._exposeKind(h);
+      foe.exposeBonus = spell.bonus;
+      label = `EXPOSED: ${foe.exposeKind.toUpperCase()}`;
+    }
+    this._float(foe.x, foe.y - 18, label, spell.color);
+    this.vfx?.aura(spell.shape, foe, seconds, rank);
+  }
+
+  // The hex an unattended caster would cast now, and at whom: Silence on a
+  // foe with abilities, then Enfeeble, Disarm and Blind where they take the
+  // most foes in the fight (a big one, 2+ foes, or one on a hurt hero), then
+  // Expose on a big foe.
+  _autoHex(h, ready) {
+    const hexes = ready.filter((spell) => HEX_SHAPES.has(spell.shape));
+    if (!hexes.length) return null;
+    const by = (shape) => hexes.find((spell) => spell.shape === shape);
+    const threat = (e) => e.damage * (e.boss ? 3 : e.tier === "elite" ? 2 : 1);
+    const big = (e) => e.boss || e.tier === "elite";
+    const alive = this.heroes.filter((ally) => ally.alive);
+    const pressing = (e) => alive.some((ally) => Math.hypot(e.x - ally.x, e.y - ally.y) <= 140);
+    const onHurt = (e) => alive.some((ally) => ally.ref.hp < ally.d.maxHp * 0.5 && Math.hypot(e.x - ally.x, e.y - ally.y) <= 140);
+    const foes = (spell, until) => this.active
+      .filter((e) => e.hp > 0 && !e.magicImmune && !(e[until] > this.time) && !(e.dominatedUntil > this.time) && !(e.confusedUntil > this.time)
+        && Math.hypot(e.x - h.x, e.y - h.y) <= (spell.range || 300))
+      .sort((a, b) => threat(b) - threat(a));
+    const silence = by("silence");
+    if (silence) {
+      const foe = foes(silence, "silenceUntil").find((e) => e.boss || e.champion || SILENCEABLE.has(e.type));
+      if (foe) return { spell: silence, foe };
+    }
+    for (const [shape, until] of [["enfeeble", "enfeebleUntil"], ["disarm", "disarmUntil"], ["blind", "blindUntil"]]) {
+      const spell = by(shape);
+      if (!spell) continue;
+      // Fresh foes in the fight it would take, centred on each candidate.
+      const caught = (e) => this._hexArea(e, spell.radius).filter((other) => !other.magicImmune && !(other[until] > this.time) && pressing(other));
+      const best = foes(spell, until).map((e) => ({ e, n: caught(e).length, worth: caught(e).some(big) || caught(e).some(onHurt) }))
+        .filter((entry) => entry.n >= 2 || entry.worth)
+        .sort((a, b) => b.n - a.n)[0];
+      if (best) return { spell, foe: best.e };
+    }
+    const expose = by("expose");
+    if (expose) {
+      const foe = foes(expose, "exposeUntil").find((e) => big(e) && e.hp > e.maxHp * 0.4);
+      if (foe) return { spell: expose, foe };
+    }
+    return null;
   }
 
   // ---- control (Shadow, Wild Magic, Dominate) --------------------------------
@@ -3269,7 +3409,10 @@ export class Engine {
     for (const meteor of landing) {
       const victims = this.active.filter((enemy) => enemy.hp > 0 && !enemy.magicImmune && Math.hypot(enemy.x - meteor.x, enemy.y - meteor.y) <= meteor.radius)
         .slice(0, meteor.max);
-      for (const victim of victims) this._bonusDamage(victim, meteor.damage, meteor.sourceId, meteor.color);
+      for (const victim of victims) {
+        const exposed = victim.exposeUntil > this.time && victim.exposeKind === "magic" ? 1 + victim.exposeBonus : 1;
+        this._bonusDamage(victim, meteor.damage * exposed, meteor.sourceId, meteor.color);
+      }
       this.effects.push({ kind: "impact", x: meteor.x, y: meteor.y, r: meteor.radius, life: 0.6, color: meteor.color });
     }
   }
@@ -3395,6 +3538,8 @@ export class Engine {
     // Control: only on foes nothing holds yet, and only when it pays off.
     const control = this._autoControl(h, ready);
     if (control) { this.castHeroSpell(h.i, control.spell.id, control.foe); return; }
+    const hex = this._autoHex(h, ready);
+    if (hex) { this.castHeroSpell(h.i, hex.spell.id, hex.foe); return; }
     const target = [h.currentTarget].find((enemy) => enemy?.hp > 0 && !(enemy.dominatedUntil > this.time)) || this._nearestEnemy(h.x, h.y, 340);
     if (!target) return;
     const inRange = ready.filter((spell) => Math.hypot(target.x - h.x, target.y - h.y) <= spell.range);

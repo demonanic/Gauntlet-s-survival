@@ -141,6 +141,21 @@ A deliberately small model (not Demonanic's 11 slots), defined in `src/combat/ge
   Departure restocks every loaded slot from the stash and gives an arrowless archer
   plain arrows in a free slot.
 
+## Spells and moves, part 2: hexes (Nov 2026, `HEX` and the hex entries in `SPELLS`)
+
+Owner-approved plan ("75% for seconds"), then reshaped after measuring.
+
+- **Blind** (Shadow I, 16 mana, 12 s): foes within 70 px of the target miss 75% of their attacks for 6 s (melee, bolts and attacks on familiars; boss bombs are areas, not attacks, so Blind doesn't stop them).
+- **Disarm** (Shadow II, 18 mana, 14 s): foes within 70 px can't attack for 3 s (they still move and use abilities).
+- **Enfeeble** (Mind I, 16 mana, 12 s): foes within 70 px deal 75% less for 6 s (melee, bolts, bombs, a Sapper's blast).
+- **Silence** (Mind II, 18 mana, 14 s): one foe uses no abilities for 5 s: boss abilities, champion powers, Warlock's mage hunt and shield break, Carrion Priest's sacrifice, a Lesser Necromancer's mending and raising (a raise in progress is broken off), Bandit Blitz.
+- **Expose** (Mind IV, 20 mana, 16 s): one foe takes 30% more from the party's main kind of damage (melee, ranged or magic: whatever most living heroes carry; ties go to the caster's own) for 6 s.
+- **Elites and bosses** (`HEX`): elites take hexes in full, bosses half (strength, or Silence and Disarm time). Magic-immune foes are unaffected. Each hex shows a small sign over the foe (Blind also a band over the eyes, Expose a reticle).
+- **On auto** (`_autoHex`, after support and control spells, before damage spells): Silence on a boss, champion or a foe with abilities; Enfeeble, Disarm, then Blind centred where they catch the most fresh foes in the fight (2+, or a big one, or one on a hurt hero); Expose on a boss or elite above 40% HP.
+- **Measured** (sword, bow, Shadow III and Mind III casters; 120 seeded fights each, wins / damage the party took):
+  - First version (single target, 4 s, elites half, bosses a quarter): neutral to slightly worse than main (Frostfang wild 94 vs 104 wins in one run). Stronger single-target versions (elites full, bosses half, 8 s on a 10 s cooldown), casting hexes only after damage spells, and a player keeping hexes on the boss by hand were all within noise of main. With every foe permanently Enfeebled the party took about 75% less damage, so the hooks work; one hex on one foe for a few seconds, about twice a fight, was too little to matter.
+  - Area version (shipped): Frostfang wild 110 vs 111 wins, damage taken 576 vs 613; Ashen wild 72 vs 67, 893 vs 913; Blightmire wild 42 vs 39, 1071 vs 1092; Boneyard boss 90 vs 90, 889 vs 911. A small gain: about 2–6% less damage taken.
+
 ## One spell at a time: cast pacing, strain and the spell queue (Nov 2026, `CASTING` in spells.js)
 
 Owner-approved (Sam: casters shouldn't cast 3 spells at once; fast casting should raise the fizzle rate; add a capped queue).

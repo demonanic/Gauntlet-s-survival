@@ -30,9 +30,12 @@ export const ELEMENT_LOOKS = Object.freeze({
 });
 
 // Lingering effects the engine can attach to a foe or a hero.
-const AURA_KINDS = new Set(["fire", "poison", "ice", "mind", "renewal", "lifeline", "barrier", "empower", "aegis", "veil", "fear", "confuse", "dominate", "root"]);
+const AURA_KINDS = new Set(["fire", "poison", "ice", "mind", "renewal", "lifeline", "barrier", "empower", "aegis", "veil", "fear", "confuse", "dominate", "root",
+  "blind", "disarm", "enfeeble", "silence", "expose"]);
 const AURA_SCHOOL = { renewal: "restoration", lifeline: "restoration", barrier: "warding", empower: "warding", aegis: "warding",
-  veil: "shadow", fear: "shadow", confuse: "shadow", dominate: "mind", root: "wild" };
+  veil: "shadow", fear: "shadow", confuse: "shadow", dominate: "mind", root: "wild",
+  blind: "shadow", disarm: "shadow", enfeeble: "mind", silence: "mind", expose: "mind" };
+const HEX_AURAS = ["blind", "disarm", "enfeeble", "silence", "expose"];
 
 // Below this frame rate (sustained) effects thin out; they come back once it recovers.
 export const VFX_QUALITY = Object.freeze({ slowFps: 50, recoverFps: 57, window: 1, steps: [1, 0.7, 0.45, 0.25], maxParticles: 700 });
@@ -526,7 +529,46 @@ export class SpellVfx {
       if (aura.element === "mind") this._drawDazed(ctx, aura);
       else if (["lifeline", "barrier", "aegis"].includes(aura.element)) this._drawWard(ctx, aura);
       else if (["veil", "fear", "confuse", "dominate", "root"].includes(aura.element)) this._drawControl(ctx, aura);
+      else if (HEX_AURAS.includes(aura.element)) this._drawHex(ctx, aura);
     }
+  }
+
+  // Hexes on a foe: a small sign each, side by side above its head, plus
+  // Expose's reticle around it. Blind: a dark band over the eyes.
+  _drawHex(ctx, aura) {
+    const t = aura.target;
+    const fade = Math.min(1, (aura.until - this.time) / 0.3);
+    const { color, light } = ELEMENT_LOOKS[aura.school];
+    const head = t.y - (t.boss ? 44 : 28);
+    const mine = this.auras.filter((other) => other.target === t && HEX_AURAS.includes(other.element));
+    const x = t.x + (mine.indexOf(aura) - (mine.length - 1) / 2) * 12;
+    ctx.save();
+    ctx.strokeStyle = rgba(light, 0.95 * fade); ctx.fillStyle = rgba(light, 0.95 * fade); ctx.lineWidth = 1.5; ctx.lineCap = "round";
+    if (aura.element === "blind") {
+      ctx.fillStyle = rgba("#05070C", 0.85 * fade);
+      ctx.fillRect(t.x - (t.boss ? 14 : 8), t.y - (t.boss ? 14 : 9), t.boss ? 28 : 16, 3.5);
+      ctx.beginPath(); ctx.ellipse(x, head, 5, 3, 0, 0, TAU); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x - 6, head + 4); ctx.lineTo(x + 6, head - 4); ctx.stroke();
+    } else if (aura.element === "disarm") {
+      ctx.beginPath(); ctx.moveTo(x - 4, head + 5); ctx.lineTo(x + 4, head - 5); ctx.stroke();
+      ctx.strokeStyle = rgba("#FF2A5F", 0.95 * fade);
+      ctx.beginPath(); ctx.moveTo(x - 5, head - 5); ctx.lineTo(x + 5, head + 5); ctx.stroke();
+    } else if (aura.element === "enfeeble") {
+      for (const dy of [-3, 2]) { ctx.beginPath(); ctx.moveTo(x - 4, head + dy - 2); ctx.lineTo(x, head + dy + 2); ctx.lineTo(x + 4, head + dy - 2); ctx.stroke(); }
+    } else if (aura.element === "silence") {
+      ctx.beginPath(); ctx.arc(x, head, 5, 0, TAU); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x - 3.5, head + 3.5); ctx.lineTo(x + 3.5, head - 3.5); ctx.stroke();
+    } else if (aura.element === "expose") {
+      const r = t.boss ? 30 : 17;
+      ctx.strokeStyle = rgba(color, 0.8 * fade);
+      ctx.beginPath(); ctx.arc(t.x, t.y - 4, r, 0, TAU); ctx.stroke();
+      for (let i = 0; i < 4; i += 1) {
+        const a = (i / 4) * TAU + this.time * 0.8;
+        ctx.beginPath(); ctx.moveTo(t.x + Math.cos(a) * (r - 4), t.y - 4 + Math.sin(a) * (r - 4)); ctx.lineTo(t.x + Math.cos(a) * (r + 4), t.y - 4 + Math.sin(a) * (r + 4)); ctx.stroke();
+      }
+      ctx.beginPath(); ctx.arc(x, head, 1.8, 0, TAU); ctx.fill();
+    }
+    ctx.restore();
   }
 
   // Controls on foes (and Veil on a hero), drawn each frame: Veil's

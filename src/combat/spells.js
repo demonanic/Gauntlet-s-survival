@@ -99,7 +99,21 @@ export const SPELLS = Object.freeze({
   thornfield: { name: "Thornfield", element: "wild", shape: "thornfield", power: 0.6, mana: 22, cooldown: 12, range: 280, radius: 70, seconds: 1.5, boss: 0.4, bleed: 0.3, unlock: 2 },
   summon_beast: { name: "Summon Spirit Beast", element: "wild", shape: "summon", power: 1, mana: 34, cooldown: 30, seconds: 10, hp: 0.3, unlock: 4, support: true },
   dominate: { name: "Dominate", element: "mind", shape: "dominate", power: 0, mana: 40, cooldown: 40, range: 300, seconds: 6, boss: 0, unlock: 5 },
+  // Hexes (owner-approved, Nov 2026): no damage, they weaken foes. Blind,
+  // Enfeeble and Disarm take every foe within `radius` of the target; Silence
+  // and Expose one. `strength` (Blind: chance its attacks miss; Enfeeble: damage
+  // cut) and Silence and Disarm's `seconds` are full on ordinary foes and elites,
+  // half on bosses (`HEX`). Expose: the party's main kind of damage hits harder.
+  blind: { name: "Blind", element: "shadow", shape: "blind", power: 0, strength: 0.75, mana: 16, cooldown: 12, range: 300, radius: 70, seconds: 6, unlock: 1, desc: "foes around the target miss 75% of the time for 6 s" },
+  disarm: { name: "Disarm", element: "shadow", shape: "disarm", power: 0, mana: 18, cooldown: 14, range: 300, radius: 70, seconds: 3, unlock: 2, desc: "foes around the target can't attack for 3 s" },
+  enfeeble: { name: "Enfeeble", element: "mind", shape: "enfeeble", power: 0, strength: 0.75, mana: 16, cooldown: 12, range: 300, radius: 70, seconds: 6, unlock: 1, desc: "foes around the target deal 75% less damage for 6 s" },
+  silence: { name: "Silence", element: "mind", shape: "silence", power: 0, mana: 18, cooldown: 14, range: 300, seconds: 5, unlock: 2, desc: "no abilities, spells, heals or summons for 5 s" },
+  expose: { name: "Expose", element: "mind", shape: "expose", power: 0, bonus: 0.3, mana: 20, cooldown: 16, range: 300, seconds: 6, unlock: 4, desc: "the party's main kind of damage hits it 30% harder for 6 s" },
 });
+
+// How much of a hex an elite or a boss takes (strength, or Silence/Disarm time).
+// Owner's pick after measuring (Nov 2026): area hexes, elites full, bosses half.
+export const HEX = Object.freeze({ elite: 1, boss: 0.5 });
 
 // How long controls hold on tougher foes, and the mana an unattended caster
 // keeps back before a big spell (Dominate, a summon) so it can still heal or shield.
@@ -155,11 +169,11 @@ export const ELEMENT_EFFECTS = Object.freeze({
   ice: "slows by 30% for 2.5 s",
   poison: "poisons for 40% more over 5 s",
   electric: "arcs to one more foe for 50%",
-  mind: "stuns for 0.6 s",
+  mind: "stuns for 0.6 s; hexes weaken foes",
   arcane: "pure arcane damage",
   restoration: "heals allies; spell heals ignore the regeneration limit",
   warding: "shields and strengthens allies",
-  shadow: "hides allies; frightens and confuses foes",
+  shadow: "hides allies; frightens, confuses, blinds and disarms foes",
   wild: "roots foes; calls a spirit beast",
 });
 
