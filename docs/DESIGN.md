@@ -141,6 +141,18 @@ A deliberately small model (not Demonanic's 11 slots), defined in `src/combat/ge
   Departure restocks every loaded slot from the stash and gives an arrowless archer
   plain arrows in a free slot.
 
+## One spell at a time: cast pacing, strain and the spell queue (Nov 2026, `CASTING` in spells.js)
+
+Owner-approved (Sam: casters shouldn't cast 3 spells at once; fast casting should raise the fizzle rate; add a capped queue).
+
+- **Before:** only a 0.8 s swing between spells, so a caster opened with everything ready (measured: Meteor, Arcane Channel, Cinder Field, Arcane Bolt within 2.4 s).
+- **Auto-cast gap:** after any spell, auto-cast waits 2.5 s (`CASTING.autoGap`). It never strains. It also waits while the player's queue has spells.
+- **Focus strain:** a spell cast within 2.5 s of the last one (`strainWindow`) costs −20% to land per quick cast in a row (`strainPerCast`, stacking: −20%, −40%, …; the floor stays 5%). A "STRAINED −N%" floater shows it, and the spell panel shows "Strained" and the chance to land if cast now (`strain`, `nowSuccess` in the spell status). Strain clears after 2.5 s without casting.
+- **Queue** (`queueHeroSpell`, `_playSpellQueue`): tapping a spell on a free caster casts it; on a busy caster (in the swing or inside the window) it queues, up to 3 (`queueCap`). The queue fires in order at the safe pace, so queued spells never strain. Mana and cooldown are spent when a spell fires; one it can't cast by then (no mana, no target) is dropped. Tapping a queued spell (or its chip in the QUEUED row) cancels it.
+- **Hold to cast now:** holding a spell tile for 0.45 s casts it at once, skipping the queue, at the strain cost.
+- **Measured** (4 casters: Arcane, Fire IV, Restoration IV, Mind V; 40 seeded two-wave fights per region, main → this change): casts per fight fell about 8–10% (Boneyard 37.5 → 33.9, Ashen 50.6 → 46.8); fights ran about 1 s longer (Boneyard 27.2 → 28.5 s); every fight was won either way, so this test can't show a win-rate change. The balance scripts' heroes don't cast, so their numbers don't move.
+- With the gap set back to 0.8 s and strain to 0, the five drawing fingerprints match main exactly; they were re-recorded for the new pacing.
+
 ## Spells and moves, part 1: starter moves and clearer unlocks (Nov 2026)
 
 Owner request: make spells and special moves easier to get and to understand. The full
@@ -690,8 +702,8 @@ Owner-approved design (Oct 2026). The Bible's Arcana nodes, built for Gauntlet:
 - **More elements** (`elementSlot`): a second at proficiency III and level 12, a third at V
   and level 18, 2 AP each (owner's call: "a mix between 1 and 3").
 - **In battle:** casters on auto cast by themselves (`_autoCast`: Meteor on a crowd,
-  Arcane Channel, an area spell on 2+ foes, a curse on a fresh target, else a bolt; 0.8 s
-  between casts); the player can tap a spell on the hero card (`castHeroSpell`). The card
+  Arcane Channel, an area spell on 2+ foes, a curse on a fresh target, else a bolt; 2.5 s
+  between casts since Nov 2026, see "One spell at a time"); the player can tap a spell on the hero card (`castHeroSpell`). The card
   shows a mana bar. Saved per hero as `hero.magic = { elements, casts }`.
 - **Perks screen:** a Spellbook (proficiency, success chance, each spell's rank and next
   rank), element choice, and ★ "Special move" / ✦ "Spell" tags on nodes that add a button.
