@@ -141,6 +141,29 @@ A deliberately small model (not Demonanic's 11 slots), defined in `src/combat/ge
   Departure restocks every loaded slot from the stash and gives an arrowless archer
   plain arrows in a free slot.
 
+## Spells and moves, part 1: starter moves and clearer unlocks (Nov 2026)
+
+Owner request: make spells and special moves easier to get and to understand. The full
+plan, in order: this part; Hexes (Blind, Enfeeble, Silence, Disarm, Expose); Enchanting
+and wards (Haste, True Aim, Endless Quiver, Kindred Bond, Insight; Iron Skin and
+Spellguard at 75% less of that damage for 6 s); Conjuration and Mirror Self (Spectral
+Blades, Summon Elemental). Then the battle log.
+
+- **Starter moves** (`STARTER_MOVES` in classlessAbilities.js), from level 1 with the
+  weapon held, no perk: Lunge (sword: dash to a foe up to 160 away, 160% weapon damage,
+  stun 1 s, bosses 0.3 s; 14 s), Pinning Shot (bow: 140%, root 2 s, bosses 0.5 s; 14 s),
+  Mana Surge (staff: +25 mana and the next spell is free; 20 s; needs spells, so it says
+  "Needs spells" until the hero has Arcane Spark). Manual only; Mastery applies.
+- **Execution and Cleaving Strike** open at level 5 for 2 AP (were level 10, 3 AP). With
+  1 AP per level and two earlier perks to buy first, that's level 6 in practice.
+- **Clarity:** the perk tree marks move perks with a ⚡ MOVE badge and says where moves and
+  spells come from. The battle panel lists the hero's locked perk moves (level, AP,
+  prerequisites; folded away) and the next spell in each element with cast progress, or
+  how to start casting (`moveGuide.js`); it shows when the next spell is free.
+- **Measured** (`npm run balance`, 12 guilds per style, seed 7): idle players identical to
+  before (they never press moves). Active players: Blightmire trips won 100% (was 86%),
+  more pushes deeper. The sim's perk order buys the two moves last, as its build intends.
+
 ## Small fixes (Nov 2026)
 
 - **New-version banner** (`src/app/updateCheck.js`, `UpdateBanner.jsx`): each build writes
