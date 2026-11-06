@@ -1,77 +1,113 @@
 # Handoff for a new Claude session
 
-Read this first. Then read `docs/ROADMAP.md` (the living checklist) and `docs/LEGACY_MANIFEST.md`. Those two files are the source of truth. This file only tells you how to start.
+Read this first, then `docs/ROADMAP.md` (the living checklist and pass log) and `docs/DESIGN.md` (every approved design, with its measurements). `docs/LEGACY_MANIFEST.md` tracks the old Demonanic code.
 
-Last updated: 2026-11-01. At that point Phases 6 and 7 were merged (#34–#36) and Phase 7's second step was draft PR #37.
+Last updated: 2026-11-06, with spells part 3 open as draft PR #58.
 
 ## The project
 
-- **What it is:** Gauntlet's Survival, a React 19 + Vite idle game (`demonanic/Gauntlet-s-survival`). The owner is Sam.
-- **Where the work stands:** Sam is running an architecture roadmap phase by phase. It came from an audit with findings F1–F9.
-  - Phases 0–5 and 6A are merged.
-  - Batch 1 (6B, 6C, 6D-1) is merged (#34, `ef819c4`).
-  - Batch 2 (6D-2, 6D-3, 6D-4) is in review as a draft PR. Its tests, build, probe, seeded runs and browser check still need to run (the session that made it could not install dependencies).
+- **What it is:** Gauntlet's Survival, a React 19 + Vite idle game (`demonanic/Gauntlet-s-survival`), live at https://demonanic.github.io/Gauntlet-s-survival/. The owner is Sam. He plays and reviews on an Android phone.
 - **Where the code lives:**
-  - Game rules: `src/game`.
-  - Combat: `src/combat`. `engine.js` is the one engine for both watched fights (`screens/Battle.jsx`) and unattended fights (`game/simulate.js`).
-  - Balance tools: `scripts/`.
-- **Legacy code:** a lot of it came from an older project, Demonanic: `combat/logic.js`, `libraryResearch.js`, `equipment.js`, `perks.js` and parts of `config.js`. Phase 6 is deleting it step by step.
+  - Game rules: `src/game` (guild, expeditions, regions, items, armory, mastery, saves).
+  - Combat: `src/combat`. `engine.js` (about 1,750 lines) is the one engine for watched fights (`screens/Battle.jsx`) and unattended ones (`game/simulate.js`). It keeps the frame loop, the heroes' own attacks and damage, targeting, collisions, the HUD and the end-of-fight check.
+  - Split out in Phase 8:
+    - `combat/render/` (drawing);
+    - `combat/enemies/` (turn.js, roles.js, abilities.js, attacks.js, tuning.js);
+    - `combat/heroes/` (spells.js, moves.js, familiars.js, quickSlots.js, clutch.js, orders.js).
+    - `attacks.js` and every `heroes/` file are engine methods mixed into `Engine.prototype` (`Object.assign` at the end of engine.js). Body radii and arena size are in `arena.js`.
+  - Spells: data in `combat/spells.js` (`SPELLS`, `CASTING`, `HEX`, `ELEMENTS`, `SCHOOLS`); icons in `combat/abilityLook.js`; effects in `combat/spellVfx.js`.
+  - Battle log: `combat/battleLog.js` (records only).
+  - Balance tools: `scripts/` (`balance.js`, `scenarios.js`, `ranks.js`, `simKit.js`).
+- **Cloud saves:** Supabase project "gauntlet" (`xtgpznknlaihmfohdmqs`, organization "demonanic"), reachable through the connected Supabase tools. Sam allowed using them. Migrations are in `supabase/migrations`. The free tier pauses the project when idle; restore it if needed.
+- **Android:** `.github/workflows/android.yml` builds a debug APK artifact (Capacitor, appId `com.buzzfuzz.gauntlet`).
 
 ## Sam's rules (follow them exactly)
 
-1. **Pace:** start a phase or batch only when Sam explicitly says go. Stop after each one for review.
-2. **Batches:** about three steps each. One draft PR per batch, one commit per step, and each commit checked on its own (see Checks).
-3. **Merging:** Sam merges by saying "Merge". Use squash merge and a commit title that names the batch.
-4. **Branch:** develop only on `claude/repo-setup-readme-vcyui5`. After a merge, restart that branch from `main`.
-5. **PRs:** draft PRs that follow `.github/pull_request_template.md` (Summary / Testing checklist).
-6. **No model names:** never put a model identifier in commits, PRs or code.
-7. **Design:** check designs with Sam before building them in. Special moves are manual only.
-8. **Copilot:** it only tracks the checklist in `docs/ROADMAP.md`; it doesn't set the pace. Update the roadmap (checklist, evidence, pass log) and the manifest progress table at every pass.
-9. **Scope:** no gameplay changes in cleanup phases. If the code contradicts the plan, stop and report.
-10. **Reporting:** report measured facts separately from assumptions. Keep messages plain and short.
+1. **Pace:** start a phase or batch only when Sam says "Go". Stop after each one for review.
+2. **Batches:** about three steps each. One draft PR per batch, one commit per step, and CI checked on every commit.
+3. **Merging:** when Sam says "Merge":
+   - mark the PR ready (`POST repos/demonanic/Gauntlet-s-survival/pulls/N/ccr/ready_for_review`);
+   - squash-merge (`PUT .../pulls/N/merge` with `merge_method=squash` and the head `sha`);
+   - run `git checkout -B claude/repo-setup-readme-vcyui5 origin/main`, then force-push.
+4. **Branch:** develop only on `claude/repo-setup-readme-vcyui5`.
+5. **PRs:** drafts that follow `.github/pull_request_template.md` (Summary / Testing checklist). GraphQL is blocked, so `gh pr create` fails; create PRs with `gh api repos/.../pulls -F draft=true`.
+6. **Attribution:**
+   - Never put a model identifier anywhere: commits, PRs or code. No `Co-Authored-By` model line.
+   - Commits end with `Claude-Session: <the session URL>`.
+   - PR bodies end with "🤖 Generated with [Claude Code](https://claude.com/claude-code)" and the session URL.
+7. **Design first:** check designs and numbers with Sam before building.
+   - For gameplay, build in a draft PR, measure in seeded fights and show the numbers before merging.
+   - If something measures neutral or weak, give Sam options instead of shipping it. (Hexes and Enchanting were each reshaped this way.)
+   - Special moves are manual only.
+8. **Docs:** every feature updates `docs/DESIGN.md` (design and measurements), this file, and the ROADMAP pass log. Roadmap passes also update the manifest.
+9. **Cleanup phases:** no gameplay changes. If code contradicts the plan, stop and report. If you find a gameplay problem, report it; Sam decides.
+10. **Reporting:**
+    - Keep measured facts separate from assumptions.
+    - Keep messages plain and short (he's on a phone).
+    - Say what wasn't checked.
 
-## What's next
+## Where things stand
 
-- **Now:** the architecture roadmap is paused after Phase 7 (all merged, #34–#37). Sam switched to feature work on special moves and spells; the agreed five-step plan is in `docs/DESIGN.md` ("Spells and familiars: the agreed plan"). Step 1 (battle screen) is merged (#38); step 2 (spell effects) is merged (#39); step 3 (Restoration and Warding) is merged (#40); step 4 (familiars as units) is merged (#41); step 5 (Shadow, Wild Magic, Dominate, spirit beasts) is merged (#42), finishing the plan. The armory (best gear per hero, vault sorting, Clear junk, auto-clear; DESIGN.md "Armory") is merged (#43). Mastery and five new qualities (DESIGN.md "Mastery") are merged (#44); the Phantom Strike bonus fix and Duelist calibration (#45). Regions open in order (DESIGN.md "Regions open in order") is merged (#46). Small fixes (new-version banner, password reset, account deletion, Android APK; DESIGN.md "Small fixes") are merged (#47). Phase 8A (drawing out of engine.js) is merged (#48). Spells and moves part 1 (DESIGN.md "Spells and moves, part 1") is merged (#49). One spell at a time (cast pacing, strain, spell queue; DESIGN.md "One spell at a time") is merged (#50). Part 2, hexes (DESIGN.md "Spells and moves, part 2: hexes"), is merged (#51). Spell targets (DESIGN.md "Spell targets") is merged (#52). The battle log (DESIGN.md "Battle log") is merged (#53), with the battle field fix. Phase 8B is merged (#54, #55), with the dead-branch removal and Vampiric minions feeding their master. Phase 8C is merged (#56). Phase 8 is done (#48, #54–#57). Now: spells part 3, Enchanting and two wards (DESIGN.md "Spells and moves, part 3"), is draft PR #58. Next: spells part 4 (Conjuration and Mirror Self) or Phases 9–11, Sam's choice.
-- **Drawing fingerprints:** `render.characterization.test.js` hashes every canvas call of five seeded fights. Its hashes differ under bun for two cases, so record and check them in CI only.
-- **Engine layout:** enemy behavior is in `combat/enemies/` (turn.js, roles.js, abilities.js, attacks.js, tuning.js); hero spells, special moves, familiars, quick slots, Clutch and party orders in `combat/heroes/` (spells.js, moves.js, familiars.js, quickSlots.js, clutch.js, orders.js). attacks.js and every heroes/ file are engine methods mixed into `Engine.prototype`; body radii and the arena size are in `arena.js`. Drawing is in `combat/render/`.
-- **Hero moves and spells fingerprints:** `heroActions.characterization.test.js` (19 cases; `PRINT_GOLDEN=1` prints them). Under bun, "Vanguard moves" differs from CI; compare bun values before and after a move.
-- **Enemy behavior fingerprints:** `enemyBehavior.characterization.test.js` (39 cases; `PRINT_GOLDEN=1` prints them). Under bun, bogLich and "ashen squad, tortoise" differ from CI; to check a move locally, compare the bun values before and after it.
-- **Supabase:** the connected Supabase tools can reach the "gauntlet" project (xtgpznknlaihmfohdmqs); Sam allowed using them. Migrations in supabase/migrations say when they were applied. Each step needs Sam's go, and new visuals need his design check first.
-- **Checking screens:** npm is blocked here, so CI is the test runner; to see real screens, a temporary commit that prints `dist/assets` as base64 to the CI log can be decoded and served with Playwright, then dropped (never merged).
-- **Still owed:** a watched-fight browser check after 6D-1 and batches 2–3, plus the byte-identity probe and seeded runs for batches 2–3 (the sessions that made them could not install dependencies).
-- **Tests:** 659 (including 15 fight-result and 11 party-decision characterization cases, re-recorded for Mastery's saved counts).
-- **Running tests here:** npm is blocked, but `~/.bun/bin/bun test <file>` runs the vitest files locally (one characterization case differs under bun even on main; CI is the judge).
-- **After that:** Phases 8 (A–D, split `engine.js`), 9, 10 and 11. The recommendation was to resume features (Endgame B/C/D) after Phase 7 and interleave phases 8–11.
-- **Sam's earlier decisions:**
-  - The error boundary goes in its own reliability PR, not in Phase 6.
-  - A save carrying a `cls` field loses it on load. Done in 6B.
+- **Merged recently** (details in DESIGN.md and the ROADMAP pass log):
+  - #38–#42: the spells and familiars plan;
+  - #43: armory;
+  - #44–#45: mastery and qualities;
+  - #46: regions open in order;
+  - #47: small fixes (update banner, password reset, account deletion, APK);
+  - #49: spells part 1, starter moves;
+  - #50: one spell at a time (2.5 s auto gap, focus strain, spell queue, hold to cast now);
+  - #51: part 2, area hexes;
+  - #52: spell targets (tap a foe; auto bolts on the weakest foe);
+  - #53: battle log, plus the battle field keeping half the screen;
+  - #48 and #54–#57: Phase 8, splitting engine.js, plus Vampiric minions feeding their master and a dead Reaper/Dark Elf branch removed.
+- **Open:** draft PR #58, spells part 3. It adds Enchanting (Haste and True Aim party-wide, Endless Quiver, Kindred Bond, Insight) and the Iron Skin and Spellguard wards. CI is green and the numbers are in the PR and in DESIGN.md. It's waiting for Sam's "Merge".
+- **Next (Sam's choice):**
+  - **Spells part 4:** Conjuration (Spectral Blades: swords for 10 s, one per rank up to 5; Summon Elemental: the caster's best other school for 12 s) and Mirror Self (Shadow V: a 40% copy for 8 s). Mana and cooldowns aren't set; propose them, build, measure, then show Sam.
+  - **Phases 9–11:** one definition per enemy, performance measurements, final review (ROADMAP).
+- **Later, if Sam asks:** tuning after play (Restoration, familiars, control, armory percentages, mastery pace), a sound effects overhaul, a Play Store release.
 
-## Checks for every commit
+## How to work in this environment
 
-- **Tests:** `npx vitest run` (449 tests at batch 1).
-- **Build:** `npx vite build --outDir /tmp/b --emptyOutDir`.
-- **Byte-identity probe:** unseeded play must not change. Run the same script on the base ref (in a `git worktree`) and on the working tree, then `cmp` the outputs. The script must sit in `scripts/` to run with `npx vite-node`; delete it afterwards. It:
-  - sets `Math.random` to mulberry32(12345);
-  - pins `Date.now`;
-  - plays trips to gutter (level 1), boneyard (3), frostfang (6) and rift (6) with `startExpedition` + `tick`;
-  - runs `simulateEncounter` on a wild, a boss and an endless wave;
-  - generates one `shopStock`;
-  - removes `gear-`/`hero-` ids and prints JSON.
-- **Seeded active runs** (when combat changes): run on the base and the branch and compare, for example `npx vite-node scripts/ranks.js -- --ranks 0,10,20 --fights 2 --active --seed 11` and `scripts/scenarios.js -- --group bosses --trips 3 --active --seed 12`.
-- **Browser:** start the dev server with `GAUNTLET_BASE=/Gauntlet-s-survival/ npx vite --port 5179 --strictPort` and open `http://localhost:5179/Gauntlet-s-survival/?debug` (8× speed).
-  - Drive it with Playwright; Chromium is preinstalled.
-  - The save key is `gauntlet.save.v1`.
-  - Useful test ids: `gold`, `prompt-attack`, `battle`, `battle-continue`.
+- **CI is the test runner.** npm is blocked here. The `test-and-build` workflow runs only on `pull_request`, so open the draft PR before relying on CI. To check a commit, poll `gh api repos/demonanic/Gauntlet-s-survival/commits/<sha>/check-runs` until it completes, then read the job log (`gh api .../actions/jobs/<id>/logs`) for the "Tests" and "built" lines and any failures.
+- **Local tests:** `~/.bun/bin/bun test <files>` runs the vitest files (`vi` and `jest` globals work).
+  - `@supabase/supabase-js` is missing locally, so cloud-save tests fail here.
+  - A few characterization hashes differ under bun (listed below).
+  - To check a change locally, compare the failing-test list (and fingerprint values) before and after it with `git stash`, rather than expecting zero failures.
+- **Fingerprints** (the safety net for any move or refactor). After a legitimate behavior change, re-record from the CI log.
+  - `src/game/fightResults.characterization.test.js` and `partyDecisions.characterization.test.js`: 26 hashes.
+  - `src/combat/render.characterization.test.js`: 5 drawing hashes.
+  - `src/combat/enemyBehavior.characterization.test.js`: 39 cases (every enemy type, region squads, bosses, champions).
+    - Under bun, `bogLich` and "ashen squad, tortoise" differ from CI.
+  - `src/combat/heroActions.characterization.test.js`: 19 cases (every move and spell).
+    - Under bun, "Vanguard moves" differs from CI.
+  - `PRINT_GOLDEN=1` prints the values.
+  - To record new ones: push, read the `GOLDEN name hash` lines (or the failing `expected`/`to be` values) from the CI log, fill them in, then amend.
+  - To prove a change is only what you meant: set its new numbers back to the old behavior temporarily and show every fingerprint matches main.
+- **Measuring gameplay:** write a temporary `src/zz/zz_*.test.js` (never commit it).
+  - Build a party with `debugSetLevels`, seeded `mulberry32` fights through `buildWildEncounter`/`buildBossEncounter` and `createEncounterSim`, and `new Engine({ getContext: () => null }, sim, wave, { onEnd })`.
+  - Play `engine.update(1/30)` until the fight ends; 120 seeds per case.
+  - Compare against main with `git worktree add /tmp/wt origin/main`, symlinking node_modules. Report wins, damage taken, casts per fight.
+  - Bow heroes need arrows (`hero.quickSlots = [{ key: "arrows", qty }]`) or they never shoot.
+- **Seeing real screens:**
+  - Push a temporary commit that edits `.github/workflows/ci.yml`: remove `npm test`, and append `tar czf - dist/assets dist/version.json dist/index.html | base64 -w 0 | fold -w 3000 | sed 's/^/DIST:/'` after the build.
+  - Decode the `DIST:` lines from the log into `/tmp/app`, copy `public/sprites` into `dist/`, and serve with `python3 -m http.server 8777`.
+  - Drive it with Playwright (`NODE_PATH=$(npm root -g)`; Chromium is installed). Use a phone viewport (412×760) and the save key `gauntlet.save.v1`.
+  - Then reset the temp commit away and force-push. Never merge it.
+  - Useful test ids: `battle-hero-tab-N`, `battle-spell-N-<id>`, `battle-log-tab`, `battle-canvas`.
+- **Moving engine methods out:** a small script that cuts named methods (with their leading comments) from engine.js into an `export const xMethods = { ... }` file, then `Object.assign(Engine.prototype, xMethods)`. Write the new file before rewriting engine.js. Fix imports and constants, then compare all fingerprints before and after.
+- **Watching PRs:** after opening a PR, keep one safety check-in scheduled for about 50 minutes, and cancel it on merge. GitHub notifications arrive as system notices; a "failed" run on a superseded commit (for example a recording commit) needs no action once the head is green.
 
 ## Skills in this repo
 
-`.claude/skills/`: `architecture-auditor`, `balance-analyst`, `interaction-hunter`, `performance-auditor`, `regression-guardian`, `systems-integrator`. Sam often asks for these by name (for example `/regression-guardian`).
+`.claude/skills/`: `architecture-auditor`, `balance-analyst`, `interaction-hunter`, `performance-auditor`, `regression-guardian`, `systems-integrator`. Sam sometimes asks for them by name (for example `/balance-analyst`).
 
-## Open findings (see the ROADMAP "Known unknowns")
+## Open findings (see also the ROADMAP "Known unknowns")
 
-- An engine error in an unattended fight escapes `tick()`. This goes in the error-boundary PR.
-- Only unattended fights record fight time.
+- An engine error in an unattended fight escapes `tick()`. Sam wants this in its own error-boundary PR.
+- Only unattended fights record fight time; watched fights are not seeded.
 - The HUD count goes stale at 8× speed.
-- Boneyard parties at level 10 in starter gear lose. Balance question for `/balance-analyst`.
-- Watched fights are not seeded.
+- Several earlier batches (6D) never had a watched-fight browser check, byte-identity probe or seeded runs (those sessions couldn't install dependencies). Phase 8's fingerprints now cover combat behavior.
+- Balance:
+  - Blightmire is the hardest wild region for mixed parties.
+  - Restoration is the strongest support school in hard fights.
+  - Iron Skin and Spellguard measure neutral on auto (they're tools to fire by hand).
