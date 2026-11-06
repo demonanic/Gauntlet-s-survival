@@ -4,11 +4,15 @@
 // enters from the TOP and hunts the hero party at the BOTTOM.
 // Simulation is separate from React; mutates a cloned `sim` fragment and
 // accumulates XP gains, returned to the UI at wave end.
-import { heroLuck, luckEffects } from "./luck";
+import { luckEffects } from "./luck";
 import { CASTING, maxMana as spellMaxMana } from "./spells";
 import { BattleLog } from "./battleLog";
 import { enemyAttackMethods } from "./enemies/attacks";
+import { clutchMethods } from "./heroes/clutch";
+import { familiarMethods } from "./heroes/familiars";
 import { heroMoveMethods } from "./heroes/moves";
+import { quickSlotMethods } from "./heroes/quickSlots";
+import { partyOrderMethods } from "./heroes/orders";
 import { heroSpellMethods } from "./heroes/spells";
 import { enemyTurn, tacticalTarget } from "./enemies/turn";
 import { BODY_PAD, BULWARK_COVER, BULWARK_GUARD, BULWARK_GUARD_RADIUS } from "./enemies/tuning";
@@ -18,14 +22,14 @@ import * as C from "./config";
 import { HERO_BASELINE, statDefense } from "./heroModel";
 import { classlessCombatEffects, classlessMaxHp } from "./classlessCombatEffects";
 import { getEquippedHeroWeaponType } from "./heroWeapon";
-import { CONSUMABLES, QUICK_ITEM_COOLDOWN, healThreshold, heroGearStats, heroUsesArrows, heroWeaponProfile } from "./gear";
+import { heroGearStats, heroUsesArrows, heroWeaponProfile } from "./gear";
 import { PET_BODIES, petMaxHp, petStats } from "./pets";
 import { HIT_STOP_SECONDS } from "./abilityLook";
 import { heroTraitEffects } from "./traits";
 import { masteryEffects } from "./mastery";
 import { projectileVfxAssetId } from "./combatVfx";
 import { renderBattle } from "./render/battleRenderer";
-import { FLOOR_Y, H, HERO_Y, W } from "./arena";
+import { ENEMY_BODY_RADIUS, FLOOR_Y, H, HERO_BODY_RADIUS, HERO_Y, W } from "./arena";
 import { defaultRandom } from "../game/random";
 
 const MAX_COMBAT_EFFECTS = 180;
@@ -127,20 +131,6 @@ const LANES = 5;
 const ENDLESS_WAVE_BREAK_SECONDS = 3;
 // Breather between the waves of an ordinary encounter.
 const WAVE_BREAK_SECONDS = 3;
-// Shots a bow gets out of one arrow (they are gathered and loosed again).
-const ARROW_SHOTS = 4;
-// Enemy body radii for collisions (bosses and elites need more room).
-// Clutch (Fortune perk F2a): once per hero per fight, when the next hit would
-// kill them, the fight slows down while the player picks Drink or Ultra Crit.
-export const CLUTCH = Object.freeze({
-  seconds: 5, // real seconds to choose
-  slowMotion: 0.2, // game speed while choosing
-  secondWind: 0.3, // heal when Drinking with no healing item
-  critChance: 0.15, // Ultra Crit base chance (+ Luck)
-  bossDamage: 0.25, // share of a boss's max HP an Ultra Crit takes
-  // Heroes whose nature picks the gamble when the player doesn't.
-  gamblers: Object.freeze(["reckless", "berserker"]),
-});
 // Ranged heroes on auto back away from an enemy whose body is within
 // KITE_RANGE, for the first KITE_WINDOW of each reload, at KITE_SPEED of their
 // normal pace (a backpedal, not a sprint: fast enemies still catch them),
@@ -153,15 +143,10 @@ const KITE_MARGIN = 18;
 // try to get this far outside its blast.
 const DODGE_WARNING = 0.8;
 const DODGE_CLEARANCE = 8;
-// Body radii for collisions, sized to the drawn art so units don't pile on top
-// of each other. They grew by 4-5 px (Oct 2026); every melee reach grew by
-// BODY_PAD, the extra distance between two touching bodies, so who can hit
-// whom from contact is unchanged (BODY_PAD lives in enemies/tuning.js).
-const HERO_BODY_RADIUS = 20;
-const ENEMY_BODY_RADIUS = (e) => (e.boss ? 33 : e.tier === "elite" ? 24 : 18);
 function laneX(i) { return (W / LANES) * (i + 0.5); }
 
 export const LAYOUT = { W, H, HERO_Y, FLOOR_Y };
+export { CLUTCH } from "./heroes/clutch";
 export class Engine {
   constructor(canvas, sim, wave, callbacks = {}) {
     this.canvas = canvas;
@@ -306,32 +291,8 @@ export class Engine {
   stop() { this.running = false; }
   setSpeed(s) { this.speed = s; }
 
-  setSelectedHero(index) {
-    this.selectedHero = Number.isInteger(index) ? index : null;
-    return true;
-  }
 
-  setTargetSelection(index) {
-    const h = this.heroes[index];
-    this.targetingHero = h?.alive && h.d.rangeMode === "midline" ? index : null;
-    return this.targetingHero !== null;
-  }
 
-  getRangedTargetStatus(index) {
-    const h = this.heroes[index];
-    if (!h?.alive || h.d.rangeMode !== "midline") return null;
-    const targets = this.active
-      .filter((enemy) => this._isValidClasslessTarget(h, enemy))
-      .map((enemy) => ({
-        type: enemy.type,
-        name: enemy.name || enemy.type,
-        hp: Math.max(0, Math.round(enemy.hp)),
-        maxHp: Math.max(1, Math.round(enemy.maxHp)),
-        distance: Math.round(Math.hypot(enemy.x - h.x, enemy.y - h.y)),
-        enemy,
-      }));
-    return { heroName: h.ref.name, range: Math.round(h.d.range), targets };
-  }
 
   // In range to be hit: melee reach (from the edge of the target's body) for
   // swords, weapon range for everything else.
@@ -348,13 +309,6 @@ export class Engine {
     return !!hero && hero.untargetableUntil > this.time;
   }
 
-  getRangedTargetAt(index, x, y) {
-    const status = this.getRangedTargetStatus(index);
-    if (!status) return null;
-    return status.targets
-      .filter((target) => Math.hypot(target.enemy.x - x, target.enemy.y - y) <= 80)
-      .sort((a, b) => Math.hypot(a.enemy.x - x, a.enemy.y - y) - Math.hypot(b.enemy.x - x, b.enemy.y - y))[0] || null;
-  }
 
 
 
@@ -366,260 +320,24 @@ export class Engine {
 
 
 
-  setHeroManual(index, manual) {
-    const h = this.heroes[index];
-    if (!h) return false;
-    this._completeTacticalAction(index, "cancelled");
-    h.manual = !!manual;
-    h.ref.manual = !!manual;
-    if (!h.manual) {
-      h.manualTarget = null;
-      h.manualPoint = null;
-    }
-    h.rallyPoint = null;
-    h.rallyHold = false;
-    h.retreating = false;
-    this.selectedHero = index;
-    return true;
-  }
 
 
 
-  // The living foe under a tap at (x, y), if any (a little slack for fingers).
-  enemyAt(x, y, slack = 14) {
-    let best = null, bd = Infinity;
-    for (const e of this.active) {
-      if (e.hp <= 0 || e._dead) continue;
-      const d = Math.hypot(e.x - x, e.y - y);
-      if (d <= ENEMY_BODY_RADIUS(e) + slack && d < bd) { bd = d; best = e; }
-    }
-    return best;
-  }
 
-  commandHeroAttack(index, target) {
-    const h = this.heroes[index];
-    if (!h || !h.alive || !target || target.hp <= 0) return false;
-    if (!this._isValidClasslessTarget(h, target)) return false;
-    h.manual = true;
-    h.ref.manual = true;
-    h.manualTarget = target;
-    h.pendingTacticalAction = "attack";
-    h.manualPoint = null;
-    h.rallyPoint = null;
-    h.rallyHold = false;
-    this.selectedHero = index;
-    return true;
-  }
 
-  retreatHero(index) {
-    const h = this.heroes[index];
-    if (!h || !h.alive) return false;
-    h.manual = true;
-    h.ref.manual = true;
-    h.manualTarget = null;
-    h.manualPoint = null;
-    h.rallyPoint = null;
-    h.rallyHold = false;
-    h.retreating = true;
-    h.pendingTacticalAction = "retreat";
-    this.selectedHero = index;
-    return true;
-  }
 
-  rallyHeroes(index) {
-    const leader = this.heroes[index];
-    if (!leader || !leader.alive) return false;
 
-    // The hero issuing RALLY is the rally anchor. Everyone else moves to
-    // that hero's current position; the caller itself must NOT fall back
-    // to its original home position after issuing the command.
-    const point = { x: leader.x, y: leader.y };
 
-    for (const h of this.heroes) {
-      if (!h.alive) continue;
-      h.retreating = false;
-      h.manualTarget = null;
-      h.manualPoint = null;
-      h.rallyHold = h === leader;
-      h.rallyPoint = h === leader ? null : { ...point };
-    }
-    leader.pendingTacticalAction = "rally";
 
-    return true;
-  }
 
-  commandHeroMoveTo(index, x, y) {
-    const h = this.heroes[index];
-    if (!h || !h.alive) return false;
 
-    h.manual = true;
-    h.ref.manual = true;
-    h.manualTarget = null;
-    h.manualPoint = {
-      x: Math.max(12, Math.min(W - 12, x)),
-      y: Math.max(12, Math.min(FLOOR_Y - 12, y)),
-    };
-    h.pendingTacticalAction = "move";
-    h.rallyPoint = null;
-    h.rallyHold = false;
-    h.retreating = false;
-    this.selectedHero = index;
-    return true;
-  }
 
-  cancelTacticalAction(index) {
-    const h = this.heroes[index];
-    if (!h) return false;
-    if (h.pendingTacticalAction === "rally") {
-      for (const ally of this.heroes) {
-        ally.rallyPoint = null;
-        ally.rallyHold = false;
-      }
-    }
-    h.manualPoint = null;
-    h.manualTarget = null;
-    h.rallyPoint = null;
-    h.rallyHold = false;
-    h.retreating = false;
-    return this._completeTacticalAction(index, "cancelled");
-  }
 
-  _completeTacticalAction(index, result) {
-    const h = this.heroes[index];
-    if (!h?.pendingTacticalAction) return false;
-    h.pendingTacticalAction = null;
-    this.actionCompletions.push({ index, result });
-    return true;
-  }
 
-  _flushActionCompletions() {
-    const pending = [];
-    for (const completion of this.actionCompletions) {
-      if (completion.effects?.some((effect) => this.effects.includes(effect))) {
-        pending.push(completion);
-      } else {
-        this.cb.onActionResolved?.({ index: completion.index, result: completion.result });
-      }
-    }
-    this.actionCompletions = pending;
-  }
 
-  commandHeroAttackAt(index, x, y) {
-    const hero = this.heroes[index];
-    if (!hero?.alive) return false;
-    if (hero.d.range >= 130) {
-      const target = this.getRangedTargetAt(index, x, y);
-      return target ? this.commandHeroAttack(index, target.enemy) : false;
-    }
 
-    const target = this.active.reduce((best, e) => {
-      if (e.hp <= 0) return best;
-      const d = Math.hypot(e.x - x, e.y - y);
-      // Give phone taps a generous target radius without making distant
-      // enemies accidentally selectable.
-      if (d > 80) return best;
-      if (!best) return e;
-      return d < Math.hypot(best.x - x, best.y - y) ? e : best;
-    }, null);
 
-    // TARGET mode is intentionally target-only. Tapping empty ground does not
-    // silently turn into a MOVE command.
-    return target ? this.commandHeroAttack(index, target) : false;
-  }
 
-  // ---------------- Gauntlet quick slots ----------------
-  // Consumable stacks live on the hero model (h.model.quickSlots), which is the
-  // disposable sim copy, so spent items flow back with the post-battle party.
-  getHeroQuickSlots(index) {
-    const h = this.heroes[index];
-    if (!h) return [];
-    const slots = Array.isArray(h.model.quickSlots) ? h.model.quickSlots : [];
-    return slots.map((slot, i) => {
-      const item = slot && CONSUMABLES[slot.key];
-      if (!item || !(slot.qty > 0)) return { slot: i, empty: true };
-      return {
-        slot: i, key: item.key, name: item.name, short: item.short, color: item.color, desc: item.desc,
-        qty: slot.qty, cooldown: h.quickCd,
-        available: h.alive && h.quickCd <= 0 && !this.ended && this._quickItemUseful(h, item),
-      };
-    });
-  }
-
-  useQuickItem(index, slotIndex) {
-    const h = this.heroes[index];
-    const slot = h ? h.model.quickSlots?.[slotIndex] : null;
-    const item = slot && CONSUMABLES[slot.key];
-    if (!item || !(slot.qty > 0) || !h.alive || h.quickCd > 0 || this.ended || !this._quickItemUseful(h, item)) return false;
-    slot.qty -= 1;
-    h.quickCd = QUICK_ITEM_COOLDOWN;
-    if (item.heal) this._tally(h, "heals", 1);
-    if (item.heal) {
-      const amount = Math.min(h.d.maxHp - h.ref.hp, h.d.maxHp * item.heal * (1 + (h.d.traits?.healBonus || 0)) * (1 - (h.d.env?.healCut || 0)));
-      h.ref.hp += amount;
-      this._float(h.x, h.y - 18, `+${Math.round(amount)}`, "#39FF14");
-    }
-    if (item.shots) {
-      h.ammoShots = item.shots;
-      h.ammoBonus = item.damageBonus;
-      this._float(h.x, h.y - 18, "AMMO", item.color);
-    }
-    this.effects.push({ x: h.x, y: h.y, r: 16, life: 0.3, color: item.color, ring: true });
-    return true;
-  }
-
-  _quickItemUseful(h, item) {
-    if (item.arrow) return false; // arrows are drawn by the bow itself
-    if (item.heal) return h.ref.hp < h.d.maxHp;
-    if (item.shots) return !(h.ammoShots > 0);
-    return false;
-  }
-
-  // Heroes use their own quick slots: heals below the item's HP threshold
-  // (scaled by the hero's supply style), whetstones while an elite or boss is
-  // on the field. A hero told to save potions for bosses keeps them until one shows up.
-  _tickQuickItems(h, dt) {
-    h.quickCd = Math.max(0, h.quickCd - dt);
-    if (h.quickCd > 0) return;
-    const slots = Array.isArray(h.model.quickSlots) ? h.model.quickSlots : [];
-    const hpFraction = h.ref.hp / Math.max(1, h.d.maxHp);
-    const eliteOnField = this.active.some((e) => e.hp > 0 && (e.boss || e.tier === "elite"));
-    for (let i = 0; i < slots.length; i++) {
-      const item = slots[i] && CONSUMABLES[slots[i].key];
-      if (!item || !(slots[i].qty > 0)) continue;
-      const saving = item.key === "potion" && h.model.savePotions && !eliteOnField;
-      const wants = item.heal ? !saving && hpFraction < healThreshold(h.model, item) : !!item.autoVsElite && eliteOnField;
-      if (wants && this.useQuickItem(h.i, i)) return;
-    }
-  }
-
-  // The quick slot a bow hero draws arrows from: the first one holding any.
-  _arrowSlot(h) {
-    const slots = Array.isArray(h.model?.quickSlots) ? h.model.quickSlots : [];
-    return slots.find((slot) => slot && CONSUMABLES[slot.key]?.arrow && slot.qty > 0) || null;
-  }
-
-  // Draw an arrow for a shot. Arrows are gathered and loosed again during a
-  // fight, so only every ARROW_SHOTS-th shot spends one (and a quiver or
-  // Whisperwind may save even that). Returns the arrow's on-hit effect, or
-  // false when the quiver is empty.
-  _drawArrow(h) {
-    const slot = this._arrowSlot(h);
-    if (!slot) return false;
-    const item = CONSUMABLES[slot.key];
-    h.arrowShots = (h.arrowShots || 0) + 1;
-    if (h.arrowShots % ARROW_SHOTS === 0 && !(this.rng() < Math.min(0.75, h.d.gear?.arrowSaver || 0))) {
-      slot.qty -= 1;
-      h.model.arrowsSpent ||= {};
-      h.model.arrowsSpent[slot.key] = (h.model.arrowsSpent[slot.key] || 0) + 1;
-    }
-    return item.effect || null;
-  }
-
-  _consumeAmmoShot(src, isHero) {
-    if (!isHero || !(src.ammoShots > 0)) return 1;
-    src.ammoShots -= 1;
-    return 1 + (src.ammoBonus || 0);
-  }
 
   // Gauntlet scales summoned minions to the encounter through sim.makeMinion.
   // `master`: the boss that called it (a Vampiric master heals from its hits).
@@ -970,187 +688,10 @@ export class Engine {
 
 
 
-  // Familiars: attackers go for whatever is closest to their partner (melee
-  // pets run in, ranged pets keep to their partner's side); support pets stay
-  // close and heal or shield on a timer.
-  // Each familiar picks its own fights by species (no leash to its partner):
-  // the wolf hunts the most wounded foe, the hawk dives at its partner's
-  // target, the imp sets unburnt foes alight, the sprite heals at its
-  // partner's side, the tortoise plants itself between its partner and the
-  // nearest foe and taunts. A downed familiar does nothing more this fight.
-  _updatePets(dt) {
-    // Summoned beasts leave when their time is up or they fall.
-    const leaving = this.pets.filter((pet) => pet.summoned && (pet.down || this.time >= pet.until || !pet.owner.alive));
-    if (leaving.length) {
-      for (const pet of leaving) this.vfx?.beastFade(pet);
-      this.pets = this.pets.filter((pet) => !leaving.includes(pet));
-    }
-    for (const pet of this.pets) {
-      const owner = pet.owner;
-      const startX = pet.x;
-      pet.moving = false;
-      if (pet.down || !owner.alive) continue;
-      const moveTo = (tx, ty, speed, stopAt = 2) => {
-        const dist = Math.hypot(tx - pet.x, ty - pet.y);
-        if (dist > stopAt) {
-          const step = Math.min(dist - stopAt, speed * dt);
-          pet.x += ((tx - pet.x) / dist) * step;
-          pet.y += ((ty - pet.y) / dist) * step;
-          pet.moving = step > 0.05;
-        }
-      };
-      const foes = this.active.filter((enemy) => enemy.hp > 0);
-      const nearestTo = (x, y, list = foes) => list.reduce((best, enemy) =>
-        (!best || Math.hypot(enemy.x - x, enemy.y - y) < Math.hypot(best.x - x, best.y - y) ? enemy : best), null);
-      const { attack, support } = pet.stats;
-      const species = pet.stats.species;
-      if (support) {
-        if (species === "tortoise") {
-          // Between its partner and the nearest foe.
-          const threat = nearestTo(owner.x, owner.y);
-          if (threat && Math.hypot(threat.x - owner.x, threat.y - owner.y) < 320) {
-            const d = Math.hypot(threat.x - owner.x, threat.y - owner.y) || 1;
-            moveTo(owner.x + ((threat.x - owner.x) / d) * 34, owner.y + ((threat.y - owner.y) / d) * 34, 120);
-          } else {
-            moveTo(owner.x + 18, owner.y + 14, 160);
-          }
-          const taunt = pet.body.taunt;
-          pet.tauntCd -= dt;
-          if (taunt && pet.tauntCd <= 0) {
-            const drawn = foes.filter((enemy) => !enemy.boss && Math.hypot(enemy.x - pet.x, enemy.y - pet.y) <= taunt.radius);
-            if (drawn.length) {
-              for (const enemy of drawn) { enemy.tauntedBy = pet; enemy.tauntUntil = this.time + taunt.seconds; }
-              pet.tauntCd = taunt.every;
-              this._float(pet.x, pet.y - 18, "TAUNT", pet.stats.color);
-              this.effects.push({ kind: "guard", x: pet.x, y: pet.y, r: taunt.radius * 0.5, life: 0.5, color: pet.stats.color });
-            } else {
-              pet.tauntCd = 0.5;
-            }
-          }
-        } else {
-          // The sprite keeps to its partner's side and darts away from foes that come close.
-          const threat = nearestTo(pet.x, pet.y);
-          const td = threat ? Math.hypot(threat.x - pet.x, threat.y - pet.y) : Infinity;
-          if (td < 60) moveTo(pet.x + ((pet.x - threat.x) / (td || 1)) * 40, pet.y + ((pet.y - threat.y) / (td || 1)) * 40, 200);
-          else moveTo(owner.x - 16, owner.y + 10, 220);
-        }
-        pet.supportCd -= dt;
-        if (pet.supportCd <= 0) {
-          pet.supportCd = support.interval;
-          if (support.heal && owner.ref.hp < owner.d.maxHp * 0.95) {
-            const healed = this._classlessHeal(owner, owner.d.maxHp * support.heal);
-            if (healed > 0) this._float(owner.x, owner.y - 26, `+${Math.round(healed)}`, pet.stats.color);
-          }
-          if (support.shield) {
-            owner.ref.shield = Math.min(owner.d.maxHp * 0.3, owner.ref.shield + owner.d.maxHp * support.shield);
-            this.effects.push({ kind: "shield", x: owner.x, y: owner.y, r: 18, life: 0.4, color: pet.stats.color });
-          }
-        }
-        if (pet.x !== startX) pet.face = pet.x > startX ? 1 : -1;
-        continue;
-      }
-      if (!attack) continue;
-      pet.cd -= dt;
-      // A spirit wolf draws attacks too.
-      if (pet.body.taunt) {
-        pet.tauntCd -= dt;
-        if (pet.tauntCd <= 0) {
-          const drawn = foes.filter((enemy) => !enemy.boss && Math.hypot(enemy.x - pet.x, enemy.y - pet.y) <= pet.body.taunt.radius);
-          for (const enemy of drawn) { enemy.tauntedBy = pet; enemy.tauntUntil = this.time + pet.body.taunt.seconds; }
-          pet.tauntCd = drawn.length ? pet.body.taunt.every : 0.5;
-        }
-      }
-      const valid = pet.target && pet.target.hp > 0 && this.active.includes(pet.target);
-      if (!valid || species === "hawk" || (species === "imp" && pet.cd <= 0)) {
-        if (species === "wolf") {
-          // The most wounded foe on the field.
-          pet.target = valid ? pet.target : foes.reduce((best, enemy) =>
-            (!best || enemy.hp / Math.max(1, enemy.maxHp) < best.hp / Math.max(1, best.maxHp) ? enemy : best), null);
-        } else if (species === "hawk") {
-          const partnerTarget = [owner.manualTarget, owner.currentTarget].find((enemy) => enemy?.hp > 0 && this.active.includes(enemy));
-          pet.target = partnerTarget || (valid ? pet.target : nearestTo(pet.x, pet.y));
-        } else if (species === "imp") {
-          const burning = (enemy) => (enemy.dots || []).some((dot) => dot.color === "#FF6600" && dot.until > this.time);
-          pet.target = nearestTo(pet.x, pet.y, foes.filter((enemy) => !burning(enemy))) || (valid ? pet.target : nearestTo(pet.x, pet.y));
-        } else {
-          pet.target = valid ? pet.target : nearestTo(pet.x, pet.y);
-        }
-      }
-      const target = pet.target;
-      if (!target) {
-        moveTo(owner.x + 18, owner.y + 14, 220);
-        if (pet.x !== startX) pet.face = pet.x > startX ? 1 : -1;
-        continue;
-      }
-      const dist = Math.hypot(target.x - pet.x, target.y - pet.y) || 1;
-      pet.face = target.x >= pet.x ? 1 : -1;
-      if (dist > attack.range) {
-        // Close in: the wolf at a run, fliers and the imp to just inside their range.
-        moveTo(target.x, target.y, attack.moveSpeed || 150, attack.range * 0.8);
-        continue;
-      }
-      if (pet.cd > 0) continue;
-      pet.cd = attack.interval;
-      pet.strikeAt = this.time;
-      this._petStrike(pet, target);
-    }
-  }
 
 
 
-  // The familiar an enemy at (x, y) would go for within reach `r`, and its
-  // weighted distance: a pet with weight 0.5 counts as twice as far away.
-  _nearestPetInReach(x, y, r) {
-    let best = null, bd = Infinity;
-    for (const pet of this.pets) {
-      if (pet.down || !pet.owner.alive) continue;
-      const d = Math.hypot(pet.x - x, pet.y - y);
-      if (d > r) continue;
-      const weighted = d / Math.max(0.1, pet.body.weight || 1);
-      if (weighted < bd) { bd = weighted; best = pet; }
-    }
-    return best ? { pet: best, weighted: bd } : null;
-  }
 
-  _petStrike(pet, target) {
-    const { attack, color } = pet.stats;
-    const owner = pet.owner;
-    const sourceId = "H" + owner.i;
-    const damage = attack.damage;
-    this.effects.push({ kind: "impact", x: target.x, y: target.y, r: 8, life: 0.2, color });
-    if (attack.mark > 0) {
-      target.petMarkUntil = this.time + 3;
-      target.petMarkOwner = owner.i;
-      target.petMarkBonus = attack.mark;
-    }
-    if (attack.slow > 0) this._slowEnemy(target, attack.slow, 2);
-    // Spirit beasts: a tiger's opening pounce, a wasp's poison, a spider's
-    // web, a dragon's breath over everything in front of it.
-    if (attack.pounce > 0 && !pet.pounced) { pet.pounced = true; this._bonusDamage(target, damage * (attack.pounce - 1), sourceId, color); }
-    if (attack.poison > 0) this._applyDot(target, damage * attack.poison, 4, "#39FF14", sourceId);
-    if (attack.web && this.time >= (pet.webCd || 0)) {
-      pet.webCd = this.time + attack.web.every;
-      target.rootUntil = Math.max(target.rootUntil || 0, this.time + (target.boss ? attack.web.seconds * 0.3 : attack.web.seconds));
-      this.vfx?.aura("root", target, attack.web.seconds, 1);
-    }
-    if (attack.cone > 0) {
-      const facing = Math.atan2(target.y - pet.y, target.x - pet.x);
-      for (const other of this.active) {
-        if (other === target || other.hp <= 0) continue;
-        const d = Math.hypot(other.x - pet.x, other.y - pet.y);
-        const off = Math.abs(Math.atan2(Math.sin(Math.atan2(other.y - pet.y, other.x - pet.x) - facing), Math.cos(Math.atan2(other.y - pet.y, other.x - pet.x) - facing)));
-        if (d <= attack.cone && off <= 0.6) {
-          this._bonusDamage(other, damage, sourceId, color);
-          if (attack.burn > 0) this._applyDot(other, damage * attack.burn, 3, "#FF6600", sourceId);
-        }
-      }
-      this.vfx?.breath(pet, target, attack.cone);
-    }
-    if (attack.burn > 0) this._applyDot(target, damage * attack.burn, 3, "#FF6600", sourceId);
-    if (attack.bleed > 0) this._applyDot(target, damage * attack.bleed, 3, "#DC2626", sourceId);
-    if (attack.lifelink > 0) this._classlessHeal(owner, damage * attack.lifelink);
-    this._bonusDamage(target, damage, sourceId, color);
-  }
 
   // Gauntlet hero history: what each hero did in this fight, carried back on
   // the hero model and folded into hero.history (game/qualities.js).
@@ -1877,105 +1418,12 @@ export class Engine {
 
 
 
-  // ---- Clutch ----
-  // What the hero picks if the player doesn't: gamblers go for the crit.
-  clutchDefault(h) {
-    return (h.model?.traits || []).some((trait) => CLUTCH.gamblers.includes(trait)) ? "crit" : "drink";
-  }
 
-  clutchCritChance(h) {
-    return Math.min(1, CLUTCH.critChance + luckEffects(heroLuck(h.model)).clutchChance);
-  }
 
-  _startClutch(h) {
-    h.clutchUsed = true;
-    this._float(h.x, h.y - 28, "CLUTCH!", "#FFE600");
-    this.effects.push({ kind: "guard", x: h.x, y: h.y, r: 30, life: 0.8, color: "#FFE600" });
-    // Without a player watching (headless fights), the hero decides at once.
-    if (!this.cb.onClutch) {
-      this.resolveClutch(this.clutchDefault(h), h);
-      return;
-    }
-    this.clutch = { hero: h, remaining: CLUTCH.seconds };
-    this.cb.onClutch(this._clutchInfo());
-  }
 
-  _clutchInfo() {
-    const h = this.clutch?.hero;
-    if (!h) return null;
-    const slot = this._clutchHealSlot(h);
-    return {
-      heroIndex: h.i, name: h.model?.identity?.name || "Hero", remaining: this.clutch.remaining,
-      critChance: this.clutchCritChance(h), drink: slot ? CONSUMABLES[slot.key].name : "Second wind",
-      auto: this.clutchDefault(h),
-    };
-  }
 
-  // Slow motion while the player chooses; the hero's nature decides on timeout.
-  _tickClutch(dt) {
-    const h = this.clutch.hero;
-    if (!h.alive || this.ended) {
-      this.clutch = null;
-      this.cb.onClutch?.(null);
-      return dt;
-    }
-    this.clutch.remaining -= dt / Math.max(0.01, this.speed);
-    if (this.clutch.remaining <= 0) {
-      this.resolveClutch(this.clutchDefault(h));
-      return dt;
-    }
-    return dt * CLUTCH.slowMotion;
-  }
 
-  _clutchHealSlot(h) {
-    const slots = Array.isArray(h.model?.quickSlots) ? h.model.quickSlots : [];
-    const heals = slots.filter((slot) => slot && CONSUMABLES[slot.key]?.heal && slot.qty > 0);
-    return heals.sort((a, b) => CONSUMABLES[b.key].heal - CONSUMABLES[a.key].heal)[0] || null;
-  }
 
-  // "drink": the best healing item in the quick slots, or a second wind.
-  // "crit": an Ultra Crit on the hero's target that kills it outright (a boss
-  // loses a share of its HP), if it lands.
-  resolveClutch(choice, hero = this.clutch?.hero) {
-    const h = hero;
-    if (!h) return false;
-    this.clutch = null;
-    this.cb.onClutch?.(null);
-    if (!h.alive) return false;
-    const record = { hero: h.i, choice: choice === "crit" ? "crit" : "drink", landed: false };
-    if (record.choice === "drink") {
-      const slot = this._clutchHealSlot(h);
-      const item = slot && CONSUMABLES[slot.key];
-      const fraction = item ? item.heal * (1 + (h.d.traits?.healBonus || 0)) * (1 - (h.d.env?.healCut || 0)) : CLUTCH.secondWind;
-      if (slot) {
-        slot.qty -= 1;
-        this._tally(h, "heals", 1);
-      }
-      const amount = Math.min(h.d.maxHp - h.ref.hp, h.d.maxHp * fraction);
-      h.ref.hp += amount;
-      record.landed = true;
-      this._float(h.x, h.y - 18, `${item ? "" : "SECOND WIND "}+${Math.round(amount)}`, "#39FF14");
-      this.effects.push({ x: h.x, y: h.y, r: 20, life: 0.4, color: "#39FF14", ring: true });
-    } else {
-      const target = [h.currentTarget, ...this.active].find((e) => e && e.hp > 0 && !e._dead);
-      if (target && this.rng() < this.clutchCritChance(h)) {
-        const sourceId = "H" + h.i;
-        const damage = target.boss ? target.maxHp * CLUTCH.bossDamage : target.hp;
-        target.hp = Math.max(0, target.hp - damage);
-        target.dmgBy[sourceId] = (target.dmgBy[sourceId] || 0) + damage;
-        this._tally(h, "damage", damage);
-        record.landed = true;
-        this._float(target.x, target.y - 26, `ULTRA CRIT ${Math.round(damage)}`, "#FFE600");
-        this.effects.push({ kind: "impact", x: target.x, y: target.y, r: 40, life: 0.6, color: "#FFE600" });
-        if (target.hp <= 0) this._killEnemy(target, sourceId);
-      } else {
-        this._float(h.x, h.y - 18, "MISSED", "#94A3B8");
-      }
-    }
-    this.clutches.push(record);
-    this._log("death", `Clutch: ${this._name(h)} ${record.choice === "drink" ? "drinks" : record.landed ? "lands an Ultra Crit" : "goes for the Ultra Crit and misses"}`);
-    return true;
-  }
 
 
 
@@ -2288,17 +1736,13 @@ export class Engine {
 }
 
 // Engine methods defined in their own files: enemy attacks, shots, bombs and
-// support helpers (enemies/attacks.js), hero special moves (heroes/moves.js)
-// and hero spells (heroes/spells.js).
-Object.assign(Engine.prototype, enemyAttackMethods, heroMoveMethods, heroSpellMethods);
+// support helpers (enemies/attacks.js), familiars (heroes/familiars.js), hero
+// special moves (heroes/moves.js), hero spells (heroes/spells.js), quick
+// slots and arrows (heroes/quickSlots.js), Clutch (heroes/clutch.js) and
+// party orders (heroes/orders.js).
+Object.assign(Engine.prototype, enemyAttackMethods, familiarMethods, heroMoveMethods, heroSpellMethods, quickSlotMethods, clutchMethods, partyOrderMethods);
 
 function pickLane(engine) {
   // Encounter squads fan out across the top edge; there are no lanes to defend.
   return Math.floor(engine.rng() * LANES);
-}
-function roundRect(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
 }
