@@ -19,11 +19,12 @@ export const ELEMENTS = Object.freeze({
   warding: { name: "Warding", color: "#FFB547" },
   shadow: { name: "Shadow", color: "#8EA3C7" },
   wild: { name: "Wild Magic", color: "#9BE15D" },
+  enchanting: { name: "Enchanting", color: "#F472B6" },
 });
-export const SCHOOLS = Object.freeze(["fire", "ice", "poison", "electric", "mind", "restoration", "warding", "shadow", "wild"]);
+export const SCHOOLS = Object.freeze(["fire", "ice", "poison", "electric", "mind", "restoration", "warding", "shadow", "wild", "enchanting"]);
 // Schools whose spells help the party instead of hurting a foe (owner-approved,
 // Nov 2026). Their spells need no enemy target.
-export const SUPPORT_SCHOOLS = Object.freeze(["restoration", "warding"]);
+export const SUPPORT_SCHOOLS = Object.freeze(["restoration", "warding", "enchanting"]);
 
 // Successful casts needed for ranks I-V (spells and element proficiency alike).
 export const RANK_CASTS = Object.freeze([0, 15, 45, 100, 200]);
@@ -108,6 +109,17 @@ export const SPELLS = Object.freeze({
   disarm: { name: "Disarm", element: "shadow", shape: "disarm", power: 0, mana: 18, cooldown: 14, range: 300, radius: 70, seconds: 3, unlock: 2, desc: "foes around the target can't attack for 3 s" },
   enfeeble: { name: "Enfeeble", element: "mind", shape: "enfeeble", power: 0, strength: 0.75, mana: 16, cooldown: 12, range: 300, radius: 70, seconds: 6, unlock: 1, desc: "foes around the target deal 75% less damage for 6 s" },
   silence: { name: "Silence", element: "mind", shape: "silence", power: 0, mana: 18, cooldown: 14, range: 300, seconds: 5, unlock: 2, desc: "no abilities, spells, heals or summons for 5 s" },
+  // Enchanting (spells part 3, Nov 2026) and two Warding wards: buffs with fixed
+  // strengths (`amount`), not scaled by rank. Haste and True Aim take every ally
+  // within `radius` of the caster (owner's call after measuring); Insight the
+  // party; the rest one ally.
+  haste: { name: "Haste", element: "enchanting", shape: "haste", power: 0, amount: 0.3, mana: 18, cooldown: 14, radius: 220, seconds: 10, unlock: 1, support: true, desc: "allies nearby attack and move 30% faster for 10 s" },
+  true_aim: { name: "True Aim", element: "enchanting", shape: "true_aim", power: 0, amount: 0.15, mana: 16, cooldown: 12, radius: 220, seconds: 10, unlock: 1, support: true, desc: "allies nearby can't miss in the dark, and +15% crit chance, for 10 s" },
+  endless_quiver: { name: "Endless Quiver", element: "enchanting", shape: "quiver", power: 0, mana: 18, cooldown: 20, range: 300, seconds: 10, unlock: 2, support: true, desc: "a bow ally shoots without using arrows (even with none left) for 10 s" },
+  kindred_bond: { name: "Kindred Bond", element: "enchanting", shape: "kindred", power: 0, amount: 0.5, guard: 0.3, mana: 20, cooldown: 20, range: 300, seconds: 15, unlock: 2, support: true, desc: "an ally's familiar deals 50% more and takes 30% less for 15 s" },
+  insight: { name: "Insight", element: "enchanting", shape: "insight", power: 0, amount: 0.25, mana: 24, cooldown: 60, unlock: 4, support: true, desc: "the party earns 25% more XP from the rest of this fight (once a fight)" },
+  iron_skin: { name: "Iron Skin", element: "warding", shape: "iron_skin", power: 0, amount: 0.75, mana: 22, cooldown: 25, range: 300, seconds: 6, unlock: 2, support: true, desc: "an ally takes 75% less from melee hits and arrows for 6 s" },
+  spellguard: { name: "Spellguard", element: "warding", shape: "spellguard", power: 0, amount: 0.75, mana: 22, cooldown: 25, range: 300, seconds: 6, unlock: 2, support: true, desc: "an ally takes 75% less from magic bolts and bombs for 6 s" },
   expose: { name: "Expose", element: "mind", shape: "expose", power: 0, bonus: 0.3, mana: 20, cooldown: 16, range: 300, seconds: 6, unlock: 4, desc: "the party's main kind of damage hits it 30% harder for 6 s" },
 });
 
@@ -175,6 +187,7 @@ export const ELEMENT_EFFECTS = Object.freeze({
   warding: "shields and strengthens allies",
   shadow: "hides allies; frightens, confuses, blinds and disarms foes",
   wild: "roots foes; calls a spirit beast",
+  enchanting: "speeds, sharpens and strengthens allies",
 });
 
 // Shields from Barrier stack up to this share of a hero's max HP.

@@ -347,3 +347,5 @@ Decisions (Sam, 2026-11-01, reviewing Phase 5):
 | 2026-11-06 | Phase 8C | #56 | Hero fingerprint (19 cases) recorded in CI; spells and moves moved; after each step every fingerprint and hash unchanged; CI 651 tests |
 | 2026-11-06 | Phase 8C merged | #56 | Merged `f05d80f` (squash) on CI |
 | 2026-11-06 | Phase 8D | #57 | Familiars, quick slots, Clutch and party orders moved; every fingerprint and hash unchanged after each step; CI 651 tests. Phase 8 done |
+| 2026-11-06 | Phase 8D merged | #57 | Merged `d7e02c7` (squash) on CI. Phase 8 done |
+| 2026-11-06 | Spells part 3 (feature) | #58 | Enchanting and two wards; measured three times, reshaped on Sam's calls (longer buffs, wards after Barrier, party-wide Haste and True Aim); one hero fingerprint re-recorded (its Warding caster gained two spells) |

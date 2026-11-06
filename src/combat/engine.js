@@ -123,8 +123,9 @@ function classlessHeroDerived(hero) {
   };
 }
 
-function heroMovementSpeed(hero) {
-  return hero.d.movementSpeed;
+// Haste (Enchanting) speeds a hero up for a while.
+function heroMovementSpeed(hero, time) {
+  return hero.d.movementSpeed * (hero.hasteUntil > time ? 1 + hero.hasteAmount : 1);
 }
 
 const LANES = 5;
@@ -481,6 +482,8 @@ export class Engine {
       const cappedAttackSpeed = Math.min(0.20, baseAttackSpeed + activeAttackSpeedBonus);
       const attackSpeedMultiplier = (1 + cappedAttackSpeed) / (1 + baseAttackSpeed);
       h.cd -= dt * (activeAttackSpeedBonus > 0 ? attackSpeedMultiplier : 1);
+      // Haste stacks on top of the attack speed cap.
+      if (h.hasteUntil > this.time) h.cd -= dt * h.hasteAmount * (activeAttackSpeedBonus > 0 ? attackSpeedMultiplier : 1);
 
       if (h.retreating) {
         this._returnHome(h, dt);
@@ -494,7 +497,7 @@ export class Engine {
       if (h.rallyPoint) {
         const rd = Math.hypot(h.rallyPoint.x - h.x, h.rallyPoint.y - h.y);
         if (rd > 24) {
-          const spd = heroMovementSpeed(h) * dt;
+          const spd = heroMovementSpeed(h, this.time) * dt;
           h.x += ((h.rallyPoint.x - h.x) / rd) * Math.min(spd, rd);
           h.y += ((h.rallyPoint.y - h.y) / rd) * Math.min(spd, rd);
           continue;
@@ -507,7 +510,7 @@ export class Engine {
       if (h.manualPoint) {
         const md = Math.hypot(h.manualPoint.x - h.x, h.manualPoint.y - h.y);
         if (md > 8) {
-          const spd = heroMovementSpeed(h) * dt;
+          const spd = heroMovementSpeed(h, this.time) * dt;
           h.x += ((h.manualPoint.x - h.x) / md) * Math.min(spd, md);
           h.y += ((h.manualPoint.y - h.y) / md) * Math.min(spd, md);
           continue;
@@ -593,7 +596,7 @@ export class Engine {
           (!best || Math.hypot(enemy.x - h.x, enemy.y - h.y) < Math.hypot(best.x - h.x, best.y - h.y)) ? enemy : best, null);
         if (nearest) {
           const dist = Math.hypot(nearest.x - h.x, nearest.y - h.y) || 1;
-          const step = Math.min(heroMovementSpeed(h) * dt, Math.max(0, dist - (h.d.range - 10)));
+          const step = Math.min(heroMovementSpeed(h, this.time) * dt, Math.max(0, dist - (h.d.range - 10)));
           h.x += ((nearest.x - h.x) / dist) * step;
           h.y += ((nearest.y - h.y) / dist) * step;
           continue;
@@ -604,7 +607,7 @@ export class Engine {
         if (target) {
           const dist = Math.hypot(target.x - h.x, target.y - h.y) || 1;
           if (dist > this._meleeReach(h, target)) {
-            const spd = heroMovementSpeed(h) * dt;
+            const spd = heroMovementSpeed(h, this.time) * dt;
             h.x += ((target.x - h.x) / dist) * Math.min(spd, dist);
             h.y += ((target.y - h.y) / dist) * Math.min(spd, dist);
           } else if (h.cd <= 0) {
@@ -720,7 +723,7 @@ export class Engine {
     // Dead centre: pick a side.
     const ux = dist > 1 ? (h.x - blast.tx) / dist : (h.x < W / 2 ? 1 : -1);
     const uy = dist > 1 ? (h.y - blast.ty) / dist : 0;
-    const step = heroMovementSpeed(h) * dt;
+    const step = heroMovementSpeed(h, this.time) * dt;
     h.x = Math.max(KITE_MARGIN, Math.min(W - KITE_MARGIN, h.x + ux * step));
     h.y = Math.max(KITE_MARGIN, Math.min(FLOOR_Y - KITE_MARGIN, h.y + uy * step));
     return true;
@@ -738,7 +741,7 @@ export class Engine {
     }
     if (!threat || closest > KITE_RANGE) return false;
     const dist = Math.hypot(h.x - threat.x, h.y - threat.y) || 1;
-    const step = heroMovementSpeed(h) * KITE_SPEED * dt;
+    const step = heroMovementSpeed(h, this.time) * KITE_SPEED * dt;
     const clampX = (x) => Math.max(KITE_MARGIN, Math.min(W - KITE_MARGIN, x));
     const clampY = (y) => Math.max(KITE_MARGIN, Math.min(FLOOR_Y - KITE_MARGIN, y));
     let nx = clampX(h.x + ((h.x - threat.x) / dist) * step);
@@ -1080,7 +1083,7 @@ export class Engine {
       return false;
     }
     // Gauntlet darkness: some weapon attacks miss outright.
-    if (p.damageCategory === "weapon" && hero.d.env?.miss > 0 && this.rng() < hero.d.env.miss) {
+    if (p.damageCategory === "weapon" && hero.d.env?.miss > 0 && !(hero.trueAimUntil > this.time) && this.rng() < hero.d.env.miss) {
       this._logbook().count(hero.i, "misses");
       this._float(target.x, target.y - 4, "MISS", "#64748B");
       return false;
@@ -1144,7 +1147,7 @@ export class Engine {
     // Jackpot: the next few direct weapon hits are sure crits.
     const jackpot = p.damageCategory === "weapon" && !p.ability && hero.jackpotHits > 0;
     if (jackpot) hero.jackpotHits -= 1;
-    const crit = p.guaranteedCrit || jackpot || this.rng() < hero.d.critChance;
+    const crit = p.guaranteedCrit || jackpot || this.rng() < hero.d.critChance + (hero.trueAimUntil > this.time ? hero.trueAimCrit : 0);
     if (crit) damage *= hero.d.critMult;
     // Loaded Dice: 10% of weapon hits deal 150%, 20% deal 75%.
     if (p.damageCategory === "weapon" && effects.loadedDice) {
@@ -1484,6 +1487,8 @@ export class Engine {
   }
 
   _awardXp(sid, xp) {
+    // Insight (Enchanting): more XP for the rest of the fight.
+    if (this.insightBonus > 0) xp *= 1 + this.insightBonus;
     if (sid[0] === "H") {
       const i = +sid.slice(1);
       this.xpGains.heroes[i] = (this.xpGains.heroes[i] || 0) + xp;
@@ -1631,7 +1636,7 @@ export class Engine {
     const dx = h.home.x - h.x, dy = h.home.y - h.y;
     const d = Math.hypot(dx, dy);
     if (d < 2) return;
-    const spd = heroMovementSpeed(h) * dt;
+    const spd = heroMovementSpeed(h, this.time) * dt;
     h.x += (dx / d) * Math.min(spd, d);
     h.y += (dy / d) * Math.min(spd, d);
   }

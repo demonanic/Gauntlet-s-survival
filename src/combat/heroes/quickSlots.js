@@ -86,6 +86,8 @@ export const quickSlotMethods = {
   // false when the quiver is empty.
   _drawArrow(h) {
     const slot = this._arrowSlot(h);
+    // Endless Quiver (Enchanting): conjured arrows, none spent.
+    if (h.quiverUntil > this.time) return slot ? CONSUMABLES[slot.key].effect || null : null;
     if (!slot) return false;
     const item = CONSUMABLES[slot.key];
     h.arrowShots = (h.arrowShots || 0) + 1;
