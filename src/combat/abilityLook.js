@@ -68,6 +68,7 @@ export const ICON_PATHS = Object.freeze({
   insight: "M2 12s4-7 10-7s10 7 10 7s-4 7-10 7s-10-7-10-7zM12 9v6M9 12h6",
   iron_skin: "M12 3l7 3v6c0 4.5-3 7.5-7 9c-4-1.5-7-4.5-7-9V6zM8 9h8M8 13h8",
   spellguard: "M12 3l7 3v6c0 4.5-3 7.5-7 9c-4-1.5-7-4.5-7-9V6zM12 8l1.5 3l3 .5l-2.2 2l.6 3l-2.9-1.5l-2.9 1.5l.6-3l-2.2-2l3-.5z",
+  blades: "M4 20l9-9M13 11l6-7l1 1l-7 6M6 14l4 4M3 21l2-2M14 20l4-4M18 16l2 2M12 20h2",
 });
 
 // Icon per special move (Shared Strike is every hero's basic move).
@@ -85,6 +86,7 @@ export const SPELL_SHAPE_ICONS = Object.freeze({
   veil: "veil", terror: "terror", confusion: "confusion", ensnare: "ensnare", thornfield: "thornfield", summon: "summon", dominate: "dominate",
   blind: "blind", disarm: "disarm", enfeeble: "enfeeble", silence: "silence", expose: "expose",
   haste: "haste", true_aim: "true_aim", quiver: "quiver", kindred: "kindred", insight: "insight", iron_skin: "iron_skin", spellguard: "spellguard",
+  blades: "blades",
 });
 
 // Moves and spells that hit hard enough to freeze the frame for a moment.

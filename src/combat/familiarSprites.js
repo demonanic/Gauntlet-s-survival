@@ -1,7 +1,8 @@
 // Animated familiars on the battle canvas, drawn from shapes (no images):
 // the wolf runs on four legs, the hawk flaps, the imp flickers, the sprite
 // glows and flutters, the tortoise stomps. Summoned spirit beasts (tiger, wolf,
-// hawk, bat, rat, wasp, spider, dragon) glow green and half see-through.
+// hawk, bat, rat, wasp, spider, dragon) glow green and half see-through;
+// conjured ones (a spinning spectral blade) glow in their own colour (`glow`).
 // Each has walk (or hover), attack,
 // hurt and downed poses, faces where it's going, and glows brighter with its
 // level. Drawing only; no imports, so it can also be rendered on its own.
@@ -38,7 +39,7 @@ export function drawFamiliar(ctx, pet, time) {
   if (pet.summoned) {
     // A spirit: see-through, with a green glow that pulses.
     ctx.globalAlpha *= 0.82;
-    ctx.shadowColor = "#9BE15D";
+    ctx.shadowColor = pet.glow || "#9BE15D";
     ctx.shadowBlur = 10 + Math.sin(time * 6) * 3;
     if (species === "dragon") ctx.scale(1.5, 1.5);
   }
@@ -204,6 +205,19 @@ const DRAW = {
     ctx.lineTo(11, -3); ctx.lineTo(8, -1.5 + strikeK * 2.5); ctx.lineTo(5, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(8, -4); ctx.lineTo(7, -7); ctx.stroke();
     ctx.fillStyle = "#FFE600"; ctx.beginPath(); ctx.arc(9, -3, 0.7, 0, TAU); ctx.fill();
+  },
+  // Spectral Blade: a sword hanging in the air, spinning on its hilt; it
+  // spins faster for a moment when it cuts.
+  blade(ctx, { time, strikeK, color }) {
+    ctx.translate(0, Math.sin(time * 4) * 1.2);
+    ctx.rotate(time * (9 + strikeK * 14));
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(0, -1.4); ctx.lineTo(9, -0.9); ctx.lineTo(11.5, 0); ctx.lineTo(9, 0.9); ctx.lineTo(0, 1.4); ctx.closePath();
+    ctx.fillStyle = "rgba(219,234,254,0.55)";
+    ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-0.5, -3.5); ctx.lineTo(-0.5, 3.5); ctx.moveTo(-0.5, 0); ctx.lineTo(-4.5, 0); ctx.stroke();
+    ctx.fillStyle = color; ctx.beginPath(); ctx.arc(-5, 0, 1, 0, TAU); ctx.fill();
   },
   tortoise(ctx, { time, moving, strikeK }) {
     const stomp = moving ? Math.sin(time * 7) : 0;

@@ -20,8 +20,9 @@ export const ELEMENTS = Object.freeze({
   shadow: { name: "Shadow", color: "#8EA3C7" },
   wild: { name: "Wild Magic", color: "#9BE15D" },
   enchanting: { name: "Enchanting", color: "#F472B6" },
+  conjuration: { name: "Conjuration", color: "#60A5FA" },
 });
-export const SCHOOLS = Object.freeze(["fire", "ice", "poison", "electric", "mind", "restoration", "warding", "shadow", "wild", "enchanting"]);
+export const SCHOOLS = Object.freeze(["fire", "ice", "poison", "electric", "mind", "restoration", "warding", "shadow", "wild", "enchanting", "conjuration"]);
 // Schools whose spells help the party instead of hurting a foe (owner-approved,
 // Nov 2026). Their spells need no enemy target.
 export const SUPPORT_SCHOOLS = Object.freeze(["restoration", "warding", "enchanting"]);
@@ -120,6 +121,12 @@ export const SPELLS = Object.freeze({
   insight: { name: "Insight", element: "enchanting", shape: "insight", power: 0, amount: 0.25, mana: 24, cooldown: 60, unlock: 4, support: true, desc: "the party earns 25% more XP from the rest of this fight (once a fight)" },
   iron_skin: { name: "Iron Skin", element: "warding", shape: "iron_skin", power: 0, amount: 0.75, mana: 22, cooldown: 25, range: 300, seconds: 6, unlock: 2, support: true, desc: "an ally takes 75% less from melee hits and arrows for 6 s" },
   spellguard: { name: "Spellguard", element: "warding", shape: "spellguard", power: 0, amount: 0.75, mana: 22, cooldown: 25, range: 300, seconds: 6, unlock: 2, support: true, desc: "an ally takes 75% less from magic bolts and bombs for 6 s" },
+  // Conjuration (spells part 4, Nov 2026). Summons that fight beside the
+  // caster and stack with a spirit beast (owner's call). `damage`:
+  // each hit as a share of the caster's attack, before spell power.
+  // Spectral Blades: one sword per spell rank; they can't be hit, and cut every
+  // foe within `reach` of them every `interval` s.
+  spectral_blades: { name: "Spectral Blades", element: "conjuration", shape: "blades", power: 1, damage: 0.25, reach: 22, interval: 1, mana: 20, cooldown: 18, seconds: 10, unlock: 1, support: true, desc: "one spinning sword per spell rank (up to 5) for 10 s; they can't be hit and cut foes that come close" },
   expose: { name: "Expose", element: "mind", shape: "expose", power: 0, bonus: 0.3, mana: 20, cooldown: 16, range: 300, seconds: 6, unlock: 4, desc: "the party's main kind of damage hits it 30% harder for 6 s" },
 });
 
@@ -188,7 +195,9 @@ export const ELEMENT_EFFECTS = Object.freeze({
   shadow: "hides allies; frightens, confuses, blinds and disarms foes",
   wild: "roots foes; calls a spirit beast",
   enchanting: "speeds, sharpens and strengthens allies",
+  conjuration: "spinning blades fight beside the caster",
 });
+
 
 // Shields from Barrier stack up to this share of a hero's max HP.
 export const SHIELD_CAP = 0.3;

@@ -23,6 +23,8 @@ export const familiarMethods = {
       const startX = pet.x;
       pet.moving = false;
       if (pet.down || !owner.alive) continue;
+      // Spectral Blades (heroes/conjured.js) take their own turn.
+      if (pet.untouchable) { this._bladeTurn(pet, dt); continue; }
       const moveTo = (tx, ty, speed, stopAt = 2) => {
         const dist = Math.hypot(tx - pet.x, ty - pet.y);
         if (dist > stopAt) {
@@ -134,7 +136,7 @@ export const familiarMethods = {
   _nearestPetInReach(x, y, r) {
     let best = null, bd = Infinity;
     for (const pet of this.pets) {
-      if (pet.down || !pet.owner.alive) continue;
+      if (pet.down || !pet.owner.alive || pet.untouchable) continue;
       const d = Math.hypot(pet.x - x, pet.y - y);
       if (d > r) continue;
       const weighted = d / Math.max(0.1, pet.body.weight || 1);

@@ -3,7 +3,7 @@
 // damage, support, control and hex spells, element effects, meteors, spirit
 // beasts and spell targets. They stay engine methods (engine.js mixes them
 // in), since the battle screen, enemy code and tests call them by name.
-import { BEASTS, CASTING, CONTROL, ELEMENTS, HEX, MAGIC, SHIELD_CAP, SPELLS, castSuccessChance, heroBeast, knownSpells, proficiency, spellPower, spellRadius, supportPower } from "../spells";
+import { BEASTS, CASTING, CONTROL, ELEMENTS, HEX, MAGIC, SHIELD_CAP, SPELLS, castSuccessChance, heroBeast, knownSpells, proficiency, rankFor, spellCasts, spellPower, spellRadius, supportPower } from "../spells";
 import { BIG_SPELLS } from "../abilityLook";
 import { getEquippedHeroWeaponType } from "../heroWeapon";
 
@@ -11,7 +11,7 @@ import { getEquippedHeroWeaponType } from "../heroWeapon";
 // Iron Skin and Spellguard come after Barrier (owner's call after measuring):
 // on auto they're cast only when Barrier isn't ready.
 const SUPPORT_PRIORITY = Object.freeze(["lifeline", "heal", "veil", "renew", "barrier", "iron_skin", "spellguard", "aegis", "empower",
-  "haste", "true_aim", "kindred", "quiver", "insight", "summon"]);
+  "haste", "true_aim", "kindred", "quiver", "insight", "summon", "blades"]);
 // Foes whose shots are magic (Spellguard's concern on auto).
 const MAGIC_SHOOTERS = Object.freeze(new Set(["warlock", "carrionPriest", "lesserNecromancer", "watcher"]));
 // Spells that hold foes (Shadow, Wild Magic, Dominate), cast at a foe.
@@ -225,9 +225,10 @@ export const heroSpellMethods = {
         return archers.find((ally) => fighting(ally) && (this._arrowSlot(ally)?.qty ?? 0) < 30) || null;
       }
       case "kindred": {
-        const bonded = near.filter((ally) => !(ally.kindredUntil > this.time) && this.pets.some((pet) => pet.owner === ally && !pet.down));
+        // Spectral Blades aren't familiars: Kindred Bond doesn't count them.
+        const bonded = near.filter((ally) => !(ally.kindredUntil > this.time) && this.pets.some((pet) => pet.owner === ally && !pet.down && !pet.untouchable));
         if (!auto) return bonded[0] || null;
-        return bonded.find((ally) => this.pets.some((pet) => pet.owner === ally && !pet.down
+        return bonded.find((ally) => this.pets.some((pet) => pet.owner === ally && !pet.down && !pet.untouchable
           && this.active.some((enemy) => enemy.hp > 0 && Math.hypot(enemy.x - pet.x, enemy.y - pet.y) <= 120))) || null;
       }
       case "insight": {
@@ -244,10 +245,18 @@ export const heroSpellMethods = {
           : (ally) => this.active.some((enemy) => enemy.hp > 0 && (MAGIC_SHOOTERS.has(enemy.type) || enemy.boss) && Math.hypot(enemy.x - ally.x, enemy.y - ally.y) <= 320);
         return lowest(open.filter((ally) => frac(ally) < 0.7 && underAttack(ally) && threatened(ally)));
       }
-      case "summon": {
-        const mine = this.pets.some((pet) => pet.summoned && pet.owner === h && !pet.down);
+      // Each summon is one at a time, but they stack with each other (owner's call).
+      case "summon":
+      case "blades": {
+        const kind = spell.shape === "summon" ? "beast" : spell.shape;
+        // A spirit beast has no summonKind of its own.
+        const mine = this.pets.some((pet) => pet.summoned && (pet.summonKind || "beast") === kind && pet.owner === h && !pet.down);
         if (mine || !this.active.some((enemy) => enemy.hp > 0)) return null;
-        return !auto || h.mana - spell.cost >= CONTROL.manaReserve ? h : null;
+        if (!auto) return h;
+        // Blades are worth it once a foe is near the party.
+        if (spell.shape === "blades" && !this.active.some((enemy) => enemy.hp > 0
+          && this.heroes.some((ally) => ally.alive && Math.hypot(enemy.x - ally.x, enemy.y - ally.y) <= 200))) return null;
+        return h.mana - spell.cost >= CONTROL.manaReserve ? h : null;
       }
       default: return null;
     }
@@ -312,6 +321,8 @@ export const heroSpellMethods = {
       this.vfx?.aura("veil", target, spell.seconds, rank, () => this._isHeroUntargetable(target));
     } else if (spell.shape === "summon") {
       this._summonBeast(h, spell, power, rank);
+    } else if (spell.shape === "blades") {
+      this._summonBlades(h, spell, power, rankFor(spellCasts(h.model, spellId)), rank);
     } else if (spell.shape === "aegis") {
       for (const ally of party) {
         ally.aegisUntil = this.time + spell.seconds;
@@ -341,7 +352,7 @@ export const heroSpellMethods = {
       target.kindredDamage = spell.amount;
       target.kindredGuard = spell.guard;
       this._float(target.x, target.y - 26, "KINDRED BOND", spell.color);
-      for (const pet of this.pets) if (pet.owner === target && !pet.down) this.vfx?.aura("empower", pet, spell.seconds, rank);
+      for (const pet of this.pets) if (pet.owner === target && !pet.down && !pet.untouchable) this.vfx?.aura("empower", pet, spell.seconds, rank);
     } else if (spell.shape === "insight") {
       this.insightBonus = spell.amount;
       this._float(h.x, h.y - 26, `INSIGHT +${Math.round(spell.amount * 100)}% XP`, spell.color);
