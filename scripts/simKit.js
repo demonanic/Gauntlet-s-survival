@@ -17,7 +17,9 @@ export function applySeedFlag(args) {
 }
 
 // A sensible generic build: survivability and damage first, then actives.
-export const PERK_ORDER = ["V1", "W1", "P1", "V2", "W2", "P2a", "P3", "W2a", "S1", "P2", "V3", "T1", "S2", "F1"];
+// (Execution and Cleaving Strike open at level 5 since Nov 2026; they stay at
+// the end so the build still buys its passives first, as before.)
+export const PERK_ORDER = ["V1", "W1", "P1", "V2", "W2", "P2a", "W2a", "S1", "P2", "T1", "S2", "F1", "P3", "V3"];
 export const SP_ORDER = ["attack", "defense", "attack"];
 
 // Spend every hero's AP on PERK_ORDER and SP on `spOrder` (SP_ORDER by default).

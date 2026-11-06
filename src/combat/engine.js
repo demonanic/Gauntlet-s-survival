@@ -364,6 +364,14 @@ export class Engine {
     return Math.hypot(enemy.x - h.x, enemy.y - h.y) <= reach;
   }
 
+  // A move's target: Lunge reaches its own range (it dashes in); every other
+  // move uses the hero's weapon reach.
+  _moveTargetValid(h, definition, enemy) {
+    if (definition?.rangeMode !== "lunge") return this._isValidClasslessTarget(h, enemy);
+    if (!h || !enemy || enemy.hp <= 0 || !this.active.includes(enemy) || enemy.dominatedUntil > this.time) return false;
+    return Math.hypot(enemy.x - h.x, enemy.y - h.y) <= definition.range;
+  }
+
   _isHeroUntargetable(hero) {
     return !!hero && hero.untargetableUntil > this.time;
   }
@@ -393,7 +401,7 @@ export class Engine {
       return [sharedStrike, ...getUnlockedClasslessAbilities(h.model).map((definition) => {
         const abilityCooldown = Math.max(0, h.abilityCooldowns[definition.id] || 0);
         const inRangeTargets = definition.requiresTarget
-          ? this.active.filter((enemy) => this._isValidClasslessTarget(h, enemy)) : [];
+          ? this.active.filter((enemy) => this._moveTargetValid(h, definition, enemy)) : [];
         const validTargets = inRangeTargets.filter((enemy) => !Number.isFinite(definition.conditionalTargetHpBelow) ||
           enemy.hp / Math.max(1, enemy.maxHp) < definition.conditionalTargetHpBelow);
         const validationTarget = validTargets[0] || inRangeTargets[0] || null;
@@ -409,12 +417,14 @@ export class Engine {
         const damage = Number.isFinite(definition.damageMultiplier)
           ? Math.round(h.d.attack * definition.damageMultiplier) : undefined;
         const canPayHealthCost = this._classlessCanPayActiveCost(h);
+        // Mana Surge needs a mana pool (spells from the Arcane Spark perk).
+        const noMana = definition.requiresMana && !(h.maxMana > 0);
         return { id: definition.id, name: definition.name, desc: definition.description, branch: definition.branch,
           cooldown: abilityCooldown, cooldownSeconds, resourceCost: definition.resourceCost,
           damage, color: h.d.color, active: activeRemaining > 0, activeRemaining,
-          available: validation.ok && canPayHealthCost, targetMode: definition.targetMode,
+          available: validation.ok && canPayHealthCost && !noMana, targetMode: definition.targetMode,
           range: definition.rangeMode === "hero_attack_range" ? h.d.range : definition.range,
-          radius: definition.adjacentRadius, reason: !canPayHealthCost ? "health_cost" : validation.reason };
+          radius: definition.adjacentRadius, reason: noMana ? "no_mana" : !canPayHealthCost ? "health_cost" : validation.reason };
       })];
     }
   }
@@ -497,9 +507,10 @@ export class Engine {
     const definition = masteredMove(getUnlockedClasslessAbilities(h?.model).find((item) => item.id === abilityId),
       h ? moveRank(h.model, abilityId) : 1);
     if (!definition) return { ok: false, reason: "locked", abilityId };
+    if (definition.requiresMana && !(h.maxMana > 0)) return { ok: false, reason: "no_mana", abilityId };
     const target = definition.requiresTarget
       ? targetOrPoint?.enemy || targetOrPoint || this.active
-        .filter((enemy) => this._isValidClasslessTarget(h, enemy) &&
+        .filter((enemy) => this._moveTargetValid(h, definition, enemy) &&
           (!Number.isFinite(definition.conditionalTargetHpBelow) ||
             enemy.hp / Math.max(1, enemy.maxHp) < definition.conditionalTargetHpBelow))
         .reduce((nearest, enemy) => !nearest || Math.hypot(enemy.x - h.x, enemy.y - h.y) < Math.hypot(nearest.x - h.x, nearest.y - h.y) ? enemy : nearest, null)
@@ -510,7 +521,7 @@ export class Engine {
       cooldown: Math.max(0, h?.abilityCooldowns?.[abilityId] || 0),
       battleActive: !!h && !this.ended,
       target,
-      targetValid: !definition.requiresTarget || (!!h && this._isValidClasslessTarget(h, target)),
+      targetValid: !definition.requiresTarget || (!!h && this._moveTargetValid(h, definition, target)),
     });
     if (!validation.ok) return validation;
     if (!this._classlessCanPayActiveCost(h)) return { ok: false, reason: "health_cost", abilityId };
@@ -537,6 +548,47 @@ export class Engine {
           critChance: h.d.critChance, critMult: h.d.critMult, heroIndex: h.i,
           ability: true, damageCategory: "weapon" })) affectedTargets.push(secondaryTarget);
       }
+    } else if (definition.effect === "lunge" || definition.effect === "pinning_shot") {
+      // Starter moves. Lunge dashes to stand in front of the foe, then strikes
+      // and stuns; Pinning Shot hits from range and roots.
+      const from = { x: h.x, y: h.y };
+      if (definition.effect === "lunge") {
+        const dx = target.x - h.x, dy = target.y - h.y;
+        const distance = Math.hypot(dx, dy) || 1;
+        const stop = Math.max(0, distance - (this._meleeReach(h, target) - 4));
+        h.x += (dx / distance) * stop;
+        h.y += (dy / distance) * stop;
+      }
+      const targetWasAlive = target.hp > 0;
+      const hit = this._applyHit({ sourceId: `H${h.i}`, target, dmg: h.d.attack * definition.damageMultiplier,
+        magic: false, damageType: null, critChance: h.d.critChance, critMult: h.d.critMult,
+        heroIndex: h.i, ability: true, damageCategory: "weapon" });
+      if (!hit) {
+        h.x = from.x;
+        h.y = from.y;
+        return { ok: false, reason: "no_target", abilityId };
+      }
+      killedTarget = targetWasAlive && target.hp <= 0;
+      if (target.hp > 0) {
+        if (definition.effect === "lunge") {
+          target.stunUntil = Math.max(target.stunUntil || 0, this.time + (target.boss ? definition.bossStunSeconds : definition.stunSeconds));
+          this._float(target.x, target.y - 24, "STUNNED", "#FDE68A");
+        } else {
+          const rootUntil = this.time + (target.boss ? definition.bossRootSeconds : definition.rootSeconds);
+          target.rootUntil = Math.max(target.rootUntil || 0, rootUntil);
+          this._float(target.x, target.y - 24, "PINNED", "#9BE15D");
+        }
+      }
+      if (definition.effect === "lunge") {
+        this.effects.push({ kind: "trail", x: from.x, y: from.y, toX: h.x, toY: h.y, r: 10, life: 0.3, color: h.d.color });
+      }
+      affectedTargets = [target];
+    } else if (definition.effect === "mana_surge") {
+      h.mana = Math.min(h.maxMana, h.mana + definition.manaRestore);
+      h.freeSpell = true;
+      this._float(h.x, h.y - 22, `+${definition.manaRestore} MANA`, "#E879F9");
+      this.effects.push({ kind: "guard", x: h.x, y: h.y, r: 22, life: 0.5, color: "#E879F9" });
+      affectedTargets = [h];
     } else if (definition.effect === "attack_speed_aura") {
       const allies = this.heroes.filter((ally) => ally.alive &&
         Math.hypot(ally.x - h.x, ally.y - h.y) <= definition.range);
@@ -631,7 +683,7 @@ export class Engine {
     this._chargeClasslessActiveCost(h, hpBeforeAbility);
     const cooldown = definition.refundCooldownOnKill && killedTarget ? 0 : definition.cooldownSeconds * h.d.moveCooldownMultiplier;
     h.abilityCooldowns[definition.id] = cooldown;
-    h.visualActionKind = definition.effect === "weapon_strike" || definition.effect === "weapon_cleave" || definition.effect === "phantom_strike" ? "attack" : null;
+    h.visualActionKind = ["weapon_strike", "weapon_cleave", "phantom_strike", "lunge", "pinning_shot"].includes(definition.effect) ? "attack" : null;
     h.visualActionStartedAt = this.time;
     h.visualActionUntil = this.time + 0.42;
     this.actionCompletions.push({ index, result: "completed", abilityId: definition.id });
@@ -2823,12 +2875,14 @@ export class Engine {
     if (!h.maxMana) return [];
     return knownSpells(h.model).map((spell) => {
       const cooldown = Math.max(0, h.spellCooldowns[spell.id] || 0);
-      return { ...spell, color: ELEMENTS[spell.element].color, cost: spell.mana, cooldownSeconds: spell.cooldown, cooldown,
+      // After Mana Surge the next spell is free.
+      const cost = h.freeSpell ? 0 : spell.mana;
+      return { ...spell, color: ELEMENTS[spell.element].color, cost, free: !!h.freeSpell, cooldownSeconds: spell.cooldown, cooldown,
         cooldownTotal: spell.cooldown * h.d.cooldownMultiplier,
         mana: Math.round(h.mana), maxMana: h.maxMana, success: castSuccessChance(h.model, spell.element),
         // A support spell with nobody to help can't be cast (no heal at full HP).
         noTarget: !!spell.support && !this._supportTarget(h, spell, false),
-        available: h.alive && cooldown <= 0 && h.mana >= spell.mana && !this.ended
+        available: h.alive && cooldown <= 0 && h.mana >= cost && !this.ended
           && (!spell.support || !!this._supportTarget(h, spell, false)) };
     });
   }
@@ -2846,6 +2900,7 @@ export class Engine {
       || this._nearestEnemy(h.x, h.y, spell.range);
     if (!foe) return false;
     h.mana -= spell.cost;
+    h.freeSpell = false;
     h.spellCooldowns[spellId] = spell.cooldownSeconds * h.d.cooldownMultiplier;
     h.castCd = 0.8;
     h.visualActionKind = "attack";
@@ -2983,6 +3038,7 @@ export class Engine {
     const target = given && this.heroes.includes(given) && given.alive ? given : this._supportTarget(h, spell, false);
     if (!target) return false;
     h.mana -= spell.cost;
+    h.freeSpell = false;
     h.spellCooldowns[spellId] = spell.cooldownSeconds * h.d.cooldownMultiplier;
     h.castCd = 0.8;
     h.visualActionKind = "attack";

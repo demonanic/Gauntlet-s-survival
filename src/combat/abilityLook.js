@@ -8,6 +8,7 @@ import { ELEMENTS, SPELLS } from "./spells";
 // Ring colour of a special move, by the perk branch it comes from.
 export const BRANCH_COLORS = Object.freeze({
   Basic: "#E2E8F0",
+  Starter: "#F8FAFC",
   Precision: "#FFE600",
   Vanguard: "#FF7A3D",
   Warden: "#3DA5FF",
@@ -38,6 +39,9 @@ export const ICON_PATHS = Object.freeze({
   bolt: "M13 3L5 14h6l-1 7l8-11h-6z",
   burst: "M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8",
   linger: "M12 3a9 9 0 1 0 9 9M12 7a5 5 0 1 0 5 5M12 11a1 1 0 1 0 1 1",
+  lunge: "M3 12h11M10 7l5 5l-5 5M17 5v14M21 8v8",
+  pin: "M4 20L14 10M11 7l6 6M14 4l6 6M4 20l3-1l-2-2z",
+  surge: "M12 3l2.5 5.5L20 9l-4 4l1 6l-5-3l-5 3l1-6l-4-4l5.5-.5z",
   meteor: "M4 4l8 8M8 3l6 6M3 8l6 6M17 14a3 3 0 1 1-3 3a3 3 0 0 1 3-3z",
   mend: "M12 5v14M5 12h14",
   renew: "M5 19c0-8 6-14 14-14c0 8-6 14-14 14zM5 19l7-7",
@@ -59,6 +63,7 @@ export const MOVE_ICONS = Object.freeze({
   sharedStrike: "strike",
   P3: "target", P3a: "skull", V3: "cleave", V3a: "horn", T2a: "rally", W3: "shield",
   S2a: "smoke", S3a: "vanish", I3: "phantom", H3: "drop", C2a: "ward", F3: "dice",
+  SW1: "lunge", BW1: "pin", ST1: "surge",
 });
 
 // Icon per spell shape.

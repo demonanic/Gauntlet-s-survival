@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Engine, LAYOUT } from "../combat/engine";
 import { Bar, NeonButton } from "../components/ui";
 import { branchColor, moveIcon, spellIcon } from "../combat/abilityLook";
+import { lockedMoves, nextSpells } from "../combat/moveGuide";
 import { heroWeaponProfile } from "../combat/gear";
 import { createEncounterSim, endlessWaveSource } from "../game/encounters";
 import { buildFightOutcome } from "../game/fightOutcome";
@@ -231,7 +232,47 @@ function Icon({ path, size = 28, color = "currentColor" }) {
   );
 }
 
-const UNAVAILABLE = { unavailable: "Down", no_target: "No target", health_cost: "Low HP", target_health: "Needs a weak foe" };
+const UNAVAILABLE = {
+  unavailable: "Down", no_target: "No target", health_cost: "Low HP", target_health: "Needs a weak foe", no_mana: "Needs spells",
+};
+
+// What this hero could unlock next: perk moves (folded away by default) and
+// the next spell in each element, so it's clear where more buttons come from.
+function UnlockGuide({ hero, index }) {
+  const [open, setOpen] = useState(false);
+  const moves = lockedMoves(hero);
+  const spells = nextSpells(hero);
+  return (
+    <div className="space-y-1 font-mono-g text-[10px]" data-testid={`battle-unlocks-${index}`}>
+      {spells ? spells.filter((line) => !line.done).map((line) => (
+        <p key={line.element} className="text-slate-400" data-testid={`battle-next-spell-${index}-${line.element}`}>
+          Next <span style={{ color: line.color }}>{line.name}</span> spell: <span className="text-slate-200">{line.spell}</span>
+          {line.perk
+            ? line.perk === line.spell ? ` · its own perk (Arcana, LV ${line.minLevel})` : ` · perk ${line.perk} (LV ${line.minLevel})`
+            : ` · ${line.casts}/${line.needed} ${line.name} casts`}
+        </p>
+      )) : (
+        <p className="text-slate-400" data-testid={`battle-no-spells-${index}`}>Spells: buy the <span className="text-fuchsia-300">Arcane Spark</span> perk (Arcana) to start casting.</p>
+      )}
+      {moves.length > 0 && (
+        <button type="button" onClick={() => setOpen((value) => !value)} className="text-slate-400 underline" data-testid={`battle-locked-toggle-${index}`}>
+          🔒 {moves.length} more moves in the perk tree · {open ? "hide" : "show"}
+        </button>
+      )}
+      {open && (
+        <ul className="space-y-0.5" data-testid={`battle-locked-${index}`}>
+          {moves.map((move) => (
+            <li key={move.id} className="text-slate-500">
+              <span className="font-bold" style={{ color: branchColor(move.branch) }}>{move.name}</span>
+              {` · ${move.branch} · LV ${move.minLevel}, ${move.apCost} AP`}
+              {move.needs.length ? ` · after ${move.needs.join(move.anyPrerequisite ? " or " : " and ")}` : ""}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 // The selected hero's actions: special moves as big round buttons in their
 // perk branch's colour, spells as tiles in their element's colour, then the
@@ -301,7 +342,7 @@ function ActionPanel({ hero, index, abilities, spells, quickSlots, moving, locke
         <>
           <div className="flex items-center justify-between">
             <h3 className="font-mono-g text-[10px] font-bold tracking-[0.12em] text-slate-400">SPELLS</h3>
-            <span className="font-mono-g text-[10px] text-violet-300">{mana.mana} / {mana.maxMana} mana</span>
+            <span className="font-mono-g text-[10px] text-violet-300">{mana.free ? "Next spell free · " : ""}{mana.mana} / {mana.maxMana} mana</span>
           </div>
           <Bar value={mana.mana} max={mana.maxMana} color="#A855F7" data-testid={`battle-mana-${index}`} />
           <div className="grid grid-cols-2 gap-2">
@@ -325,7 +366,7 @@ function ActionPanel({ hero, index, abilities, spells, quickSlots, moving, locke
                   <span className="relative flex min-w-0 flex-col gap-0.5">
                     <span className="truncate font-mono-g text-[11px] font-bold" style={{ color: spell.color }}>{spell.name}</span>
                     <span className="font-mono-g text-[9px] text-slate-400">
-                      {short ? `Needs ${spell.cost} mana` : cooling ? `Ready in ${Math.ceil(spell.cooldown)}s` : spell.noTarget ? "No one needs it" : `${spell.cost} mana · ${Math.round(spell.success * 100)}%`}
+                      {short ? `Needs ${spell.cost} mana` : cooling ? `Ready in ${Math.ceil(spell.cooldown)}s` : spell.noTarget ? "No one needs it" : `${spell.free ? "Free" : `${spell.cost} mana`} · ${Math.round(spell.success * 100)}%`}
                     </span>
                   </span>
                 </button>
@@ -334,6 +375,8 @@ function ActionPanel({ hero, index, abilities, spells, quickSlots, moving, locke
           </div>
         </>
       )}
+
+      <UnlockGuide hero={hero} index={index} />
 
       {quickSlots.length > 0 && (
         <div className="flex gap-2">
