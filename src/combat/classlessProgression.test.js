@@ -26,6 +26,15 @@ describe("classless progression catalog", () => {
     expect(getCanonicalNode("nope")).toBeNull();
   });
 
+  test("Execution and Cleaving Strike open early: level 5, 2 AP, still Tier III", () => {
+    for (const [nodeId, prerequisites] of [["P3", ["P2", "P2a"]], ["V3", ["V2", "V2a"]]]) {
+      expect(getCanonicalNode(nodeId)).toMatchObject({ tier: 3, apCost: 2, minLevel: 5, prerequisites });
+    }
+    expect(getCanonicalNode("P3a")).toMatchObject({ tier: 3, apCost: 3, minLevel: 10 });
+    expect(purchaseNode({ level: 5, ap: 2, ownedNodeIds: ["P1", "P2"] }, "P3")).toMatchObject({ ok: true });
+    expect(purchaseNode({ level: 5, ap: 3, ownedNodeIds: ["P1", "P2a"] }, "P3a")).toEqual({ ok: false, reason: "level_required" });
+  });
+
   test("maps all four expansion branches to their bible-defined Tier III node", () => {
     for (const [nodeId, prerequisites] of [["H3", ["H2"]], ["F3", ["F2", "F2a"]], ["N3", ["N2"]], ["I3", ["I2"]]]) {
       expect(getCanonicalNode(nodeId)).toMatchObject({ tier: 3, apCost: 3, minLevel: 10, prerequisites });
@@ -47,7 +56,8 @@ describe("purchaseNode", () => {
     [{ level: 1, ap: 10, ownedNodeIds: [] }, "V2", "level_required"],
     [{ level: 5, ap: 10, ownedNodeIds: [] }, "V2", "prerequisite_required"],
     [{ level: 10, ap: 10, ownedNodeIds: ["V1", "W1", "W2"] }, "V3", "prerequisite_required"],
-    [{ level: 10, ap: 2, ownedNodeIds: ["V1", "V2"] }, "V3", "insufficient_ap"],
+    [{ level: 10, ap: 1, ownedNodeIds: ["V1", "V2"] }, "V3", "insufficient_ap"],
+    [{ level: 10, ap: 2, ownedNodeIds: ["V1", "V2"] }, "V3a", "insufficient_ap"],
     [{ level: 10, ap: 3, ownedNodeIds: ["V1", "V2", "V3", "W1", "W2", "W3", "P1", "P2"] }, "P3", "tier_iii_mastery_cap"],
     [{ level: 10, ap: 3, ownedNodeIds: ["C1", "C2"] }, "C3", "phase_gated"],
     [{ level: 10, ap: 3, ownedNodeIds: [] }, "unknown", "unknown_node"],
@@ -85,7 +95,7 @@ describe("purchaseNode", () => {
   test("Precision active nodes unlock only after their canonical purchase validates", () => {
     const hero = createHeroModel();
     hero.progression = { level: 10, xp: 9000, ap: 3, sp: 9, ownedNodeIds: ["P1", "P2"] };
-    expect(purchaseClasslessNode(hero, "P3")).toMatchObject({ ok: true, progression: { ap: 0, ownedNodeIds: ["P1", "P2", "P3"] } });
+    expect(purchaseClasslessNode(hero, "P3")).toMatchObject({ ok: true, progression: { ap: 1, ownedNodeIds: ["P1", "P2", "P3"] } });
     expect(hero.progression.ownedNodeIds).toEqual(["P1", "P2"]);
     const secondAbility = createHeroModel();
     secondAbility.progression = { level: 10, xp: 9000, ap: 3, sp: 9, ownedNodeIds: ["P1", "P2a"] };
@@ -96,11 +106,11 @@ describe("purchaseNode", () => {
     const hero = createHeroModel();
     hero.progression = { level: 10, xp: 9000, ap: 6, sp: 9, ownedNodeIds: ["V1", "V2"] };
     const cleave = purchaseClasslessNode(hero, "V3");
-    expect(cleave).toMatchObject({ ok: true, progression: { ap: 3, ownedNodeIds: ["V1", "V2", "V3"] } });
+    expect(cleave).toMatchObject({ ok: true, progression: { ap: 4, ownedNodeIds: ["V1", "V2", "V3"] } });
     const warCry = purchaseClasslessNode(hero, "V3a");
     expect(warCry).toMatchObject({ ok: true, progression: { ap: 3, ownedNodeIds: ["V1", "V2", "V3a"] } });
     const twoTierThree = purchaseClasslessNode({ ...hero, progression: cleave.progression }, "V3a");
-    expect(twoTierThree).toMatchObject({ ok: true, progression: { ap: 0, ownedNodeIds: ["V1", "V2", "V3", "V3a"] } });
+    expect(twoTierThree).toMatchObject({ ok: true, progression: { ap: 1, ownedNodeIds: ["V1", "V2", "V3", "V3a"] } });
   });
 
   test.each([

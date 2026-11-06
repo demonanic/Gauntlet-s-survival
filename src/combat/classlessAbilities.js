@@ -189,8 +189,64 @@ const CLASSLESS_ABILITIES = Object.freeze([
   }),
 ]);
 
-const DEFINITIONS = new Map(CLASSLESS_ABILITIES.map((ability) => [ability.id, ability]));
+// Starter moves (Nov 2026): one per weapon, from level 1, no perk needed. A
+// hero has the one for the weapon they hold. Manual only, like every move.
+export const STARTER_MOVES = Object.freeze([
+  Object.freeze({
+    id: "SW1",
+    branch: "Starter",
+    starterWeapon: "sword",
+    name: "Lunge",
+    description: "Dash to a foe up to 160 away and strike for 160% weapon damage, stunning it for 1 s (bosses 0.3 s).",
+    cooldownSeconds: 14,
+    resourceCost: 0,
+    targetMode: "enemy",
+    rangeMode: "lunge",
+    range: 160,
+    damageMultiplier: 1.6,
+    stunSeconds: 1,
+    bossStunSeconds: 0.3,
+    effect: "lunge",
+    requiresTarget: true,
+  }),
+  Object.freeze({
+    id: "BW1",
+    branch: "Starter",
+    starterWeapon: "bow",
+    name: "Pinning Shot",
+    description: "A shot for 140% weapon damage that roots the target for 2 s (bosses 0.5 s).",
+    cooldownSeconds: 14,
+    resourceCost: 0,
+    targetMode: "enemy",
+    rangeMode: "hero_attack_range",
+    damageMultiplier: 1.4,
+    rootSeconds: 2,
+    bossRootSeconds: 0.5,
+    effect: "pinning_shot",
+    requiresTarget: true,
+  }),
+  Object.freeze({
+    id: "ST1",
+    branch: "Starter",
+    starterWeapon: "staff",
+    name: "Mana Surge",
+    description: "Restore 25 mana; the next spell costs nothing. Needs spells (Arcane Focus perk).",
+    cooldownSeconds: 20,
+    resourceCost: 0,
+    targetMode: null,
+    rangeMode: "self",
+    manaRestore: 25,
+    effect: "mana_surge",
+    requiresTarget: false,
+    requiresMana: true,
+  }),
+]);
+
+const DEFINITIONS = new Map([...STARTER_MOVES, ...CLASSLESS_ABILITIES].map((ability) => [ability.id, ability]));
 export const IMPLEMENTED_CLASSLESS_ABILITY_NODE_IDS = Object.freeze(CLASSLESS_ABILITIES.map((ability) => ability.unlockNodeId));
+
+// Every perk move and the node that unlocks it, for "how do I get this?".
+export const PERK_MOVES = CLASSLESS_ABILITIES;
 
 export function getClasslessAbilityDefinition(abilityId) {
   return DEFINITIONS.get(abilityId) || null;
@@ -198,7 +254,11 @@ export function getClasslessAbilityDefinition(abilityId) {
 
 export function getUnlockedClasslessAbilities(hero) {
   const owned = new Set(hero?.progression?.ownedNodeIds || []);
-  return CLASSLESS_ABILITIES.filter((ability) => owned.has(ability.unlockNodeId));
+  const weapon = hero?.equipment?.weapon?.weaponType;
+  return [
+    ...STARTER_MOVES.filter((ability) => ability.starterWeapon === weapon),
+    ...CLASSLESS_ABILITIES.filter((ability) => owned.has(ability.unlockNodeId)),
+  ];
 }
 
 export function validateClasslessAbilityUse({

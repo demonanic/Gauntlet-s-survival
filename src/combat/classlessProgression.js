@@ -18,6 +18,9 @@ const BRANCHES = [
 ];
 
 const PHASE_2_NODES = new Set(["C3", "C3a", "N3"]);
+// The two plain damage moves open early (Nov 2026): level 5 and 2 AP instead of
+// level 10 and 3 AP. Still Tier III (they count toward the two-node cap).
+const EARLY_MOVES = new Set(["P3", "V3"]);
 
 const NODE_PRESENTATION = {
   V1: ["Edge Training", "+8% direct weapon damage."], V2: ["Follow-Through", "+10% damage to an enemy hit within the previous 4 seconds."],
@@ -80,8 +83,8 @@ export const CANONICAL_NODES = Object.freeze(BRANCHES.flatMap(([branch, entries]
     name: NODE_PRESENTATION[id][0],
     description: NODE_PRESENTATION[id][1],
     tier,
-    apCost: tier,
-    minLevel: tier === 1 ? 1 : tier === 2 ? 5 : 10,
+    apCost: EARLY_MOVES.has(id) ? 2 : tier,
+    minLevel: EARLY_MOVES.has(id) ? 5 : tier === 1 ? 1 : tier === 2 ? 5 : 10,
     prerequisites: Object.freeze(prerequisites),
     gated: PHASE_2_NODES.has(id),
   });
