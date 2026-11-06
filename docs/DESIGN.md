@@ -141,6 +141,16 @@ A deliberately small model (not Demonanic's 11 slots), defined in `src/combat/ge
   Departure restocks every loaded slot from the stash and gives an arrowless archer
   plain arrows in a free slot.
 
+## Test mode tools (Nov 2026, `game/debug.js`, `components/DebugPanel.jsx`, `saveKey` in storage.js)
+
+Owner-approved (Sam wanted a way to try spells in live play: "dev tools or a dev account"). Open the game with `?debug` in the address (https://demonanic.github.io/Gauntlet-s-survival/?debug); the TEST tab sits on the middle of the right edge.
+
+- **Its own save:** test mode reads and writes `gauntlet.save.test` (with its own backups), never the real save, and cloud sync is off (a TEST SAVE tag takes the cloud button's place). "Copy my real save" copies this browser's real save in to test from; the real save is only read. Without `?debug` the game is as before. To test from a save that lives in the cloud or the APK: open the normal site once and sign in so it syncs to this browser, then copy.
+- **Magic:** for any hero, Give casting (Arcane Spark and Elementalism), Learn any school (no slot or AP limit), set a school's proficiency I–V (its first spell gets the casts that rank needs; its other spells start at I), or one spell's rank I–V (its casts count toward the school). Meteor and Arcane Channel still need their perks.
+- **Test fight:** a region and how deep (early, middle, deep), then Wild fight now or Boss fight now. With no trip under way the first four heroes set out, healed; during a trip the fight is in its region. A trip's rules still hold (region level, regions open in order); the panel names the button that fixes it. The fight counts like any on the road.
+- **In battle** (test mode only), a TEST row: Mana (fill every caster's), Cooldowns (ready every move and spell, clear strain), God (heroes take no damage; heals them to full when turned on), Kill all. Battles also get 4× and 8× speed. The panel hides during a battle.
+- **Checked** on a phone-sized screen (412×760) from a CI build: the real save was byte-identical after a test session; magic, a test fight, the three new spells cast by hand, and every cheat worked. Found and fixed: the tutorial card covered the TEST button on a fresh test save; a summon already out said "No one needs it" (now "Already out").
+
 ## Spells and moves, part 4: Conjuration and Mirror Self (Nov 2026, `SPELLS`, `ELEMENTALS`, `heroes/conjured.js`)
 
 Owner-approved plan (Sam: blades go by spell rank; summons stack; "a sword spinning in mid air: anything that gets close just gets hurt"), then retuned on Sam's picks after measuring (blades 25% → 15%; the elemental 50% / 30% HP / 34 mana → 80% / 40% / 24; Mirror Self 40% → 60%, fooling every foe on the caster). Draft PR #59.
