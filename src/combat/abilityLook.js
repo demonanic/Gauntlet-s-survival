@@ -56,6 +56,11 @@ export const ICON_PATHS = Object.freeze({
   thornfield: "M3 20h18M6 20l2-6l2 6M12 20l2-8l2 8M17 20l1.5-4l1.5 4",
   summon: "M5 15l2-7l3 3l2-6l2 6l3-3l2 7zM7 19h10",
   dominate: "M8 6a4 4 0 1 1 8 0v2H8zM6 8h12v4l-6 9l-6-9z",
+  blind: "M3 12s3.5-6 9-6s9 6 9 6s-3.5 6-9 6s-9-6-9-6zM9 12a3 3 0 1 0 6 0a3 3 0 1 0-6 0M3 9h18",
+  disarm: "M5 19L15 9M13 7l4 4M15 5l4 4M4 4l16 16",
+  enfeeble: "M6 6l6 6l6-6M6 12l6 6l6-6",
+  silence: "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18M5.6 5.6l12.8 12.8M9 10h.01M15 10h.01",
+  expose: "M12 2v5M12 17v5M2 12h5M17 12h5M12 7a5 5 0 1 0 0 10a5 5 0 1 0 0-10M12 11.5v1",
 });
 
 // Icon per special move (Shared Strike is every hero's basic move).
@@ -71,6 +76,7 @@ export const SPELL_SHAPE_ICONS = Object.freeze({
   bolt: "bolt", area: "burst", linger: "linger", meteor: "meteor",
   heal: "mend", renew: "renew", lifeline: "lifeline", barrier: "barrier", empower: "empower", aegis: "aegis",
   veil: "veil", terror: "terror", confusion: "confusion", ensnare: "ensnare", thornfield: "thornfield", summon: "summon", dominate: "dominate",
+  blind: "blind", disarm: "disarm", enfeeble: "enfeeble", silence: "silence", expose: "expose",
 });
 
 // Moves and spells that hit hard enough to freeze the frame for a moment.
