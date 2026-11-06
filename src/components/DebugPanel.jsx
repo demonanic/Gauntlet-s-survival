@@ -47,11 +47,12 @@ export default function DebugPanel({ guild, apply, onTestFight }) {
   };
 
   if (!open) {
+    // Mid right edge, above the tutorial card (z-97), which sits at the bottom.
     return (
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed bottom-3 right-3 z-[95] rounded-full border border-orange-400 bg-black/80 px-3 py-2 font-mono-g text-[11px] font-bold text-orange-300 shadow-lg"
+        className="fixed right-0 top-1/2 z-[98] -translate-y-1/2 rounded-l-lg border border-r-0 border-orange-400 bg-black/85 px-2 py-3 font-mono-g text-[11px] font-bold text-orange-300 shadow-lg"
         data-testid="debug-open"
       >
         TEST
@@ -61,7 +62,7 @@ export default function DebugPanel({ guild, apply, onTestFight }) {
 
   const row = "flex flex-wrap items-center gap-1.5";
   return (
-    <div className="fixed inset-x-2 bottom-2 z-[95] mx-auto max-h-[70vh] max-w-md overflow-y-auto rounded-lg border border-orange-400/70 bg-[#0b0906]/95 p-3 font-mono-g text-[11px] text-slate-200 shadow-2xl" data-testid="debug-panel">
+    <div className="fixed inset-x-2 bottom-2 z-[98] mx-auto max-h-[70vh] max-w-md overflow-y-auto rounded-lg border border-orange-400/70 bg-[#0b0906]/95 p-3 font-mono-g text-[11px] text-slate-200 shadow-2xl" data-testid="debug-panel">
       <div className="mb-2 flex items-center justify-between">
         <span className="font-display text-sm font-bold text-orange-300">TEST MODE</span>
         <button type="button" className="text-slate-400 underline" onClick={() => setOpen(false)}>close</button>

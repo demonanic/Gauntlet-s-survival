@@ -397,7 +397,7 @@ function SpellTile({ spell, index, locked, engine }) {
     engine?.queueHeroSpell(index, spell.id);
   };
   const line = queuedAt >= 0 ? `Queued #${queuedAt + 1} · tap to cancel`
-    : short ? `Needs ${spell.cost} mana` : cooling ? `Ready in ${Math.ceil(spell.cooldown)}s` : spell.noTarget ? "No one needs it"
+    : short ? `Needs ${spell.cost} mana` : cooling ? `Ready in ${Math.ceil(spell.cooldown)}s` : spell.out ? "Already out" : spell.noTarget ? "No one needs it"
       : `${spell.free ? "Free" : `${spell.cost} mana`} · ${Math.round(spell.success * 100)}%${spell.strain > 0 ? ` (now ${Math.round(spell.nowSuccess * 100)}%)` : ""}`;
   return (
     <button
