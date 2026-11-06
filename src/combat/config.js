@@ -97,7 +97,7 @@ export const ENEMIES = {
   lieutenant:{ key: "lieutenant", name: "Lieutenant", tier: "elite",  hp: 300, speed: 26, damage: 30, color: "#00F3FF" },
   demon: { key: "demon", name: "Three-Headed Demon", tier: "boss", hp: 2800, speed: 20, damage: 55, color: "#FF0055", boss: true, attackFx: "napalm", attackRange: 420, splashRadius: 68, affinities: BOSS_AFFINITIES.threeHeadedDemon },
 imperialNecromancer: { key: "imperialNecromancer", name: "Imperial Necromancer", tier: "boss", hp: 3300, speed: 18, damage: 48, color: "#8B5CF6", boss: true, attackRange: 380, splashRadius: 52, affinities: BOSS_AFFINITIES.imperialNecromancer },
-  // Gauntlet roster additions: each has a role in engine._updateSpecialEnemy.
+  // Gauntlet roster additions: each has a role in enemies/roles.js.
   harrier: { key: "harrier", name: "Harrier", tier: "specialized", hp: 75, speed: 46, damage: 11, color: "#F97316" },
   carrionPriest: { key: "carrionPriest", name: "Carrion Priest", tier: "specialized", hp: 95, speed: 22, damage: 8, color: "#BE123C", affinities: { [DAMAGE_TYPES.DARK_SOUL]: "resistant" } },
   watcher: { key: "watcher", name: "Watcher", tier: "specialized", hp: 70, speed: 26, damage: 9, color: "#2DD4BF", floats: true },
@@ -106,7 +106,7 @@ imperialNecromancer: { key: "imperialNecromancer", name: "Imperial Necromancer",
   bandit: { key: "bandit", name: "Bandit", tier: "specialized", hp: 80, speed: 42, damage: 12, color: "#FBBF24" },
   lesserNecromancer: { key: "lesserNecromancer", name: "Lesser Necromancer", tier: "specialized", hp: 90, speed: 22, damage: 9, color: "#8B5CF6", affinities: { [DAMAGE_TYPES.DARK_SOUL]: "resistant" } },
   // The anchor: a slow shield-bearer that stands between the heroes and its
-  // squad's casters and archers (engine._updateSpecialEnemy). Arrows glance
+  // squad's casters and archers (enemies/roles.js). Arrows glance
   // off the shield, spells get around it (`shield`: damage taken by weapon).
   bulwark: { key: "bulwark", name: "Bulwark", tier: "specialized", hp: 180, speed: 26, damage: 12, color: "#60A5FA", shield: { bow: 0.8, staff: 1.15 } },
   banditWarlord: { key: "banditWarlord", name: "Bandit Warlord", tier: "boss", hp: 1500, speed: 30, damage: 32, color: "#FBBF24", boss: true },
@@ -117,7 +117,7 @@ nuclearBehemoth: { key: "nuclearBehemoth", name: "The Abomination", tier: "boss"
 // tough they are. Some families drive engine behavior directly: "hunter"
 // (chases the most wounded hero) and "predator" (hits wounded heroes 40%
 // harder); "watcher" makes sneaking past a squad harder (adventure.js). The
-// rest describe roles implemented per enemy in engine._updateSpecialEnemy.
+// rest describe roles implemented per enemy in enemies/roles.js.
 export const ENEMY_FAMILIES = Object.freeze({
   ghost: ["skirmisher"], slime: ["attrition"], goblin: ["skirmisher"], skeleton: [], orc: [],
   reaper: ["hunter"], darkElf: ["hunter", "skirmisher"], warlock: ["disruptor"], lieutenant: ["protector"],

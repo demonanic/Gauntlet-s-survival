@@ -1,3 +1,4 @@
+import { enemyTurn } from "../combat/enemies/turn";
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import { purchaseNode } from "../combat/classlessProgression";
 import * as C from "../combat/config";
@@ -411,7 +412,7 @@ describe("Shadow, Wild Magic and Dominate", () => {
     const h = engine.heroes[0];
     const before = Math.hypot(grunt.x - h.x, grunt.y - h.y);
     grunt.speed = 40;
-    engine._updateEnemy(grunt, 0.5);
+    enemyTurn(engine, grunt, 0.5);
     expect(Math.hypot(grunt.x - h.x, grunt.y - h.y)).toBeGreaterThan(before);
   });
 
@@ -423,7 +424,7 @@ describe("Shadow, Wild Magic and Dominate", () => {
     const engine = fight([mage("shadow", { veil: RANK_CASTS[3] })], [victim, turned, elite, boss]);
     cast(engine, "confusion", turned);
     expect(turned.confusedUntil).toBeCloseTo(engine.time + 4);
-    engine._updateEnemy(turned, 0.05);
+    enemyTurn(engine, turned, 0.05);
     expect(victim.hp).toBeLessThan(5000);
     expect(victim.dmgBy.H0).toBeGreaterThan(0);
     engine.heroes[0].spellCooldowns = {};
@@ -465,7 +466,7 @@ describe("Shadow, Wild Magic and Dominate", () => {
     cast(engine, "dominate", grunt);
     expect(grunt.dominatedUntil).toBeCloseTo(engine.time + 6);
     expect(engine._isValidClasslessTarget(h, grunt)).toBe(false);
-    engine._updateEnemy(grunt, 0.05);
+    enemyTurn(engine, grunt, 0.05);
     expect(other.hp).toBeLessThan(5000);
   });
 

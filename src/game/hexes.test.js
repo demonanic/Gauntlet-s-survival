@@ -1,3 +1,4 @@
+import { enemyTurn } from "../combat/enemies/turn";
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import * as C from "../combat/config";
 import { Engine } from "../combat/engine";
@@ -115,11 +116,11 @@ describe("what each hex does", () => {
     const engine = fight([mind({ casts: { thought_lance: RANK_CASTS[1] } })], [boss, ally]);
     cast(engine, "silence", boss);
     expect(boss.silenceUntil).toBeCloseTo(engine.time + SPELLS.silence.seconds * HEX.boss);
-    engine._updateEnemy(boss, 0.1);
+    enemyTurn(engine, boss, 0.1);
     expect(ally.hp).toBe(1000);
     expect(boss.abilityCd).toBe(0);
     boss.silenceUntil = 0;
-    engine._updateEnemy(boss, 0.1);
+    enemyTurn(engine, boss, 0.1);
     expect(ally.hp).toBeGreaterThan(1000);
   });
 

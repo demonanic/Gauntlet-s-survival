@@ -1,3 +1,4 @@
+import { enemyTurn } from "../combat/enemies/turn";
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import * as C from "../combat/config";
 import { Engine } from "../combat/engine";
@@ -58,7 +59,7 @@ const think = (engine, unit, seconds = STEP) => {
   for (let t = 0; t < seconds; t += STEP) {
     engine.time += STEP;
     unit.atkCd -= STEP;
-    engine._updateEnemy(unit, STEP);
+    enemyTurn(engine, unit, STEP);
   }
 };
 

@@ -1,3 +1,4 @@
+import { enemyTurn } from "../combat/enemies/turn";
 import { openRegion } from "../test/expeditionFixtures";
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import * as C from "../combat/config";
@@ -39,7 +40,7 @@ const make = (type, x, y, extra = {}) => {
   };
 };
 const think = (engine, unit, seconds) => {
-  for (let t = 0; t < seconds; t += STEP) { engine.time += STEP; unit.atkCd -= STEP; engine._updateEnemy(unit, STEP); }
+  for (let t = 0; t < seconds; t += STEP) { engine.time += STEP; unit.atkCd -= STEP; enemyTurn(engine, unit, STEP); }
 };
 const hit = (engine, target, dmg = 100) => engine._applyClasslessHit({ target, heroIndex: 0, sourceId: "H0", dmg, damageCategory: "weapon", classless: true });
 
