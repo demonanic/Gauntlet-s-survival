@@ -47,12 +47,14 @@ export default function DebugPanel({ guild, apply, onTestFight }) {
   };
 
   if (!open) {
-    // Mid right edge, above the tutorial card (z-97), which sits at the bottom.
+    // A thin tab on the middle of the right edge, above the tutorial card
+    // (z-97, at the bottom), covering as little of the screen as it can.
     return (
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed right-0 top-1/2 z-[98] -translate-y-1/2 rounded-l-lg border border-r-0 border-orange-400 bg-black/85 px-2 py-3 font-mono-g text-[11px] font-bold text-orange-300 shadow-lg"
+        className="fixed right-0 top-1/2 z-[98] -translate-y-1/2 rounded-l-md border border-r-0 border-orange-400 bg-black/85 px-0.5 py-2 font-mono-g text-[10px] font-bold text-orange-300 shadow-lg"
+        style={{ writingMode: "vertical-rl" }}
         data-testid="debug-open"
       >
         TEST
