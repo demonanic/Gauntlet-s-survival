@@ -210,10 +210,13 @@ export const heroSpellMethods = {
       // Enchanting and the two wards. Auto picks the ally they help most now.
       case "haste":
       case "true_aim": {
+        // Party-wide: worth it once at least two allies nearby lack it (or one
+        // on a hand cast) and, on auto, someone is fighting.
         const until = spell.shape === "haste" ? "hasteUntil" : "trueAimUntil";
         const fighting = (ally) => this.active.some((enemy) => enemy.hp > 0 && Math.hypot(enemy.x - ally.x, enemy.y - ally.y) <= 260);
-        return near.filter((ally) => !(ally[until] > this.time) && (!auto || fighting(ally)))
-          .sort((a, b) => (b.d.attack || 0) - (a.d.attack || 0))[0] || null;
+        const fresh = near.filter((ally) => !(ally[until] > this.time));
+        if (!auto) return fresh.length ? h : null;
+        return fresh.length >= Math.min(2, near.length) && near.some(fighting) ? h : null;
       }
       case "quiver": {
         const archers = near.filter((ally) => getEquippedHeroWeaponType(ally.model) === "bow" && !(ally.quiverUntil > this.time));
@@ -316,15 +319,19 @@ export const heroSpellMethods = {
         this.vfx?.aura("aegis", ally, spell.seconds, rank);
       }
     } else if (spell.shape === "haste") {
-      target.hasteUntil = this.time + spell.seconds;
-      target.hasteAmount = spell.amount;
-      this._float(target.x, target.y - 26, "HASTE", spell.color);
-      this.vfx?.aura("empower", target, spell.seconds, rank);
+      for (const ally of party) {
+        ally.hasteUntil = this.time + spell.seconds;
+        ally.hasteAmount = spell.amount;
+        this.vfx?.aura("empower", ally, spell.seconds, rank);
+      }
+      this._float(h.x, h.y - 26, "HASTE", spell.color);
     } else if (spell.shape === "true_aim") {
-      target.trueAimUntil = this.time + spell.seconds;
-      target.trueAimCrit = spell.amount;
-      this._float(target.x, target.y - 26, "TRUE AIM", spell.color);
-      this.vfx?.aura("empower", target, spell.seconds, rank);
+      for (const ally of party) {
+        ally.trueAimUntil = this.time + spell.seconds;
+        ally.trueAimCrit = spell.amount;
+        this.vfx?.aura("empower", ally, spell.seconds, rank);
+      }
+      this._float(h.x, h.y - 26, "TRUE AIM", spell.color);
     } else if (spell.shape === "quiver") {
       target.quiverUntil = this.time + spell.seconds;
       this._float(target.x, target.y - 26, "ENDLESS QUIVER", spell.color);

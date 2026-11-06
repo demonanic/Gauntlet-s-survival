@@ -53,17 +53,18 @@ describe("Enchanting and the new wards", () => {
     expect(wards).toEqual(expect.arrayContaining(["iron_skin", "spellguard"]));
   });
 
-  test("Haste: +30% attack and move speed for 10 s, on top of the attack speed cap", () => {
+  test("Haste: allies nearby +30% attack and move speed for 10 s, on top of the attack speed cap", () => {
     const engine = fight([enchanter, { weapon: "sword" }], [foe(300, 100)]);
     const ally = engine.heroes[1];
-    cast(engine, "haste", ally);
+    cast(engine, "haste", null);
+    expect(engine.heroes[0].hasteUntil).toBeCloseTo(engine.time + 10);
     expect(ally.hasteUntil).toBeCloseTo(engine.time + 10);
     ally.cd = 10;
     engine.update(0.1);
     expect(ally.cd).toBeCloseTo(10 - 0.1 * 1.3, 5);
   });
 
-  test("True Aim: no darkness misses, +15% crit", () => {
+  test("True Aim: allies nearby: no darkness misses, +15% crit", () => {
     const engine = fight([enchanter, { weapon: "sword" }], [foe(320, 400)]);
     const ally = engine.heroes[1];
     ally.d.env = { miss: 1 };
@@ -71,7 +72,7 @@ describe("Enchanting and the new wards", () => {
     const target = engine.active[0];
     const hit = () => withRoll(0.1, () => engine._applyHit({ sourceId: "H1", target, dmg: 10, damageCategory: "weapon", heroIndex: 1, critChance: 0, critMult: 2 }));
     expect(hit()).toBe(false);
-    cast(engine, "true_aim", ally);
+    cast(engine, "true_aim", null);
     expect(hit()).toBe(true);
     expect(engine.floaters.some((f) => /^CRIT/.test(f.text))).toBe(true);
   });
@@ -135,7 +136,7 @@ describe("Enchanting and the new wards", () => {
     expect(lost).toBeCloseTo((hp - ally.ref.hp) * 0.25, 0);
   });
 
-  test("on auto: Haste goes on the hardest hitter in the fight; wards wait for a hurt ally under the right kind of attack", () => {
+  test("on auto: Haste once two allies nearby lack it and someone is fighting; wards wait for a hurt ally under the right kind of attack", () => {
     const engine = fight([warder, { weapon: "sword" }], [foe(320, 400)]);
     const [caster, ally] = engine.heroes;
     expect(engine._supportTarget(caster, SPELLS.iron_skin, true)).toBeNull();
@@ -144,7 +145,11 @@ describe("Enchanting and the new wards", () => {
     expect(engine._supportTarget(caster, SPELLS.iron_skin, true)).toBe(ally);
     expect(engine._supportTarget(caster, SPELLS.spellguard, true)).toBeNull();
     const haste = fight([enchanter, { weapon: "sword" }, { weapon: "bow" }], [foe(320, 300)]);
-    haste.heroes[1].d.attack = 999;
-    expect(haste._supportTarget(haste.heroes[0], SPELLS.haste, true)).toBe(haste.heroes[1]);
+    expect(haste._supportTarget(haste.heroes[0], SPELLS.haste, true)).toBe(haste.heroes[0]);
+    haste.heroes[1].hasteUntil = haste.time + 5;
+    expect(haste._supportTarget(haste.heroes[0], SPELLS.haste, true)).toBe(haste.heroes[0]);
+    haste.heroes[2].hasteUntil = haste.time + 5;
+    expect(haste._supportTarget(haste.heroes[0], SPELLS.haste, true)).toBeNull();
+    expect(haste._supportTarget(haste.heroes[0], SPELLS.haste, false)).toBe(haste.heroes[0]);
   });
 });

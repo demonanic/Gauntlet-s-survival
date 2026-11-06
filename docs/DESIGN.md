@@ -141,6 +141,24 @@ A deliberately small model (not Demonanic's 11 slots), defined in `src/combat/ge
   Departure restocks every loaded slot from the stash and gives an arrowless archer
   plain arrows in a free slot.
 
+## Spells and moves, part 3: Enchanting and two wards (Nov 2026, `SPELLS`, `heroes/spells.js`)
+
+Owner-approved plan, reshaped after measuring.
+
+- **Enchanting**, a new support school (pink, `#F472B6`; learned like any other with Elementalism):
+  - **Haste** (I, 18 mana, 14 s): allies within 220 px of the caster attack and move 30% faster for 10 s. It stacks on top of the +20% attack-speed cap.
+  - **True Aim** (I, 16 mana, 12 s): allies within 220 px can't miss in the dark and get +15% crit chance for 10 s. (Heroes only miss in the dark, so the planned "+25% hit chance" would do nothing elsewhere.)
+  - **Endless Quiver** (II, 18 mana, 20 s): a bow ally shoots without using arrows, even with none left, for 10 s.
+  - **Kindred Bond** (II, 20 mana, 20 s): an ally's familiar deals 50% more and takes 30% less for 15 s.
+  - **Insight** (IV, 24 mana): the party earns 25% more XP from the rest of the fight, once a fight.
+- **Warding** adds **Iron Skin** (II, 22 mana, 25 s): an ally takes 75% less from melee hits and arrows for 6 s; and **Spellguard** (II, 22 mana, 25 s): 75% less from magic bolts (Warlock, Priest, Lesser Necromancer, Watcher) and bombs. A Warlock's mage hunt counts as magic.
+- Strengths are fixed (`amount`), not scaled by spell rank.
+- **On auto:** Haste and True Aim once at least two allies nearby lack them and someone is fighting; Endless Quiver on a fighting archer with under 30 arrows; Kindred Bond when a familiar is near a foe; Insight once, keeping the mana reserve; Iron Skin on a hurt ally (below 70%, hit in the last 1.5 s) with a melee foe beside them, Spellguard on one with a magic shooter or boss within 320 px. The wards come after Barrier (owner's call after measuring).
+- **Measured** (sword with a wolf, bow with 40 arrows, a caster of the tested school at V, a Fire III caster; 120 seeded fights each; wins, damage the party took):
+  - First version (one ally, 6 s): Enchanting 118 / 103 / 69 / 119 wins (Frostfang wild, Ashen wild, Blightmire wild, Boneyard boss), against Fire 119 / 103 / 76 / 120 and Restoration 119 / 114 / 92 / 120; the most XP (about 15–20% more, from Insight). Longer buffs (10 s, Kindred Bond 15 s) changed nothing measurable: the caster has about 70 mana, spends most of it on Arcane Bolt, and casts each buff about once a fight.
+  - Party-wide Haste and True Aim (shipped): 119 / 102 / 75 / 119 wins; damage taken 403 / 622 / 820 / 489, against 448 / 646 / 897 / 533 for the one-ally version and 421 / 671 / 823 / 515 for Fire; XP 306 / 299 / 228 / 415, against 254 / 245 / 179 / 345 for Fire.
+  - Iron Skin and Spellguard were neutral either way (a Warding caster's damage taken within about 3% of main's; Iron Skin about 0.3 casts a fight, Spellguard almost never): tools to fire by hand at the right moment.
+
 ## Battle log (Nov 2026, `combat/battleLog.js`, `screens/Battle.jsx`)
 
 Owner-approved (Sam's mockup; LOG tab + ticker chosen for phones).
