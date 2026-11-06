@@ -40,7 +40,9 @@ const round = (value) => Math.round(value * 1000) / 1000;
 function flat(object) {
   const out = {};
   for (const key of Object.keys(object).sort()) {
-    if (key === "id") continue;
+    // A summoned minion's `master` (added after recording) shows up in its
+    // master's health instead.
+    if (key === "id" || key === "master") continue;
     const value = object[key];
     if (typeof value === "number") out[key] = round(value);
     else if (typeof value === "string" || typeof value === "boolean" || value == null) out[key] = value;
@@ -124,7 +126,7 @@ const GOLDEN = {
   "ashen squad": "0aa7b6dc733d2bef",
   "ashen squad, tortoise": "204ba1ad44962880",
   "ashen swarming champion": "f2db11aed8258fc6",
-  "ashen vampiric champion": "4cb258664a4c1752",
+  "ashen vampiric champion": "9e2b46dc7bdca51a",
   "ashen warded champion": "02bee9cfbc868bfa",
   "bandit": "8bffbe62b76bef73",
   "banditWarlord": "d69def74831fba1c",
@@ -155,7 +157,7 @@ const GOLDEN = {
   "slime": "0c9e1d4a8e192276",
   "stalker": "c0fb8c83f6c11921",
   "vampiric abomination": "424e1c3834897972",
-  "vampiric demon": "71181f6bc3e598f4",
+  "vampiric demon": "e624205d3ca8064b",
   "warlock": "20960c3a2099c87f",
   "watcher": "b2e0e7aa3aca15bb",
 };

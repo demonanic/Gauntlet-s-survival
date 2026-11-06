@@ -40,7 +40,7 @@ export function bossAbility(engine, e, dt) {
       e.abilityCd = 10;
       const gang = engine.active.filter((ally) => ally.type === "bandit" && ally.hp > 0).length;
       const called = Math.min(2, Math.max(0, WARLORD_GANG - gang));
-      for (let k = 0; k < called; k++) engine._summon("bandit");
+      for (let k = 0; k < called; k++) engine._summon("bandit", e);
       if (called) { engine._float(e.x, e.y - 34, "TO ME, LADS!", e.color); engine._log("boss", `${engine._foeName(e)} calls ${called} bandit${called > 1 ? "s" : ""}`); }
       e.blitzUntil = engine.time + 0.6;
       e.blitzStrike = true;
@@ -56,10 +56,10 @@ export function bossAbility(engine, e, dt) {
       if (e.type === "imperialNecromancer") {
         // Raise dead: a larger, slower pack of minions, plus a soul bomb.
         e.abilityCd = 8;
-        if (engine._summonUpTo(["skeleton", "skeleton", "ghost"], BOSS_MINIONS)) { engine._float(e.x, e.y - 34, "RAISE DEAD", e.color); engine._log("boss", `${engine._foeName(e)} raises the dead`); }
+        if (engine._summonUpTo(["skeleton", "skeleton", "ghost"], BOSS_MINIONS, e)) { engine._float(e.x, e.y - 34, "RAISE DEAD", e.color); engine._log("boss", `${engine._foeName(e)} raises the dead`); }
       } else {
         e.abilityCd = 6;
-        engine._summonUpTo(["skeleton", "skeleton"], BOSS_MINIONS);
+        engine._summonUpTo(["skeleton", "skeleton"], BOSS_MINIONS, e);
       }
       if (lobTarget) engine._throwNapalm(e, lobTarget);
     } else {
@@ -85,7 +85,7 @@ export function championTick(engine, e, dt) {
     e.swarmCd = (e.swarmCd ?? 3) - dt;
     if (e.swarmCd <= 0) {
       e.swarmCd = 4;
-      if (engine._summonUpTo(["skeleton", "skeleton"], CHAMPION_SWARM)) { engine._float(e.x, e.y - 34, "SWARM", e.color); engine._log("boss", `${engine._foeName(e)} calls a swarm`); }
+      if (engine._summonUpTo(["skeleton", "skeleton"], CHAMPION_SWARM, e)) { engine._float(e.x, e.y - 34, "SWARM", e.color); engine._log("boss", `${engine._foeName(e)} calls a swarm`); }
     }
   } else if (e.champion === "frenzied" && !e.frenzied && share < 0.5) {
     e.frenzied = true;

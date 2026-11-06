@@ -78,6 +78,28 @@ describe("Champion bosses", () => {
     expect(plain.hp).toBeCloseTo(plain.maxHp * 0.5);
   });
 
+  test("a Vampiric boss also heals 0.5% for every hit its summoned minions land", () => {
+    const { engine, boss, hero } = engineWithBoss(19);
+    boss.hp = boss.maxHp * 0.5;
+    engine._summonUpTo(["skeleton"], 4, boss);
+    const minion = engine.active.find((enemy) => enemy.summoned);
+    expect(minion.master).toBe(boss);
+    Object.assign(minion, { x: hero.x, y: hero.y - 20, dmgBy: {} });
+    const roll = vi.spyOn(Math, "random").mockReturnValue(0.99); // no dodge
+    try { engine._enemyAttack(minion, { kind: "hero", obj: hero }); } finally { roll.mockRestore(); }
+    expect(boss.hp).toBeCloseTo(boss.maxHp * 0.505);
+    // A plain boss's minions don't; nor does a dead master.
+    const plain = engineWithBoss(18);
+    plain.boss.hp = plain.boss.maxHp * 0.5;
+    plain.engine._summonUpTo(["skeleton"], 4, plain.boss);
+    const theirs = plain.engine.active.find((enemy) => enemy.summoned);
+    plain.engine._vampiric(theirs);
+    expect(plain.boss.hp).toBeCloseTo(plain.boss.maxHp * 0.5);
+    boss.hp = 0;
+    engine._vampiric(minion);
+    expect(boss.hp).toBe(0);
+  });
+
   test("beating a Champion pays double bounty and an extra crystal", () => {
     const clear = (rank) => {
       let state = { ...createGuild(), bossRank: rank };

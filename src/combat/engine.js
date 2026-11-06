@@ -9,7 +9,7 @@ import { BEASTS, CASTING, CONTROL, ELEMENTS, HEX, MAGIC, SHIELD_CAP, SPELLS, cas
 import { BattleLog } from "./battleLog";
 import { bossAbility, championTick, warlockMageHunt } from "./enemies/abilities";
 import { enemyRole } from "./enemies/roles";
-import { BODY_PAD, CHAMPION_VAMPIRIC, SAPPER_SPRINT_RANGE } from "./enemies/tuning";
+import { BODY_PAD, CHAMPION_VAMPIRIC, CHAMPION_VAMPIRIC_MINION, SAPPER_SPRINT_RANGE } from "./enemies/tuning";
 import { SpellVfx } from "./spellVfx";
 import { BONDS, memorialDamage } from "../game/bonds";
 import * as C from "./config";
@@ -997,18 +997,20 @@ export class Engine {
   }
 
   // Gauntlet scales summoned minions to the encounter through sim.makeMinion.
-  _summon(type) {
+  // `master`: the boss that called it (a Vampiric master heals from its hits).
+  _summon(type, master = null) {
     const minion = this.sim.makeMinion(type);
     minion.summoned = true;
+    if (master) minion.master = master;
     this.injectEnemy(minion);
   }
 
   // Summon from `types` in order until `cap` summoned minions are alive.
   // Returns how many were called.
-  _summonUpTo(types, cap) {
+  _summonUpTo(types, cap, master = null) {
     const alive = this.active.filter((enemy) => enemy.summoned && enemy.hp > 0).length;
     const called = types.slice(0, Math.max(0, cap - alive));
-    for (const type of called) this._summon(type);
+    for (const type of called) this._summon(type, master);
     return called.length;
   }
 
@@ -3442,10 +3444,18 @@ export class Engine {
   }
 
   // ---- Champion bosses (game/regions.js CHAMPIONS; Warded, Swarming and Frenzied in enemies/abilities.js) ----
-  // A Vampiric Champion heals with every hit it lands.
+  // A Vampiric Champion heals with every hit it lands, and a little with every
+  // hit one of its summoned minions lands (owner's call, Nov 2026: the
+  // Imperial Necromancer lands almost none itself).
   _vampiric(e) {
-    if (e?.champion !== "vampiric" || !(e.hp > 0)) return;
-    e.hp = Math.min(e.maxHp, e.hp + e.maxHp * CHAMPION_VAMPIRIC);
+    if (!e) return;
+    if (e.champion === "vampiric") {
+      if (e.hp > 0) e.hp = Math.min(e.maxHp, e.hp + e.maxHp * CHAMPION_VAMPIRIC);
+      return;
+    }
+    const master = e.master;
+    if (master?.champion !== "vampiric" || !(master.hp > 0) || master._dead) return;
+    master.hp = Math.min(master.maxHp, master.hp + master.maxHp * CHAMPION_VAMPIRIC_MINION);
   }
 
   // A nemesis regenerates, and once per fight, nearly dead, may flee the
