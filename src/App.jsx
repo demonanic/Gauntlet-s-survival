@@ -116,7 +116,10 @@ export default function App() {
       <header className="mb-3 flex items-center justify-between">
         <h1 className="font-display text-2xl font-black tracking-wider text-cyan-200 text-glow-cyan">GAUNTLET</h1>
         <div className="flex items-center gap-2">
-          <CloudSync guild={guild} localReplaced={boot.replaced} onLoadSave={(state) => setGuild(tick(state, Date.now()))} />
+          {/* Test mode plays on its own save, never synced (storage.js TEST_SAVE_KEY). */}
+          {DEBUG
+            ? <span className="rounded border border-orange-400/70 px-1.5 py-0.5 font-mono-g text-[10px] font-bold text-orange-300" data-testid="test-save-tag">TEST SAVE</span>
+            : <CloudSync guild={guild} localReplaced={boot.replaced} onLoadSave={(state) => setGuild(tick(state, Date.now()))} />}
           <span className="font-mono-g text-sm font-bold text-yellow-300" data-testid="gold">{guild.gold}g</span>
         </div>
       </header>

@@ -5,6 +5,7 @@ import {
   MAX_HERO_LEVEL, debugAddGold, debugAddRenown, debugCareer, debugGivePets, debugGiveCrate, debugClearRegions, debugEndExpedition, debugGiveGearSet, debugGiveSupplies,
   debugSetBossRank, debugSetLevels, debugSkipTimers,
 } from "../game/debug";
+import { readRealSave } from "../game/storage";
 import { NeonButton } from "./ui";
 
 const selectClass = "rounded border border-white/15 bg-black/60 px-1 py-1 font-mono-g text-[11px] text-slate-100";
@@ -40,6 +41,12 @@ export default function DebugPanel({ guild, apply }) {
         <button type="button" className="text-slate-400 underline" onClick={() => setOpen(false)}>close</button>
       </div>
       <div className="space-y-2">
+        <div className={row}>
+          <span className="text-orange-200">Test save</span>
+          <NeonButton color="#FB923C" onClick={() => {
+            if (globalThis.confirm?.("Replace this test save with a copy of your real save from this browser?") !== false) apply(() => readRealSave());
+          }} data-testid="debug-copy-real">Copy my real save</NeonButton>
+        </div>
         <div className={row}>
           <NeonButton color="#FFE600" onClick={() => apply((state) => debugAddGold(state, 1000))} data-testid="debug-gold">+1k gold</NeonButton>
           <NeonButton color="#FFE600" onClick={() => apply((state) => debugAddGold(state, 10000))}>+10k gold</NeonButton>
@@ -90,7 +97,8 @@ export default function DebugPanel({ guild, apply }) {
           <NeonButton color="#FF6600" onClick={() => apply((state) => debugGiveGearSet(state, rarity, tier, set || null))} data-testid="debug-gear">To vault</NeonButton>
         </div>
         <p className="text-[10px] text-slate-500">
-          Battles get 4× and 8× speed in test mode. Gold, levels and gear made here are real save data; use Reset save to start clean.
+          Test mode plays on its own save in this browser, apart from your real one, and never syncs to the cloud. Open the
+          game without ?debug to get your real save back. Battles get 4× and 8× speed here; Reset save starts the test save clean.
         </p>
       </div>
     </div>

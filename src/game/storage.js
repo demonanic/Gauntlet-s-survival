@@ -16,6 +16,18 @@ import { normalizeTutorial } from "./tutorial";
 import { STASH_KEYS, crystalInfo } from "../combat/gear";
 
 const STORAGE_KEY = "gauntlet.save.v1";
+// Test mode (?debug in the address) keeps its own save, so playtesting never
+// touches the real one (and cloud sync is off there; see App.jsx).
+export const TEST_SAVE_KEY = "gauntlet.save.test";
+
+export function isTestSave(search = globalThis.location?.search || "") {
+  return new URLSearchParams(search).has("debug");
+}
+
+// The save this page reads and writes.
+export function saveKey(search) {
+  return isTestSave(search) ? TEST_SAVE_KEY : STORAGE_KEY;
+}
 
 // Older saves predate traits and individual looks: heroes without a trait get
 // one, and only a malformed look is replaced (preset colors stay as they were).
@@ -142,10 +154,11 @@ function normalizeGuild(parsed) {
 // a JSON list of { at, reason, raw }, newest last, at most MAX_BACKUPS long.
 export const BACKUP_KEY = "gauntlet.save.v1.backups";
 const MAX_BACKUPS = 5;
+const backupKey = () => (saveKey() === STORAGE_KEY ? BACKUP_KEY : `${TEST_SAVE_KEY}.backups`);
 
 export function readSaveBackups(storage = globalThis.localStorage) {
   try {
-    const list = JSON.parse(storage?.getItem(BACKUP_KEY) || "[]");
+    const list = JSON.parse(storage?.getItem(backupKey()) || "[]");
     return Array.isArray(list) ? list : [];
   } catch {
     return [];
@@ -159,7 +172,7 @@ function backupRawSave(storage, raw, reason, now) {
     const list = readSaveBackups(storage);
     if (list.some((entry) => entry?.raw === raw)) return true;
     const next = [...list, { at: now, reason, raw }].slice(-MAX_BACKUPS);
-    storage.setItem(BACKUP_KEY, JSON.stringify(next));
+    storage.setItem(backupKey(), JSON.stringify(next));
     return readSaveBackups(storage).some((entry) => entry?.raw === raw);
   } catch {
     return false;
@@ -176,7 +189,7 @@ function backupRawSave(storage, raw, reason, now) {
 export function loadSave(storage = globalThis.localStorage, now = Date.now()) {
   let raw = null;
   try {
-    raw = storage?.getItem(STORAGE_KEY) ?? null;
+    raw = storage?.getItem(saveKey()) ?? null;
   } catch {
     return { state: createGuild(), status: "unreadable", replaced: false, preserved: true };
   }
@@ -198,16 +211,29 @@ export function loadGuild(storage = globalThis.localStorage) {
 
 export function saveGuild(state, storage = globalThis.localStorage) {
   try {
-    storage?.setItem(STORAGE_KEY, JSON.stringify(state));
+    storage?.setItem(saveKey(), JSON.stringify(state));
     return true;
   } catch {
     return false;
   }
 }
 
+// Test mode: a copy of the real save (this browser's), to test from. Returns
+// { ok, state } like the debug shortcuts; the real save is only read.
+export function readRealSave(storage = globalThis.localStorage) {
+  try {
+    const raw = storage?.getItem(STORAGE_KEY);
+    if (!raw) return { ok: false, reason: "no_save" };
+    const result = readGuild(JSON.parse(raw));
+    return result.state ? { ok: true, state: result.state } : { ok: false, reason: result.status };
+  } catch {
+    return { ok: false, reason: "unreadable" };
+  }
+}
+
 export function clearGuild(storage = globalThis.localStorage) {
   try {
-    storage?.removeItem(STORAGE_KEY);
+    storage?.removeItem(saveKey());
   } catch {
     // Storage unavailable (private mode); nothing to clear.
   }
