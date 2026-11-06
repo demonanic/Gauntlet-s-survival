@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { GEAR_SETS } from "../combat/gear";
+import { ELEMENTS, ROMAN, SCHOOLS, SPELLS, canCast, heroMagic, proficiency, rankFor, spellCasts } from "../combat/spells";
 import { MAX_GEAR_TIER, RARITY_ORDER, RARITIES } from "../game/items";
 import {
   MAX_HERO_LEVEL, debugAddGold, debugAddRenown, debugCareer, debugGivePets, debugGiveCrate, debugClearRegions, debugEndExpedition, debugGiveGearSet, debugGiveSupplies,
-  debugSetBossRank, debugSetLevels, debugSkipTimers,
+  debugGiveCasting, debugLearnSchool, debugSetBossRank, debugSetLevels, debugSetSchoolRank, debugSetSpellRank, debugSkipTimers,
 } from "../game/debug";
 import { readRealSave } from "../game/storage";
 import { NeonButton } from "./ui";
@@ -19,6 +20,11 @@ export default function DebugPanel({ guild, apply }) {
   const [rarity, setRarity] = useState("rare");
   const [tier, setTier] = useState(3);
   const [set, setSet] = useState("");
+  const [heroId, setHeroId] = useState(guild.heroes[0]?.identity.id || "");
+  const [school, setSchool] = useState("conjuration");
+  const [schoolRank, setSchoolRank] = useState(5);
+  const [spellId, setSpellId] = useState("");
+  const [spellRank, setSpellRank] = useState(5);
 
   if (!open) {
     return (
@@ -96,11 +102,63 @@ export default function DebugPanel({ guild, apply }) {
           </select>
           <NeonButton color="#FF6600" onClick={() => apply((state) => debugGiveGearSet(state, rarity, tier, set || null))} data-testid="debug-gear">To vault</NeonButton>
         </div>
+        <MagicTools guild={guild} apply={apply} row={row}
+          heroId={heroId} setHeroId={setHeroId} school={school} setSchool={setSchool} schoolRank={schoolRank} setSchoolRank={setSchoolRank}
+          spellId={spellId} setSpellId={setSpellId} spellRank={spellRank} setSpellRank={setSpellRank} />
         <p className="text-[10px] text-slate-500">
           Test mode plays on its own save in this browser, apart from your real one, and never syncs to the cloud. Open the
           game without ?debug to get your real save back. Battles get 4× and 8× speed here; Reset save starts the test save clean.
         </p>
       </div>
+    </div>
+  );
+}
+
+const rankOptions = [1, 2, 3, 4, 5].map((value) => <option key={value} value={value}>{ROMAN[value - 1]}</option>);
+
+// Magic for any hero: casting, any school (no slot limit), a school's
+// proficiency or one spell's rank, set at once.
+function MagicTools({ guild, apply, row, heroId, setHeroId, school, setSchool, schoolRank, setSchoolRank, spellId, setSpellId, spellRank, setSpellRank }) {
+  const hero = guild.heroes.find((entry) => entry.identity.id === heroId) || guild.heroes[0];
+  if (!hero) return null;
+  const id = hero.identity.id;
+  const spells = Object.entries(SPELLS).filter(([, spell]) => spell.element === school);
+  const pickedSpell = spells.some(([key]) => key === spellId) ? spellId : spells[0]?.[0];
+  const elements = canCast(hero) ? ["arcane", ...heroMagic(hero).elements] : [];
+  return (
+    <div className="space-y-1.5 rounded border border-fuchsia-400/30 p-2" data-testid="debug-magic">
+      <div className={row}>
+        <span className="text-fuchsia-200">Magic</span>
+        <select className={selectClass} value={id} onChange={(event) => setHeroId(event.target.value)} data-testid="debug-magic-hero">
+          {guild.heroes.map((entry) => <option key={entry.identity.id} value={entry.identity.id}>{entry.identity.name}</option>)}
+        </select>
+        <NeonButton color="#E879F9" onClick={() => apply((state) => debugGiveCasting(state, id))} data-testid="debug-casting">Give casting</NeonButton>
+      </div>
+      <div className={row}>
+        <select className={selectClass} value={school} onChange={(event) => setSchool(event.target.value)} data-testid="debug-school">
+          {["arcane", ...SCHOOLS].map((key) => <option key={key} value={key}>{ELEMENTS[key].name}</option>)}
+        </select>
+        <NeonButton color="#E879F9" onClick={() => apply((state) => (school === "arcane" ? debugGiveCasting(state, id) : debugLearnSchool(state, id, school)))}
+          data-testid="debug-learn">Learn</NeonButton>
+        <span>proficiency</span>
+        <select className={selectClass} value={schoolRank} onChange={(event) => setSchoolRank(Number(event.target.value))} data-testid="debug-school-rank">{rankOptions}</select>
+        <NeonButton color="#E879F9" onClick={() => apply((state) => debugSetSchoolRank(state, id, school, schoolRank))} data-testid="debug-set-school">Set</NeonButton>
+      </div>
+      <div className={row}>
+        <select className={selectClass} value={pickedSpell || ""} onChange={(event) => setSpellId(event.target.value)} data-testid="debug-spell">
+          {spells.map(([key, spell]) => <option key={key} value={key}>{spell.name}</option>)}
+        </select>
+        <span>rank</span>
+        <select className={selectClass} value={spellRank} onChange={(event) => setSpellRank(Number(event.target.value))} data-testid="debug-spell-rank">{rankOptions}</select>
+        <NeonButton color="#E879F9" onClick={() => pickedSpell && apply((state) => debugSetSpellRank(state, id, pickedSpell, spellRank))} data-testid="debug-set-spell">Set</NeonButton>
+      </div>
+      <div className="text-[10px] text-slate-400" data-testid="debug-magic-now">
+        {elements.length
+          ? elements.map((element) => `${ELEMENTS[element].name} ${ROMAN[proficiency(hero, element) - 1]}`).join(" · ")
+          : "Can't cast yet."}
+        {pickedSpell && elements.includes(SPELLS[pickedSpell].element) && ` · ${SPELLS[pickedSpell].name} rank ${ROMAN[rankFor(spellCasts(hero, pickedSpell)) - 1]}`}
+      </div>
+      <p className="text-[10px] text-slate-500">A spell's casts count toward its school, so setting a spell's rank can raise the school too. Meteor and Arcane Channel still need their perks.</p>
     </div>
   );
 }

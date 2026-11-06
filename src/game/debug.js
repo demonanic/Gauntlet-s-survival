@@ -8,6 +8,7 @@ import { CRYSTAL_KEYS, GEAR_SLOTS, STASH_KEYS } from "../combat/gear";
 import { PET_SPECIES_KEYS, PET_XP } from "../combat/pets";
 import { createPet } from "./pets";
 import { serializeGameState } from "../combat/heroModel";
+import { RANK_CASTS, SCHOOLS, SPELLS, emptyMagic } from "../combat/spells";
 import { LEGENDARY_KEYS, createGearItem } from "./items";
 import { emptyLegacy } from "./legacy";
 import { developQualities, sharedQualities } from "./qualities";
@@ -130,5 +131,73 @@ export function debugGiveCrate(state) {
 export function debugGivePets(state, level = 6) {
   const next = serializeGameState(state);
   next.kennel = [...(next.kennel || []), ...PET_SPECIES_KEYS.map((species) => ({ ...createPet(species), level, xp: PET_XP[level - 1] }))];
+  return { ok: true, state: next };
+}
+
+// ---- Magic (test mode) ----------------------------------------------------
+// For trying spells in live play: casting for any hero, any school with no
+// slot limit, and a school's proficiency or a spell's rank set straight away.
+
+function debugHero(next, heroId) {
+  return next.heroes.find((hero) => hero.identity.id === heroId) || null;
+}
+
+// Arcane Spark (casting, Arcane Bolt) and Elementalism (schools).
+function giveCasting(hero) {
+  const owned = new Set(hero.progression.ownedNodeIds || []);
+  owned.add("A1"); owned.add("A2");
+  hero.progression.ownedNodeIds = [...owned];
+  hero.magic = { ...emptyMagic(), ...(hero.magic || {}) };
+  hero.magic.casts = { ...hero.magic.casts };
+}
+
+export function debugGiveCasting(state, heroId) {
+  const next = serializeGameState(state);
+  const hero = debugHero(next, heroId);
+  if (!hero) return { ok: false, reason: "no_hero" };
+  giveCasting(hero);
+  return { ok: true, state: next };
+}
+
+// Learn a school (casting comes with it if missing). No slot or AP limit.
+export function debugLearnSchool(state, heroId, school) {
+  if (!SCHOOLS.includes(school)) return { ok: false, reason: "invalid_element" };
+  const next = serializeGameState(state);
+  const hero = debugHero(next, heroId);
+  if (!hero) return { ok: false, reason: "no_hero" };
+  giveCasting(hero);
+  if (!hero.magic.elements.includes(school)) hero.magic.elements = [...hero.magic.elements, school];
+  return { ok: true, state: next };
+}
+
+// A school's proficiency to exactly `rank` (I-V): its first spell gets the
+// casts that rank needs and its other spells start over at rank I. Learns
+// the school first if needed (Arcane needs only casting).
+export function debugSetSchoolRank(state, heroId, school, rank) {
+  if (school !== "arcane" && !SCHOOLS.includes(school)) return { ok: false, reason: "invalid_element" };
+  const learned = school === "arcane" ? debugGiveCasting(state, heroId) : debugLearnSchool(state, heroId, school);
+  if (!learned.ok) return learned;
+  const next = learned.state;
+  const hero = debugHero(next, heroId);
+  const r = Math.max(1, Math.min(5, Math.floor(rank)));
+  const ids = Object.keys(SPELLS).filter((id) => SPELLS[id].element === school && !SPELLS[id].node);
+  const first = ids.find((id) => SPELLS[id].unlock === 1) || ids[0];
+  for (const id of ids) delete hero.magic.casts[id];
+  if (first && r > 1) hero.magic.casts[first] = RANK_CASTS[r - 1];
+  return { ok: true, state: next };
+}
+
+// One spell's rank (I-V). Its casts count toward the school too, so this can
+// raise the school's proficiency.
+export function debugSetSpellRank(state, heroId, spellId, rank) {
+  const spell = SPELLS[spellId];
+  if (!spell) return { ok: false, reason: "invalid_spell" };
+  const learned = spell.element === "arcane" ? debugGiveCasting(state, heroId) : debugLearnSchool(state, heroId, spell.element);
+  if (!learned.ok) return learned;
+  const next = learned.state;
+  const hero = debugHero(next, heroId);
+  const r = Math.max(1, Math.min(5, Math.floor(rank)));
+  if (r > 1) hero.magic.casts[spellId] = RANK_CASTS[r - 1];
+  else delete hero.magic.casts[spellId];
   return { ok: true, state: next };
 }
