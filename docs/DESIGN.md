@@ -141,6 +141,15 @@ A deliberately small model (not Demonanic's 11 slots), defined in `src/combat/ge
   Departure restocks every loaded slot from the stash and gives an arrowless archer
   plain arrows in a free slot.
 
+## Battle log (Nov 2026, `combat/battleLog.js`, `screens/Battle.jsx`)
+
+Owner-approved (Sam's mockup; LOG tab + ticker chosen for phones).
+
+- **Lines** (newest first, the last 60 kept, `LOG_CAP`): spells that land, with the target (support spells: the ally, or "the party"); fizzles, with the strain if any; special moves, with the target; control spells and hexes, with how many foes they took ("Enfeeble → Reaper + 2") or "resisted"/"no effect"; a hero down and what downed them; elites and bosses slain and by whom; Clutch moments; boss moments (enrage, Warlord's call, Raise Dead, champion wards, swarms, frenzy).
+- **No flood:** hits, misses (darkness), crits, dodges, spells, fizzles, damage dealt and taken are counted per hero; every 10 s (`SUMMARY_EVERY`) each hero who did anything gets one line ("Brann · 6 hits, 2 misses, 1 crit, 2 dodges, 198 dmg, took 41"); at the end, "Victory"/"Defeat"/"Returned home" and a whole-fight line per hero.
+- **Screen:** a LOG tab beside the hero tabs shows the log in place of the action panel, with filter chips (All · Spells · Moves · Deaths · Summary; control and hexes show under Spells, boss moments under Deaths) and Copy (plain text, oldest first, for pasting). A two-line ticker under the field always shows the latest lines. Tapping a hero tab closes the log.
+- **Records only:** the engine writes to `engine.battleLog` and never reads it; no random numbers. With the log in, every characterization hash (fight results, party decisions, drawing) is unchanged.
+
 ## Spell targets (Nov 2026, `markHeroTarget`, `heroSpellTarget`, `enemyAt` in engine.js)
 
 Owner-approved.

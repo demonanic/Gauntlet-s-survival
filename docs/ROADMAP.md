@@ -329,3 +329,5 @@ Decisions (Sam, 2026-11-01, reviewing Phase 5):
 | 2026-11-05 | Spells part 2: hexes (feature) | #51 | CI per commit (576–577 tests, build); fight-result and drawing hashes unchanged. Single-target hexes measured neutral; Sam chose area hexes (elites full, bosses half), measured a small gain |
 | 2026-11-05 | Spells part 2 merged | #51 | Merged `59239b8` (squash) on CI |
 | 2026-11-05 | Spell targets (feature) | #52 | CI 582 tests, build; hashes unchanged. Next per Sam: the battle log, then Phase 8B-8D |
+| 2026-11-05 | Spell targets merged | #52 | Merged `d7471d5` (squash) on CI; adds weakest-foe auto bolts (Sam: yes), drawing hashes re-recorded for it |
+| 2026-11-05 | Battle log (feature) | #53 | CI 589 tests, build; every characterization hash unchanged. Next per Sam: Phase 8B-8D |
