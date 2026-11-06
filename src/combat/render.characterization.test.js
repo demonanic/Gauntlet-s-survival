@@ -128,10 +128,10 @@ const CASES = {
 
 // Recorded in CI on the code before the renderer moved (Phase 8A).
 const GOLDEN = {
-  "boneyard boss": "18c9431b2e63c871",
-  "frostfang wild": "b892f7305313e654",
-  "ashen boss": "f25cb7715cab0855",
-  "blightmire wild": "d1d84e8e00bfad61",
+  "boneyard boss": "0cf89730335f118c",
+  "frostfang wild": "133fcc4deb03dba7",
+  "ashen boss": "ba0b2984621abd56",
+  "blightmire wild": "97b697e17c724415",
   "gutter wild": "0e53c7313d1898ec",
 };
 

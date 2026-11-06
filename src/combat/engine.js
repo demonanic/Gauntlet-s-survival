@@ -185,6 +185,8 @@ export const LAYOUT = { W, H, HERO_Y, FLOOR_Y };
 const SUPPORT_PRIORITY = Object.freeze(["lifeline", "heal", "veil", "renew", "barrier", "aegis", "empower", "summon"]);
 // Spells that hold foes (Shadow, Wild Magic, Dominate), cast at a foe.
 const CONTROL_SHAPES = Object.freeze(new Set(["terror", "confusion", "ensnare", "thornfield", "dominate"]));
+// Auto bolts and curses go at the weakest foe in range (see _autoCast).
+const AUTO_WEAKEST = true;
 const HEX_SHAPES = Object.freeze(new Set(["blind", "enfeeble", "silence", "disarm", "expose"]));
 // Foes with something for Silence to stop (boss abilities, spells, heals, summons, Blitz).
 const SILENCEABLE = Object.freeze(new Set(["warlock", "carrionPriest", "lesserNecromancer", "bandit"]));
@@ -3571,8 +3573,13 @@ export class Engine {
     if (control) { this.castHeroSpell(h.i, control.spell.id, control.foe); return; }
     const hex = this._autoHex(h, ready);
     if (hex) { this.castHeroSpell(h.i, hex.spell.id, hex.foe); return; }
+    // The player's mark if it's in reach; else the weakest foe in range (it
+    // finishes kills sooner; owner-approved after measuring, Nov 2026); else
+    // the weapon target or the nearest.
     const marked = this.heroSpellTarget(h.i);
-    const target = [marked && Math.hypot(marked.x - h.x, marked.y - h.y) <= 340 ? marked : null, h.currentTarget]
+    const weakest = AUTO_WEAKEST ? this.active.filter((enemy) => enemy.hp > 0 && !enemy._dead && !(enemy.dominatedUntil > this.time)
+      && Math.hypot(enemy.x - h.x, enemy.y - h.y) <= 300).sort((a, b) => a.hp - b.hp)[0] : null;
+    const target = [marked && Math.hypot(marked.x - h.x, marked.y - h.y) <= 340 ? marked : null, weakest, h.currentTarget]
       .find((enemy) => enemy?.hp > 0 && !(enemy.dominatedUntil > this.time)) || this._nearestEnemy(h.x, h.y, 340);
     if (!target) return;
     const inRange = ready.filter((spell) => Math.hypot(target.x - h.x, target.y - h.y) <= spell.range);

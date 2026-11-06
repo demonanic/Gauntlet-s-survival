@@ -90,4 +90,14 @@ describe("marking a spell target", () => {
     expect(marked.hp).toBeLessThan(5000);
     expect(nearest.hp).toBe(5000);
   });
+
+  test("without a mark, auto bolts go at the weakest foe in range", () => {
+    const strong = foe(300, 360);
+    const weak = foe(360, 300, { hp: 800 });
+    const { engine, h } = fight([strong, weak]);
+    h.currentTarget = strong;
+    withRoll(0, () => engine._autoCast(h));
+    expect(weak.hp).toBeLessThan(800);
+    expect(strong.hp).toBe(5000);
+  });
 });
