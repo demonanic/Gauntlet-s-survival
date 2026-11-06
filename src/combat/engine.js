@@ -5,7 +5,7 @@
 // Simulation is separate from React; mutates a cloned `sim` fragment and
 // accumulates XP gains, returned to the UI at wave end.
 import { heroLuck, luckEffects } from "./luck";
-import { BEASTS, CONTROL, ELEMENTS, MAGIC, SHIELD_CAP, SPELLS, castSuccessChance, heroBeast, knownSpells, maxMana as spellMaxMana, proficiency, spellPower, spellRadius, supportPower } from "./spells";
+import { BEASTS, CASTING, CONTROL, ELEMENTS, MAGIC, SHIELD_CAP, SPELLS, castSuccessChance, heroBeast, knownSpells, maxMana as spellMaxMana, proficiency, spellPower, spellRadius, supportPower } from "./spells";
 import { SpellVfx } from "./spellVfx";
 import { BONDS, memorialDamage } from "../game/bonds";
 import * as C from "./config";
@@ -295,6 +295,9 @@ export class Engine {
         maxMana: spellMaxMana(h),
         mana: spellMaxMana(h),
         castCd: 0,
+        lastCastAt: -Infinity,
+        strain: 0,
+        spellQueue: [],
         currentTarget: null,
         speedRushUntil: 0,
         classlessCombatState: { lastDamageAt: 0, sustainSecond: -1, sustainRestored: 0,
@@ -1090,6 +1093,7 @@ export class Engine {
       this._tickSupport(h, dt);
       this._tickQuickItems(h, dt);
       h.castCd = Math.max(0, (h.castCd || 0) - dt);
+      if (h.spellQueue.length) this._playSpellQueue(h);
       if (!h.manual && h.maxMana > 0) this._autoCast(h);
       for (const id of Object.keys(h.spellCooldowns)) h.spellCooldowns[id] = Math.max(0, h.spellCooldowns[id] - dt);
       h.mana = Math.min(h.maxMana, h.mana + (2 + Math.max(0, h.d.intelligence || 0) * 0.04) * dt);
@@ -2873,6 +2877,8 @@ export class Engine {
   // ---- Spells (spells.js) ----
   _classlessSpellStatus(h) {
     if (!h.maxMana) return [];
+    const strainNow = this._strainIfCastNow(h) * CASTING.strainPerCast;
+    const busy = this._castBusy(h);
     return knownSpells(h.model).map((spell) => {
       const cooldown = Math.max(0, h.spellCooldowns[spell.id] || 0);
       // After Mana Surge the next spell is free.
@@ -2880,6 +2886,9 @@ export class Engine {
       return { ...spell, color: ELEMENTS[spell.element].color, cost, free: !!h.freeSpell, cooldownSeconds: spell.cooldown, cooldown,
         cooldownTotal: spell.cooldown * h.d.cooldownMultiplier,
         mana: Math.round(h.mana), maxMana: h.maxMana, success: castSuccessChance(h.model, spell.element),
+        // Casting by hand right now: the strain it would add, and what's left to land.
+        strain: strainNow, nowSuccess: Math.max(0.05, castSuccessChance(h.model, spell.element) - strainNow),
+        busy, queued: h.spellQueue.includes(spell.id), queue: h.spellQueue.slice(),
         // A support spell with nobody to help can't be cast (no heal at full HP).
         noTarget: !!spell.support && !this._supportTarget(h, spell, false),
         available: h.alive && cooldown <= 0 && h.mana >= cost && !this.ended
@@ -2899,14 +2908,8 @@ export class Engine {
       || [h.manualTarget, h.currentTarget].find((enemy) => enemy?.hp > 0 && Math.hypot(enemy.x - h.x, enemy.y - h.y) <= spell.range)
       || this._nearestEnemy(h.x, h.y, spell.range);
     if (!foe) return false;
-    h.mana -= spell.cost;
-    h.freeSpell = false;
-    h.spellCooldowns[spellId] = spell.cooldownSeconds * h.d.cooldownMultiplier;
-    h.castCd = 0.8;
-    h.visualActionKind = "attack";
-    h.visualActionStartedAt = this.time;
-    h.visualActionUntil = this.time + 0.3;
-    if (!(this.rng() < spell.success)) {
+    const success = this._spendCast(h, spell, spellId);
+    if (!(this.rng() < success)) {
       if (this.vfx) this.vfx.fizzle(spell.element, h.x, h.y);
       else this._float(h.x, h.y - 26, "FIZZLE", "#94A3B8");
       return true;
@@ -3037,14 +3040,8 @@ export class Engine {
   _castSupport(h, spell, spellId, given, announce) {
     const target = given && this.heroes.includes(given) && given.alive ? given : this._supportTarget(h, spell, false);
     if (!target) return false;
-    h.mana -= spell.cost;
-    h.freeSpell = false;
-    h.spellCooldowns[spellId] = spell.cooldownSeconds * h.d.cooldownMultiplier;
-    h.castCd = 0.8;
-    h.visualActionKind = "attack";
-    h.visualActionStartedAt = this.time;
-    h.visualActionUntil = this.time + 0.3;
-    if (!(this.rng() < spell.success)) {
+    const success = this._spendCast(h, spell, spellId);
+    if (!(this.rng() < success)) {
       if (this.vfx) this.vfx.fizzle(spell.element, h.x, h.y);
       else this._float(h.x, h.y - 26, "FIZZLE", "#94A3B8");
       return true;
@@ -3320,8 +3317,73 @@ export class Engine {
     return null;
   }
 
+  // How many quick casts in a row a cast right now would make (0: none).
+  _strainIfCastNow(h) {
+    return this.time - h.lastCastAt < CASTING.strainWindow ? h.strain + 1 : 0;
+  }
+
+  // Busy: still in the swing of a cast, or inside the strain window.
+  _castBusy(h) {
+    return h.castCd > 0 || this.time - h.lastCastAt < CASTING.strainWindow;
+  }
+
+  // What every cast spends (mana, cooldown, the swing), whether it lands or
+  // fizzles. Returns the chance it lands, after any strain.
+  _spendCast(h, spell, spellId) {
+    h.strain = this._strainIfCastNow(h);
+    h.lastCastAt = this.time;
+    h.mana -= spell.cost;
+    h.freeSpell = false;
+    h.spellCooldowns[spellId] = spell.cooldownSeconds * h.d.cooldownMultiplier;
+    h.castCd = CASTING.lock;
+    h.visualActionKind = "attack";
+    h.visualActionStartedAt = this.time;
+    h.visualActionUntil = this.time + 0.3;
+    const penalty = h.strain * CASTING.strainPerCast;
+    if (penalty > 0) this._float(h.x, h.y - 40, `STRAINED -${Math.round(penalty * 100)}%`, "#F59E0B");
+    return Math.max(0.05, spell.success - penalty);
+  }
+
+  // The player's tap: cast now if the caster is free, else queue it (strain-free).
+  // Tapping a queued spell takes it back out. Returns "cast", "queued",
+  // "unqueued" or false.
+  queueHeroSpell(index, spellId) {
+    const h = this.heroes[index];
+    if (!h || !h.alive || this.ended) return false;
+    const queued = h.spellQueue.indexOf(spellId);
+    if (queued >= 0) { h.spellQueue.splice(queued, 1); return "unqueued"; }
+    const spell = this._classlessSpellStatus(h).find((entry) => entry.id === spellId);
+    if (!spell?.available) return false;
+    if (!this._castBusy(h) && !h.spellQueue.length) {
+      return this.castHeroSpell(index, spellId, null, { announce: true }) ? "cast" : false;
+    }
+    if (h.spellQueue.length >= CASTING.queueCap) return false;
+    h.spellQueue.push(spellId);
+    return "queued";
+  }
+
+  unqueueHeroSpell(index, spellId) {
+    const h = this.heroes[index];
+    const at = h ? h.spellQueue.indexOf(spellId) : -1;
+    if (at < 0) return false;
+    h.spellQueue.splice(at, 1);
+    return true;
+  }
+
+  // Fire the next queued spell once the caster is free. A spell it can't cast
+  // by then (no mana, no target) is dropped and the next one waits its turn.
+  _playSpellQueue(h) {
+    if (!h.alive) { h.spellQueue.length = 0; return; }
+    if (this._castBusy(h)) return;
+    while (h.spellQueue.length) {
+      const spellId = h.spellQueue.shift();
+      if (this.castHeroSpell(h.i, spellId, null, { announce: true })) return;
+    }
+  }
+
   _autoCast(h) {
-    if (h.castCd > 0 || !this.active.some((enemy) => enemy.hp > 0)) return;
+    if (h.castCd > 0 || h.spellQueue.length || this.time - h.lastCastAt < CASTING.autoGap
+      || !this.active.some((enemy) => enemy.hp > 0)) return;
     const ready = this._classlessSpellStatus(h).filter((spell) => spell.available);
     if (!ready.length) return;
     // Support first, and only when the party needs it right now.
