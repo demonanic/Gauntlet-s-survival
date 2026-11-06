@@ -17,3 +17,12 @@ export const CHAMPION_WARD = 0.15;
 export const CHAMPION_SWARM = 6;
 export const CHAMPION_VAMPIRIC = 0.02;
 export const CHAMPION_VAMPIRIC_MINION = 0.005;
+// Bulwarks: the share of a hit a Bulwark in the line of fire takes, and the
+// damage reduction for allies standing beside one.
+export const BULWARK_COVER = 0.5;
+export const BULWARK_GUARD = 0.1;
+export const BULWARK_GUARD_RADIUS = 60;
+// Seconds a foe counts as busy with whoever it last attacked (backstabs).
+export const BACKSTAB_WINDOW = 3;
+// Heroes this close to a boss are in melee with it: it won't lob bombs at them.
+export const BOSS_MELEE_REACH = 90;
