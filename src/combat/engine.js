@@ -7,8 +7,9 @@
 import { heroLuck, luckEffects } from "./luck";
 import { BEASTS, CASTING, CONTROL, ELEMENTS, HEX, MAGIC, SHIELD_CAP, SPELLS, castSuccessChance, heroBeast, knownSpells, maxMana as spellMaxMana, proficiency, spellPower, spellRadius, supportPower } from "./spells";
 import { BattleLog } from "./battleLog";
+import { bossAbility, championTick, warlockMageHunt } from "./enemies/abilities";
 import { enemyRole } from "./enemies/roles";
-import { BODY_PAD, SAPPER_SPRINT_RANGE } from "./enemies/tuning";
+import { BODY_PAD, CHAMPION_VAMPIRIC, SAPPER_SPRINT_RANGE } from "./enemies/tuning";
 import { SpellVfx } from "./spellVfx";
 import { BONDS, memorialDamage } from "../game/bonds";
 import * as C from "./config";
@@ -131,10 +132,6 @@ const WAVE_BREAK_SECONDS = 3;
 // Shots a bow gets out of one arrow (they are gathered and loosed again).
 const ARROW_SHOTS = 4;
 // Enemy body radii for collisions (bosses and elites need more room).
-// The most bandits the Bandit Warlord keeps around him at once.
-const WARLORD_GANG = 3;
-// The most summoned minions the Demon or the Imperial Necromancer keeps alive.
-const BOSS_MINIONS = 4;
 // Clutch (Fortune perk F2a): once per hero per fight, when the next hit would
 // kill them, the fight slows down while the player picks Drink or Ultra Crit.
 export const CLUTCH = Object.freeze({
@@ -171,11 +168,6 @@ const HERO_BODY_RADIUS = 20;
 const ENEMY_BODY_RADIUS = (e) => (e.boss ? 33 : e.tier === "elite" ? 24 : 18);
 // Seconds a foe counts as busy with whoever it last attacked (backstabs).
 const BACKSTAB_WINDOW = 3;
-// Champion bosses: Warded heals this share of max HP at each ward; Swarming
-// keeps up to this many summons alive; Vampiric heals this share per hit.
-const CHAMPION_WARD = 0.15;
-const CHAMPION_SWARM = 6;
-const CHAMPION_VAMPIRIC = 0.02;
 // Heroes this close to a boss are in melee with it: it won't lob bombs at them.
 const BOSS_MELEE_REACH = 90;
 function laneX(i) { return (W / LANES) * (i + 0.5); }
@@ -1351,7 +1343,7 @@ export class Engine {
 
   _updateEnemy(e, dt) {
     if (e.nemesisId && this._nemesisTick(e, dt)) return;
-    if (e.champion && !(e.silenceUntil > this.time)) this._championTick(e, dt);
+    if (e.champion && !(e.silenceUntil > this.time)) championTick(this, e, dt);
     e.atkCd -= dt * (e.attackSlowUntil > this.time ? (e.attackSlowMultiplier || 1) : 1) * (e.attackSpeed || 1);
     if (e.stunUntil && e.stunUntil > this.time) return;
     // Shadow and Mind control: a frightened foe flees; a confused or
@@ -1362,66 +1354,7 @@ export class Engine {
     // It no longer damages every hero simultaneously. The target is the nearest
     // living hero inside the boss's configured attack range.
     const silenced = e.silenceUntil > this.time;
-    if (e.boss && !silenced) {
-      e.abilityCd = (e.abilityCd == null ? 5 : e.abilityCd) - dt;
-      // Gauntlet boss identities: the Abomination enrages once, below 35% HP.
-      if (e.type === "nuclearBehemoth" && !e.enraged && e.hp < e.maxHp * 0.35) {
-        e.enraged = true;
-        e.speed *= 1.5;
-        e.damage *= 1.3;
-        this._float(e.x, e.y - 34, "ENRAGED", "#84CC16");
-        this._log("boss", `${this._foeName(e)} is enraged`);
-        this.effects.push({ x: e.x, y: e.y, r: 46, life: 0.6, color: "#84CC16", ring: true });
-      }
-      if (e.abilityCd <= 0) {
-        const range = e.attackRange || 420;
-        const target = this._nearestDefender(e.x, e.y, range);
-        // Gauntlet: bombs and bile are lobbed at heroes keeping their distance;
-        // heroes in melee face the boss's own attacks instead.
-        const lobTarget = this._lobTarget(e, range);
-        if (e.type === "nuclearBehemoth") {
-          // Toxic slam: no minions, heavy damage to every hero close by.
-          if (this._nearestDefender(e.x, e.y, 110)) {
-            e.abilityCd = e.enraged ? 3.5 : 5;
-            this.effects.push({ x: e.x, y: e.y, r: 100, life: 0.45, color: "#84CC16", ring: true });
-            this._explodeNapalm(e.x, e.y, { dmg: e.damage * 1.1 * this._hexDamage(e), splash: 100 });
-          } else {
-            e.abilityCd = 0.5;
-          }
-        } else if (e.type === "banditWarlord") {
-          // Calls his gang in (topping it back up to WARLORD_GANG, never
-          // past it, so cutting his bandits down gets somewhere), then
-          // charges the weakest hero himself.
-          e.abilityCd = 10;
-          const gang = this.active.filter((ally) => ally.type === "bandit" && ally.hp > 0).length;
-          const called = Math.min(2, Math.max(0, WARLORD_GANG - gang));
-          for (let k = 0; k < called; k++) this._summon("bandit");
-          if (called) { this._float(e.x, e.y - 34, "TO ME, LADS!", e.color); this._log("boss", `${this._foeName(e)} calls ${called} bandit${called > 1 ? "s" : ""}`); }
-          e.blitzUntil = this.time + 0.6;
-          e.blitzStrike = true;
-        } else if (target && e.type === "bogLich") {
-          // Mends its court, drags the dead back up, and spits bile.
-          e.abilityCd = 7;
-          this._healAllies(e, 250, 0.12);
-          this._raiseFallen(e, 250, 2);
-          if (lobTarget) this._throwNapalm(e, lobTarget);
-        } else if (target) {
-          // Both top their minions back up to BOSS_MINIONS alive, never past
-          // it: in a long fight, unlimited summons buried the party.
-          if (e.type === "imperialNecromancer") {
-            // Raise dead: a larger, slower pack of minions, plus a soul bomb.
-            e.abilityCd = 8;
-            if (this._summonUpTo(["skeleton", "skeleton", "ghost"], BOSS_MINIONS)) { this._float(e.x, e.y - 34, "RAISE DEAD", e.color); this._log("boss", `${this._foeName(e)} raises the dead`); }
-          } else {
-            e.abilityCd = 6;
-            this._summonUpTo(["skeleton", "skeleton"], BOSS_MINIONS);
-          }
-          if (lobTarget) this._throwNapalm(e, lobTarget);
-        } else {
-          e.abilityCd = 1;
-        }
-      }
-    }
+    if (e.boss && !silenced) bossAbility(this, e, dt);
     if (this._updateSpecialEnemy(e, dt)) return;
     // Enemy archetypes get a small tactical identity on top of their
     // existing stats/objectives. These are intentionally readable rules:
@@ -1429,25 +1362,7 @@ export class Engine {
     // and lieutenants reinforce nearby attackers.
     const tactical = this._selectEnemyTacticalTarget(e);
     const commanderBoost = e._commanderBoost || 1;
-    if (e.type === "warlock" && !silenced) {
-      e.abilityCd = (e.abilityCd == null ? 3 : e.abilityCd) - dt;
-      if (e.abilityCd <= 0) {
-        // Warlocks are Mage Hunters: Mage first, then any living hero.
-        const target =
-          this._nearestMageEntity(e.x, e.y, 300) ||
-          this._nearestHeroEntity(e.x, e.y, 300);
-
-        if (target?.kind === "hero") {
-          this._enemyAttack(e, target);
-          if (target.obj?.ref?.type === "mage") {
-            this._float(target.obj.x, target.obj.y - 22, "MAGE HUNT", e.color);
-          }
-          e.abilityCd = 4.5;
-        } else {
-          e.abilityCd = 1;
-        }
-      }
-    }
+    if (e.type === "warlock" && !silenced) warlockMageHunt(this, e, dt);
     const baseMoveSpeed =
       e.type === "goblin" ? e.speed * 1.18 * commanderBoost :
       e.type === "darkElf" ? e.speed * 1.08 * commanderBoost :
@@ -3524,34 +3439,7 @@ export class Engine {
     return true;
   }
 
-  // ---- Champion bosses (game/regions.js CHAMPIONS) ----
-  _championTick(e, dt) {
-    const share = e.hp / e.maxHp;
-    if (e.champion === "warded") {
-      const next = [0.66, 0.33][e.wardsUsed || 0];
-      if (next != null && share < next) {
-        e.wardsUsed = (e.wardsUsed || 0) + 1;
-        e.hp = Math.min(e.maxHp, e.hp + e.maxHp * CHAMPION_WARD);
-        this._float(e.x, e.y - 34, "WARDED", "#38BDF8");
-        this._log("boss", `${this._foeName(e)} wards itself`);
-        this.effects.push({ kind: "shield", x: e.x, y: e.y, r: 44, life: 1, color: "#38BDF8" });
-      }
-    } else if (e.champion === "swarming") {
-      e.swarmCd = (e.swarmCd ?? 3) - dt;
-      if (e.swarmCd <= 0) {
-        e.swarmCd = 4;
-        if (this._summonUpTo(["skeleton", "skeleton"], CHAMPION_SWARM)) { this._float(e.x, e.y - 34, "SWARM", e.color); this._log("boss", `${this._foeName(e)} calls a swarm`); }
-      }
-    } else if (e.champion === "frenzied" && !e.frenzied && share < 0.5) {
-      e.frenzied = true;
-      e.attackSpeed = (e.attackSpeed || 1) * 1.4;
-      e.damage *= 1.2;
-      this._float(e.x, e.y - 34, "FRENZY", "#F43F5E");
-      this._log("boss", `${this._foeName(e)} goes into a frenzy`);
-      this.effects.push({ kind: "impact", x: e.x, y: e.y, r: 46, life: 0.7, color: "#F43F5E" });
-    }
-  }
-
+  // ---- Champion bosses (game/regions.js CHAMPIONS; Warded, Swarming and Frenzied in enemies/abilities.js) ----
   // A Vampiric Champion heals with every hit it lands.
   _vampiric(e) {
     if (e?.champion !== "vampiric" || !(e.hp > 0)) return;

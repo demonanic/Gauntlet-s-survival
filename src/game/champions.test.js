@@ -1,5 +1,6 @@
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import { Engine } from "../combat/engine";
+import { championTick } from "../combat/enemies/abilities";
 import { buildBossEncounter, buildWildEncounter, createEncounterSim } from "./encounters";
 import { choosePending, createGuild, currentEncounterParty, resolveEncounter, startExpedition } from "./guild";
 import { createGearItem } from "./items";
@@ -36,32 +37,32 @@ describe("Champion bosses", () => {
   test("Warded shields itself at 66% and 33% HP", () => {
     const { engine, boss } = engineWithBoss(4);
     boss.hp = boss.maxHp * 0.6;
-    engine._championTick(boss, 1 / 30);
+    championTick(engine, boss, 1 / 30);
     expect(boss.hp).toBeCloseTo(boss.maxHp * 0.75);
-    engine._championTick(boss, 1 / 30);
+    championTick(engine, boss, 1 / 30);
     expect(boss.hp).toBeCloseTo(boss.maxHp * 0.75);
     boss.hp = boss.maxHp * 0.3;
-    engine._championTick(boss, 1 / 30);
+    championTick(engine, boss, 1 / 30);
     expect(boss.hp).toBeCloseTo(boss.maxHp * 0.45);
     boss.hp = boss.maxHp * 0.1;
-    engine._championTick(boss, 1 / 30);
+    championTick(engine, boss, 1 / 30);
     expect(boss.hp).toBeCloseTo(boss.maxHp * 0.1);
   });
 
   test("Swarming calls skeletons, up to six alive", () => {
     const { engine, boss } = engineWithBoss(9);
-    for (let t = 0; t < 30; t += 1) engine._championTick(boss, 1);
+    for (let t = 0; t < 30; t += 1) championTick(engine, boss, 1);
     expect(engine.active.filter((enemy) => enemy.summoned).length).toBe(6);
   });
 
   test("Frenzied speeds up and hits harder below half HP, once", () => {
     const { engine, boss } = engineWithBoss(14);
     const damage = boss.damage;
-    engine._championTick(boss, 1 / 30);
+    championTick(engine, boss, 1 / 30);
     expect(boss.frenzied).toBeUndefined();
     boss.hp = boss.maxHp * 0.4;
-    engine._championTick(boss, 1 / 30);
-    engine._championTick(boss, 1 / 30);
+    championTick(engine, boss, 1 / 30);
+    championTick(engine, boss, 1 / 30);
     expect(boss.damage).toBeCloseTo(damage * 1.2);
     expect(boss.attackSpeed).toBeCloseTo(1.4);
   });
