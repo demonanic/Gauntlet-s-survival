@@ -260,8 +260,14 @@ The steps follow `docs/LEGACY_MANIFEST.md`. 6A was its own PR. From 6B on, Sam a
 
 ### Phase 10: Performance measurements
 
-- [ ] Measure tick cost, state clone and save cost, state size, ordinary and worst catch-up, unattended fight and Rift duration, frame time with many enemies, memory growth.
-- [ ] Propose changes only where measurements show a problem.
+- [x] Measure tick cost, state clone and save cost, state size, ordinary and worst catch-up, unattended fight and Rift duration, frame time with many enemies, memory growth. Measured 2026-11-06 at `67714bf` (headless under bun on the session's Linux machine, and the CI build in headless Chromium at 412×760; a phone will be slower, by an unknown factor). A mid-game guild: 8 heroes at LV18, 42 vault items, pets, careers, three casters.
+  - **Save:** state 42.5 KB (54.5 KB after 30 more trips); clone 0.22 ms, `JSON.stringify` 0.09 ms, `JSON.parse` 0.10 ms.
+  - **Tick** (every 500 ms): 0.16 ms at the guild; during a trip median 0.26–0.32 ms, but a tick that settles an unattended fight takes as long as the fight's simulation: 107–281 ms seen (p99 3 ms in Ashen, where most ticks had none).
+  - **Unattended fights:** Blightmire wild (deep) median 159 ms (a 141 s fight), max 540 ms; Ashen boss median 86 ms (95 s); a Rift run to wave 9 (194 s) 237 ms.
+  - **Catch-up** (app closed for a whole 20–30 min trip, then opened): one tick of 178 ms (Ashen) to 309 ms (Blightmire).
+  - **Memory:** heap 7 → 8 MB over 30 back-to-back trips (no growth to speak of); 10.6–11.9 MB in the browser during a battle.
+  - **Frame rate** in a Blightmire battle (headless Chromium, no GPU): 44 fps; 9 fps with the CPU slowed 4×, every frame a long task. JavaScript (engine and drawing code) was under 3% of the time; the rest was the browser painting the canvas. With canvas glow (`shadowBlur`) turned off: 60 fps, and 31 fps at 4× slower.
+- [ ] Propose changes only where measurements show a problem. Two candidates, for Sam (not built): (1) the canvas glow is most of the drawing cost without a GPU; test mode now shows frames per second in battle so it can be checked on a real phone, and if it's low there, glow could thin out with frame rate the way particles already do (`VFX_QUALITY`); (2) an unattended fight runs inside one tick, a pause of a few hundred ms here (likely 1 s or more on a phone) when the party fights alone while the app is open, and at catch-up; fights could be spread over several ticks.
 
 ### Phase 11: Final review
 
@@ -300,8 +306,8 @@ Decisions (Sam, 2026-11-01, reviewing Phase 5):
 
 - What an engine error in an unattended fight should do (today it would escape `tick()`); see the Phase 3 findings.
 - Whether a misspelt type string in the engine's behavior or sprite branches would be noticed (only by reading the code until Phase 8B).
-- No performance measurements exist yet (Phase 10).
-- The Supabase table and row-level security were not inspected.
+- Performance on a real phone (Phase 10 measured a headless browser and a Linux machine only; test mode shows FPS in battle).
+- The Supabase table and row-level security: inspected 2026-11-06 (PR #61). Each player reaches only their own save; leftover default grants revoked. Leaked-password protection (an Auth dashboard setting) is off.
 
 ## Pass log
 
@@ -351,3 +357,4 @@ Decisions (Sam, 2026-11-01, reviewing Phase 5):
 | 2026-11-06 | Spells part 3 (feature) | #58 | Enchanting and two wards; measured three times, reshaped on Sam's calls (longer buffs, wards after Barrier, party-wide Haste and True Aim); one hero fingerprint re-recorded (its Warding caster gained two spells) |
 | 2026-11-06 | Spells part 4 (feature) | #59 | Conjuration (Spectral Blades, Summon Elemental) and Mirror Self; measured, retuned on Sam's picks (blades 15%, stronger cheaper elemental, Mirror Self 60% fooling every non-boss foe); one new hero fingerprint, three re-recorded (their Shadow V casters gained Mirror Self) |
 | 2026-11-06 | Test tools (feature) | #60 | `?debug` gets its own save (no cloud sync), magic tools, test fights and battle cheats; checked on a phone-sized screen; two fixes from that check |
+| 2026-11-06 | Reliability batch + Phase 10 measurements | #61 | Cloud save security checked (row-level security correct; leftover default grants revoked by a migration); HUD stale at 8× fixed; Phase 10 measured (canvas glow is most of the frame cost without a GPU; unattended fights pause a tick); test-mode FPS readout |
