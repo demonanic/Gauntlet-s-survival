@@ -12,7 +12,9 @@ import { RANK_CASTS, SCHOOLS, SPELLS, emptyMagic } from "../combat/spells";
 import { LEGENDARY_KEYS, createGearItem } from "./items";
 import { emptyLegacy } from "./legacy";
 import { developQualities, sharedQualities } from "./qualities";
-import { REGIONS } from "./regions";
+import { REGIONS, getRegion } from "./regions";
+import { buildBossEncounter, buildWildEncounter, describeSquad } from "./encounters";
+import { MAX_PARTY_SIZE, startExpedition } from "./expedition";
 
 export const MAX_HERO_LEVEL = C.HERO_XP.length;
 
@@ -199,5 +201,32 @@ export function debugSetSpellRank(state, heroId, spellId, rank) {
   const r = Math.max(1, Math.min(5, Math.floor(rank)));
   if (r > 1) hero.magic.casts[spellId] = RANK_CASTS[r - 1];
   else delete hero.magic.casts[spellId];
+  return { ok: true, state: next };
+}
+
+// ---- Test fight (test mode) -----------------------------------------------
+// A fight to watch right now: a wild squad (at `depth` 0-1 into the region)
+// or the region's boss (at the guild's boss rank). With no trip under way the
+// first four heroes set out to `regionId`, healed and with injuries cleared;
+// during a trip the fight is in that trip's region. It replaces any prompt
+// waiting, and it's won or lost like any fight on the road.
+export function debugTestFight(state, regionId, { boss = false, depth = 0.8, now = Date.now(), rng = Math.random } = {}) {
+  if (state.expedition?.pending?.engagedAt != null) return { ok: false, reason: "in_fight" };
+  let next = serializeGameState(state);
+  if (!next.expedition) {
+    const region = getRegion(regionId);
+    if (!region || region.endless) return { ok: false, reason: "unknown_region" };
+    next.injuries = {};
+    for (const hero of next.heroes) hero.combat.hp = classlessMaxHp(hero);
+    const ids = next.heroes.slice(0, MAX_PARTY_SIZE).map((hero) => hero.identity.id);
+    const started = startExpedition(next, region.id, ids, now, rng);
+    if (!started.ok) return started;
+    next = started.state;
+  }
+  const region = getRegion(next.expedition.regionId);
+  const wave = boss ? buildBossEncounter(region, next.bossRank || 0, rng) : buildWildEncounter(region, depth, rng);
+  // As the road names a boss: the boss, else the elite, else the first foe.
+  const label = boss ? (wave.enemies.find((enemy) => enemy.boss || enemy.tier === "elite") || wave.enemies[0])?.name || "Boss" : describeSquad(wave);
+  next.expedition.pending = { kind: boss ? "boss" : "ambush", wave, label: `Test: ${label}`, promptAt: now, engagedAt: now };
   return { ok: true, state: next };
 }

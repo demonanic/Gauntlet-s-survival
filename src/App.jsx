@@ -320,6 +320,7 @@ export default function App() {
           party={currentEncounterParty(guild)}
           createWave={() => currentEncounterWave(guild)}
           speeds={DEBUG ? [1, 2, 4, 8] : [1, 2]}
+          cheats={DEBUG}
           onComplete={(outcome) => {
             apply((current) => resolveEncounter(current, outcome, Date.now()));
             setInBattle(false);
@@ -337,7 +338,7 @@ export default function App() {
           }}
         />
       )}
-      {DEBUG && <DebugPanel guild={guild} apply={apply} />}
+      {DEBUG && !inBattle && <DebugPanel guild={guild} apply={apply} onTestFight={(state) => { setGuild(state); setInBattle(true); }} />}
       {tutorialStep && (
         <TutorialOverlay
           step={tutorialStep}

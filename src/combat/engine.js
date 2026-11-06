@@ -369,6 +369,30 @@ export class Engine {
   forceDefeat() { this.forcedDefeat = true; }
 
   // Gauntlet endless mode: the player ends the fight and keeps what was earned.
+  // Test mode only (the battle screen shows these with ?debug): "mana" fills
+  // every caster's mana, "cooldowns" readies every move and spell (and clears
+  // focus strain), "god" toggles heroes taking no damage (and heals them to
+  // full when it turns on), "kill" kills every foe on the field. Returns
+  // whether god mode is on.
+  debugCheat(kind) {
+    const living = this.heroes.filter((h) => h.alive);
+    if (kind === "mana") for (const h of living) h.mana = h.maxMana || 0;
+    if (kind === "cooldowns") {
+      for (const h of living) {
+        h.spellCooldowns = {}; h.abilityCooldowns = {};
+        h.castCd = 0; h.lastCastAt = -Infinity; h.strain = 0;
+      }
+    }
+    if (kind === "god") {
+      this.godMode = !this.godMode;
+      if (this.godMode) for (const h of living) h.ref.hp = h.d.maxHp;
+    }
+    if (kind === "kill") {
+      for (const e of [...this.active]) if (e.hp > 0 && !e._dead) { e.hp = 0; this._killEnemy(e, "H0"); }
+    }
+    return !!this.godMode;
+  }
+
   returnHome() {
     if (this.ended) return false;
     this.ended = true;
@@ -852,6 +876,8 @@ export class Engine {
   _resolveClasslessHeroDamage(hero, damage) {
     const state = hero.classlessCombatState;
     if (damage > 0) hero.lastHurtAt = this.time;
+    // Test mode's god mode (debugCheat): heroes take nothing.
+    if (this.godMode) return 0;
     if (state?.decoy) {
       state.decoy = false;
       this._float(hero.x, hero.y - 20, "DECOY", "#A78BFA");
@@ -942,7 +968,7 @@ export class Engine {
     const regen = hero.d.gear?.regen || 0;
     if (regen > 0) this._classlessHeal(hero, regen * dt * (1 - (hero.d.env?.healCut || 0)));
     const dot = hero.d.env?.dot || 0;
-    if (dot > 0 && hero.ref.hp > 1) {
+    if (dot > 0 && hero.ref.hp > 1 && !this.godMode) {
       const amount = Math.min(hero.ref.hp - 1, hero.d.maxHp * dot * dt);
       hero.ref.hp -= amount;
       hero.envDamage = (hero.envDamage || 0) + amount;

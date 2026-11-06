@@ -2,11 +2,11 @@ import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import { GEAR_SLOTS } from "../combat/gear";
 import { canCast, knownSpells, proficiency, rankFor, spellCasts } from "../combat/spells";
 import {
-  debugGiveCasting, debugLearnSchool, debugSetSchoolRank, debugSetSpellRank,
+  debugGiveCasting, debugLearnSchool, debugSetSchoolRank, debugSetSpellRank, debugTestFight,
   debugAddGold, debugAddRenown, debugClearRegions, debugEndExpedition, debugGiveGearSet, debugGiveSupplies, debugSetBossRank,
   debugSetLevels, debugSkipTimers, isDebugMode,
 } from "./debug";
-import { createGuild, startExpedition } from "./guild";
+import { createGuild, currentEncounterParty, recruitHero, startExpedition } from "./guild";
 import { shopTier } from "./shop";
 
 const T0 = 1_000_000;
@@ -86,5 +86,29 @@ describe("test mode: magic", () => {
     expect(knownSpells(next.heroes[0]).map((s) => s.id)).toContain("summon_beast");
     expect(debugSetSpellRank(next, id, "nope", 2).ok).toBe(false);
     expect(debugLearnSchool(next, "nobody", "fire").ok).toBe(false);
+  });
+});
+
+describe("test mode: test fights", () => {
+  test("a fight to watch now: the first heroes set out, healed; wild or boss; not during a fight", () => {
+    let state = createGuild();
+    state = recruitHero(state).state;
+    expect(debugTestFight(state, "ashen").reason).toBe("level_required"); // a trip's own rules still hold
+    state = debugClearRegions(debugSetLevels(state, 20).state).state;
+    state.heroes[0].combat.hp = 1;
+    const wild = debugTestFight(state, "ashen", { now: 1000, rng: () => 0.5 });
+    expect(wild.ok).toBe(true);
+    const run = wild.state.expedition;
+    expect(run.regionId).toBe("ashen");
+    expect(run.pending.kind).toBe("ambush");
+    expect(run.pending.engagedAt).toBe(1000);
+    expect(run.pending.wave.enemies.length).toBeGreaterThan(0);
+    expect(currentEncounterParty(wild.state).length).toBe(Math.min(4, state.heroes.length));
+    expect(wild.state.heroes[0].combat.hp).toBe(classlessMaxHp(wild.state.heroes[0]));
+    expect(debugTestFight(wild.state, "ashen").ok).toBe(false); // already fighting
+    const boss = debugTestFight(state, "boneyard", { boss: true, now: 1000, rng: () => 0.5 });
+    expect(boss.state.expedition.pending.kind).toBe("boss");
+    expect(boss.state.expedition.pending.wave.enemies.length).toBeGreaterThan(0);
+    expect(state.expedition).toBeFalsy(); // input untouched
   });
 });

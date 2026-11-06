@@ -2,18 +2,28 @@ import { useState } from "react";
 import { GEAR_SETS } from "../combat/gear";
 import { ELEMENTS, ROMAN, SCHOOLS, SPELLS, canCast, heroMagic, proficiency, rankFor, spellCasts } from "../combat/spells";
 import { MAX_GEAR_TIER, RARITY_ORDER, RARITIES } from "../game/items";
+import { REGIONS } from "../game/regions";
 import {
   MAX_HERO_LEVEL, debugAddGold, debugAddRenown, debugCareer, debugGivePets, debugGiveCrate, debugClearRegions, debugEndExpedition, debugGiveGearSet, debugGiveSupplies,
-  debugGiveCasting, debugLearnSchool, debugSetBossRank, debugSetLevels, debugSetSchoolRank, debugSetSpellRank, debugSkipTimers,
+  debugGiveCasting, debugLearnSchool, debugSetBossRank, debugSetLevels, debugSetSchoolRank, debugSetSpellRank, debugSkipTimers, debugTestFight,
 } from "../game/debug";
 import { readRealSave } from "../game/storage";
 import { NeonButton } from "./ui";
 
 const selectClass = "rounded border border-white/15 bg-black/60 px-1 py-1 font-mono-g text-[11px] text-slate-100";
 
+// Why a test fight couldn't start.
+const FIGHT_REASONS = {
+  level_required: "Heroes are below this region's level: raise them (All heroes to LV) first.",
+  previous_region: "This region isn't open yet: tap Clear all regions first.",
+  in_fight: "A fight is already under way.",
+  hero_unavailable: "A hero can't go (knocked out or injured).",
+};
+
 // Test mode tools, shown only when the page is opened with ?debug.
-// `apply(mutator)` is App's guarded state update.
-export default function DebugPanel({ guild, apply }) {
+// `apply(mutator)` is App's guarded state update; `onTestFight(state)` starts
+// the watched fight a test fight set up.
+export default function DebugPanel({ guild, apply, onTestFight }) {
   const [open, setOpen] = useState(false);
   const [level, setLevel] = useState(10);
   const [rank, setRank] = useState(guild.bossRank || 0);
@@ -25,6 +35,16 @@ export default function DebugPanel({ guild, apply }) {
   const [schoolRank, setSchoolRank] = useState(5);
   const [spellId, setSpellId] = useState("");
   const [spellRank, setSpellRank] = useState(5);
+  const [regionId, setRegionId] = useState(guild.expedition?.regionId || "ashen");
+  const [depth, setDepth] = useState(0.8);
+  const [fightNote, setFightNote] = useState(null);
+  const startFight = (boss) => {
+    const result = debugTestFight(guild, regionId, { boss, depth });
+    if (!result.ok) { setFightNote(FIGHT_REASONS[result.reason] || `Can't start: ${result.reason}`); return; }
+    setFightNote(null);
+    setOpen(false);
+    onTestFight?.(result.state);
+  };
 
   if (!open) {
     return (
@@ -101,6 +121,26 @@ export default function DebugPanel({ guild, apply }) {
             {Object.values(GEAR_SETS).map((entry) => <option key={entry.key} value={entry.key}>{entry.name}</option>)}
           </select>
           <NeonButton color="#FF6600" onClick={() => apply((state) => debugGiveGearSet(state, rarity, tier, set || null))} data-testid="debug-gear">To vault</NeonButton>
+        </div>
+        <div className="space-y-1.5 rounded border border-red-400/30 p-2" data-testid="debug-fight">
+          <div className={row}>
+            <span className="text-red-200">Test fight</span>
+            <select className={selectClass} value={regionId} onChange={(event) => setRegionId(event.target.value)} disabled={!!guild.expedition} data-testid="debug-fight-region">
+              {REGIONS.filter((region) => !region.endless).map((region) => <option key={region.id} value={region.id}>{region.name}</option>)}
+            </select>
+            <select className={selectClass} value={depth} onChange={(event) => setDepth(Number(event.target.value))} data-testid="debug-fight-depth">
+              <option value={0.2}>early</option><option value={0.5}>middle</option><option value={0.8}>deep</option>
+            </select>
+          </div>
+          <div className={row}>
+            <NeonButton color="#FF5A5A" onClick={() => startFight(false)} data-testid="debug-fight-wild">Wild fight now</NeonButton>
+            <NeonButton color="#FF0055" onClick={() => startFight(true)} data-testid="debug-fight-boss">Boss fight now</NeonButton>
+          </div>
+          <p className="text-[10px] text-slate-500">
+            {guild.expedition ? "On a trip: the fight is in its region. " : "The first four heroes set out, healed. "}
+            In the fight, test buttons fill mana, ready cooldowns, turn god mode on and kill all foes.
+          </p>
+          {fightNote && <p className="text-[10px] text-red-300" data-testid="debug-fight-note">{fightNote}</p>}
         </div>
         <MagicTools guild={guild} apply={apply} row={row}
           heroId={heroId} setHeroId={setHeroId} school={school} setSchool={setSchool} schoolRank={schoolRank} setSchoolRank={setSchoolRank}
