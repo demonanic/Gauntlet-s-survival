@@ -5,6 +5,7 @@ import { branchColor, moveIcon, spellIcon } from "../combat/abilityLook";
 import { lockedMoves, nextSpells } from "../combat/moveGuide";
 import { heroWeaponProfile } from "../combat/gear";
 import { createEncounterSim, endlessWaveSource } from "../game/encounters";
+import { LOG_FILTERS, formatTime } from "../combat/battleLog";
 import { buildFightOutcome } from "../game/fightOutcome";
 import { getRegion } from "../game/regions";
 
@@ -23,6 +24,9 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
   // `shown`: the hero whose moves and spells the action panel shows.
   const [selected, setSelected] = useState(null);
   const [shown, setShown] = useState(0);
+  // The battle log takes the action panel's place while open.
+  const [logOpen, setLogOpen] = useState(false);
+  const [logFilter, setLogFilter] = useState("all");
   const [speed, setSpeed] = useState(1);
   // The canonical fight result (game/fightOutcome.js), once the fight ends.
   const [result, setResult] = useState(null);
@@ -101,6 +105,7 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
   // First tap shows a hero's actions; tapping the shown hero again arms (or
   // disarms) field taps as move orders for them.
   const pickHero = (index) => {
+    if (logOpen) { setLogOpen(false); setShown(index); return; }
     if (shown !== index) { setShown(index); return; }
     setSelected(selected === index ? null : index);
   };
@@ -126,7 +131,8 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
         </div>
       </header>
 
-      <div className="relative flex min-h-0 flex-1 items-center justify-center px-2">
+      {/* The field always keeps at least half the screen; the dock below scrolls instead of squeezing it. */}
+      <div className="relative flex min-h-[50dvh] flex-1 items-center justify-center px-2" data-testid="battle-field">
         <canvas
           ref={canvasRef}
           width={LAYOUT.W}
@@ -182,12 +188,14 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
         )}
       </div>
 
-      <footer className="flex flex-col gap-2 px-2 pb-2" data-testid="battle-dock">
-        <nav aria-label="Party" className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${Math.max(1, party.length)}, minmax(0, 1fr))` }}>
+      <LogTicker lines={(engine?.battleLog?.lines || []).slice(0, 2)} />
+
+      <footer className="flex min-h-0 shrink flex-col gap-2 overflow-y-auto px-2 pb-2" data-testid="battle-dock">
+        <nav aria-label="Party" className="sticky top-0 z-10 grid gap-1.5 bg-[var(--bg)] pb-0.5" style={{ gridTemplateColumns: `repeat(${Math.max(1, party.length)}, minmax(0, 1fr)) 3.25rem` }}>
           {party.map((hero, index) => {
             const status = hud?.heroes?.[index];
             const ready = (hud?.heroAbilities?.[index] || []).filter((ability) => ability.available).length;
-            const isShown = shown === index;
+            const isShown = shown === index && !logOpen;
             return (
               <button
                 key={hero.identity.id}
@@ -212,8 +220,19 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
               </button>
             );
           })}
+          <button
+            type="button"
+            aria-pressed={logOpen}
+            onClick={() => setLogOpen((open) => !open)}
+            className="flex min-h-14 items-center justify-center rounded-md border font-mono-g text-[11px] font-bold"
+            style={{ borderColor: logOpen ? "#C084FC" : "rgba(255,255,255,0.12)", color: logOpen ? "#E9D5FF" : "#94A3B8", background: logOpen ? "rgba(255,255,255,0.06)" : "transparent" }}
+            data-testid="battle-log-tab"
+          >
+            LOG
+          </button>
         </nav>
-        {party[shown] && (
+        {logOpen && <LogPanel log={engine?.battleLog} filter={logFilter} setFilter={setLogFilter} />}
+        {!logOpen && party[shown] && (
           <ActionPanel
             hero={party[shown]}
             index={shown}
@@ -225,11 +244,65 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
             engine={engine}
           />
         )}
+        <p className="text-center font-mono-g text-[9px] text-slate-500">
+          Tap a hero to see their moves; tap a foe to aim their spells. Tap the hero again, then the field, to move them (or tap a foe to attack it). Auto returns them to normal targeting.
+        </p>
       </footer>
-      <p className="pb-2 text-center font-mono-g text-[9px] text-slate-500">
-        Tap a hero to see their moves; tap a foe to aim their spells. Tap the hero again, then the field, to move them (or tap a foe to attack it). Auto returns them to normal targeting.
-      </p>
     </div>
+  );
+}
+
+// The last two log lines, always under the field.
+function LogTicker({ lines }) {
+  return (
+    <div className="mx-2 mt-1 min-h-[30px] shrink-0 font-mono-g text-[10px] leading-[15px]" aria-live="polite" data-testid="battle-log-ticker">
+      {lines.map((line) => (
+        <div key={line.id} className="truncate" style={{ color: line.color }}>
+          <span className="mr-1 text-slate-500">{formatTime(line.t)}</span>{line.text}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const FILTER_LABELS = { all: "All", spells: "Spells", moves: "Moves", deaths: "Deaths", summary: "Summary" };
+
+// The full battle log: filter chips, newest line first, and Copy.
+function LogPanel({ log, filter, setFilter }) {
+  const [copied, setCopied] = useState(false);
+  const lines = log ? log.filtered(filter) : [];
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(log?.text() || ""); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { setCopied(false); }
+  };
+  return (
+    <section aria-label="Battle log" className="flex flex-col gap-2 rounded-lg border border-white/10 bg-[var(--panel)] p-2.5" data-testid="battle-log">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {Object.keys(LOG_FILTERS).map((key) => (
+          <button
+            key={key}
+            type="button"
+            aria-pressed={filter === key}
+            onClick={() => setFilter(key)}
+            className="min-h-8 rounded-full border px-2.5 font-mono-g text-[10px]"
+            style={{ borderColor: filter === key ? "#C084FC" : "rgba(255,255,255,0.15)", color: filter === key ? "#E9D5FF" : "#94A3B8" }}
+            data-testid={`battle-log-filter-${key}`}
+          >
+            {FILTER_LABELS[key]}
+          </button>
+        ))}
+        <button type="button" onClick={copy} className="ml-auto min-h-8 rounded border border-white/15 px-2.5 font-mono-g text-[10px] text-slate-300" data-testid="battle-log-copy">
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+      <ol className="max-h-[38vh] overflow-y-auto font-mono-g text-[10px] leading-4" data-testid="battle-log-lines">
+        {lines.length === 0 && <li className="text-slate-500">Nothing yet.</li>}
+        {lines.map((line) => (
+          <li key={line.id} style={{ color: line.color }}>
+            <span className="mr-1 text-slate-500">{formatTime(line.t)}</span>{line.text}
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }
 

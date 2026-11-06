@@ -6,6 +6,7 @@
 // accumulates XP gains, returned to the UI at wave end.
 import { heroLuck, luckEffects } from "./luck";
 import { BEASTS, CASTING, CONTROL, ELEMENTS, HEX, MAGIC, SHIELD_CAP, SPELLS, castSuccessChance, heroBeast, knownSpells, maxMana as spellMaxMana, proficiency, spellPower, spellRadius, supportPower } from "./spells";
+import { BattleLog } from "./battleLog";
 import { SpellVfx } from "./spellVfx";
 import { BONDS, memorialDamage } from "../game/bonds";
 import * as C from "./config";
@@ -504,6 +505,8 @@ export class Engine {
       // Every landed move counts toward its mastery (and the Duelist quality).
       const uses = (this.heroes[index].model.battleStats ||= {}).moveUses ||= {};
       uses[abilityId] = (uses[abilityId] || 0) + 1;
+      const aim = targetOrPoint?.enemy || (targetOrPoint?.hp > 0 ? targetOrPoint : null);
+      this._log("move", `${this._name(this.heroes[index])} · ${name || abilityId}${aim ? ` → ${this._foeName(aim)}` : ""}`);
       this._tally(this.heroes[index], "moves", 1);
     }
     return result;
@@ -1031,6 +1034,7 @@ export class Engine {
   returnHome() {
     if (this.ended) return false;
     this.ended = true;
+    this._logbook().finish(this.time, "Returned home");
     this.stop();
     this.cb.onEnd && this.cb.onEnd({
       victory: true,
@@ -1075,6 +1079,7 @@ export class Engine {
   update(dt) {
     if (this.clutch) dt = this._tickClutch(dt);
     this.time += dt;
+    this._logbook().tick(this.time);
 
     // spawn: release enemies gradually (group release proxy)
     this.spawnTimer -= dt;
@@ -1366,6 +1371,7 @@ export class Engine {
         e.speed *= 1.5;
         e.damage *= 1.3;
         this._float(e.x, e.y - 34, "ENRAGED", "#84CC16");
+        this._log("boss", `${this._foeName(e)} is enraged`);
         this.effects.push({ x: e.x, y: e.y, r: 46, life: 0.6, color: "#84CC16", ring: true });
       }
       if (e.abilityCd <= 0) {
@@ -1391,7 +1397,7 @@ export class Engine {
           const gang = this.active.filter((ally) => ally.type === "bandit" && ally.hp > 0).length;
           const called = Math.min(2, Math.max(0, WARLORD_GANG - gang));
           for (let k = 0; k < called; k++) this._summon("bandit");
-          if (called) this._float(e.x, e.y - 34, "TO ME, LADS!", e.color);
+          if (called) { this._float(e.x, e.y - 34, "TO ME, LADS!", e.color); this._log("boss", `${this._foeName(e)} calls ${called} bandit${called > 1 ? "s" : ""}`); }
           e.blitzUntil = this.time + 0.6;
           e.blitzStrike = true;
         } else if (target && e.type === "bogLich") {
@@ -1406,7 +1412,7 @@ export class Engine {
           if (e.type === "imperialNecromancer") {
             // Raise dead: a larger, slower pack of minions, plus a soul bomb.
             e.abilityCd = 8;
-            if (this._summonUpTo(["skeleton", "skeleton", "ghost"], BOSS_MINIONS)) this._float(e.x, e.y - 34, "RAISE DEAD", e.color);
+            if (this._summonUpTo(["skeleton", "skeleton", "ghost"], BOSS_MINIONS)) { this._float(e.x, e.y - 34, "RAISE DEAD", e.color); this._log("boss", `${this._foeName(e)} raises the dead`); }
           } else {
             e.abilityCd = 6;
             this._summonUpTo(["skeleton", "skeleton"], BOSS_MINIONS);
@@ -1998,6 +2004,8 @@ export class Engine {
   // the hero model and folded into hero.history (game/qualities.js).
   _tally(h, stat, amount) {
     if (!h || !(amount > 0)) return;
+    const logStat = { damage: "dealt", dodges: "dodges", meleeHits: "hits", rangedHits: "hits", crits: "crits" }[stat];
+    if (logStat) this._logbook().count(h.i, logStat, amount);
     const stats = (h.model.battleStats ||= {});
     stats[stat] = (stats[stat] || 0) + amount;
   }
@@ -2333,6 +2341,7 @@ export class Engine {
     }
     const remaining = Math.max(0, damage);
     if (remaining > 0) hero.hitUntil = this.time + 0.24;
+    this._logbook().count(hero.i, "taken", remaining);
     if (remaining > 0 && hero.d.decoyChance > 0 && state.mirrorReadyAt <= this.time && this.rng() < hero.d.decoyChance) {
       state.decoy = true;
       state.mirrorReadyAt = this.time + 15;
@@ -2653,6 +2662,7 @@ export class Engine {
     }
     // Gauntlet darkness: some weapon attacks miss outright.
     if (p.damageCategory === "weapon" && hero.d.env?.miss > 0 && this.rng() < hero.d.env.miss) {
+      this._logbook().count(hero.i, "misses");
       this._float(target.x, target.y - 4, "MISS", "#64748B");
       return false;
     }
@@ -2912,6 +2922,7 @@ export class Engine {
   _heroDowned(h) {
     this._bondsReactToFall(h);
     const foe = h.lastHitBy;
+    this._log("death", `${this._name(h)} is down${foe ? ` (${this._foeName(foe)})` : ""}`);
     this.downed[h.i] = foe ? { type: foe.type, name: foe.name, nemesisId: foe.nemesisId || null, boss: !!foe.boss, summoned: !!(foe.summoned || foe.raised) } : null;
   }
 
@@ -2961,7 +2972,12 @@ export class Engine {
     if (!(this.rng() < success)) {
       if (this.vfx) this.vfx.fizzle(spell.element, h.x, h.y);
       else this._float(h.x, h.y - 26, "FIZZLE", "#94A3B8");
+      this._logFizzle(h, spell);
       return true;
+    }
+    this._logbook().count(h.i, "spells");
+    if (!HEX_SHAPES.has(spell.shape) && !CONTROL_SHAPES.has(spell.shape)) {
+      this._log("spell", `${this._name(h)} · ${spell.name} → ${this._foeName(foe)}`);
     }
     if (announce) this._callout(h, spell.name.toUpperCase(), spell.color, BIG_SPELLS.has(spellId));
     (this.spellSuccesses[h.i] ||= {})[spellId] = ((this.spellSuccesses[h.i] || {})[spellId] || 0) + 1;
@@ -3096,11 +3112,14 @@ export class Engine {
     if (!(this.rng() < success)) {
       if (this.vfx) this.vfx.fizzle(spell.element, h.x, h.y);
       else this._float(h.x, h.y - 26, "FIZZLE", "#94A3B8");
+      this._logFizzle(h, spell);
       return true;
     }
     if (announce) this._callout(h, spell.name.toUpperCase(), spell.color, false);
     (this.spellSuccesses[h.i] ||= {})[spellId] = ((this.spellSuccesses[h.i] || {})[spellId] || 0) + 1;
     this._tally(h, SPELLS[spellId]?.support ? "supportCasts" : "casts", 1);
+    this._logbook().count(h.i, "spells");
+    this._log("spell", `${this._name(h)} · ${spell.name} → ${spell.radius ? "the party" : this._name(target)}`);
     const staff = getEquippedHeroWeaponType(h.model) === "staff";
     const power = supportPower(h.model, spellId, { staff });
     const rank = this.vfx ? proficiency(h.model, spell.element) : 1;
@@ -3155,6 +3174,30 @@ export class Engine {
     return true;
   }
 
+  // ---- battle log (battleLog.js): records only, never changes the fight ----------
+
+  _logbook() {
+    return this.battleLog ||= new BattleLog(this.heroes.map((h) => this._name(h)));
+  }
+
+  _log(kind, text) {
+    this._logbook().add(this.time, kind, text);
+  }
+
+  _name(h) {
+    return h?.model?.identity?.name || "Hero";
+  }
+
+  _foeName(e) {
+    return e?.name || C.ENEMIES[e?.type]?.name || e?.type || "foe";
+  }
+
+  _logFizzle(h, spell) {
+    this._logbook().count(h.i, "fizzles");
+    const penalty = h.strain * CASTING.strainPerCast;
+    this._log("fizzle", `${this._name(h)} · ${spell.name} fizzled${penalty > 0 ? ` (strained −${Math.round(penalty * 100)}%)` : ""}`);
+  }
+
   // ---- hexes (Shadow: Blind, Disarm; Mind: Enfeeble, Silence, Expose) ------------
 
   // How much of a hex this foe takes: elites half, bosses a quarter.
@@ -3194,9 +3237,15 @@ export class Engine {
 
   _castHex(h, spell, foe, rank) {
     this.vfx?.bolt(spell.element, h, foe, rank);
-    if (!spell.radius) { this._hexOne(h, spell, foe, rank); return; }
-    this.vfx?.area(spell.element, foe.x, foe.y, spell.radius, rank);
-    for (const victim of this._hexArea(foe, spell.radius)) this._hexOne(h, spell, victim, rank);
+    let took = 0;
+    if (!spell.radius) took = this._hexOne(h, spell, foe, rank) ? 1 : 0;
+    else {
+      this.vfx?.area(spell.element, foe.x, foe.y, spell.radius, rank);
+      for (const victim of this._hexArea(foe, spell.radius)) if (this._hexOne(h, spell, victim, rank)) took += 1;
+    }
+    this._log("control", took
+      ? `${this._name(h)} · ${spell.name} → ${this._foeName(foe)}${took > 1 ? ` + ${took - 1}` : ""}${spell.shape === "expose" ? ` (${foe.exposeKind})` : ""}`
+      : `${this._name(h)} · ${spell.name} → ${this._foeName(foe)}: no effect`);
   }
 
   _hexArea(foe, radius) {
@@ -3204,7 +3253,7 @@ export class Engine {
   }
 
   _hexOne(h, spell, foe, rank) {
-    if (foe.hp <= 0 || this._spellImmune(foe)) return;
+    if (foe.hp <= 0 || this._spellImmune(foe)) return false;
     const scale = this._hexScale(foe);
     const until = this.time + spell.seconds;
     let label = spell.name.toUpperCase();
@@ -3234,6 +3283,7 @@ export class Engine {
     }
     this._float(foe.x, foe.y - 18, label, spell.color);
     this.vfx?.aura(spell.shape, foe, seconds, rank);
+    return true;
   }
 
   // The hex an unattended caster would cast now, and at whom: Silence on a
@@ -3292,7 +3342,15 @@ export class Engine {
   }
 
   _castControl(h, spell, foe, damage, sourceId, rank) {
+    const held = this._castControlEffect(h, spell, foe, damage, sourceId, rank);
+    if (held === false) this._log("control", `${this._name(h)} · ${spell.name} → ${this._foeName(foe)}: resisted`);
+    else if (held > 0) this._log("control", `${this._name(h)} · ${spell.name} → ${this._foeName(foe)}${held > 1 ? ` + ${held - 1}` : ""}`);
+  }
+
+  // Applies a control spell; returns how many foes it took hold of, or false if resisted.
+  _castControlEffect(h, spell, foe, damage, sourceId, rank) {
     const source = "H" + h.i;
+    let held = 0;
     if (spell.shape === "terror") {
       const victims = this.active.filter((enemy) => enemy.hp > 0 && Math.hypot(enemy.x - foe.x, enemy.y - foe.y) <= spell.radius);
       this.vfx?.area("shadow", foe.x, foe.y, spell.radius, rank);
@@ -3303,8 +3361,9 @@ export class Engine {
         if (victim.boss) victim.stunUntil = Math.max(victim.stunUntil || 0, this.time + seconds);
         else victim.fearUntil = Math.max(victim.fearUntil || 0, this.time + seconds);
         this.vfx?.aura("fear", victim, seconds, rank);
+        held += 1;
       }
-      return;
+      return held;
     }
     if (spell.shape === "thornfield") {
       const radius = spellRadius(h.model, spell.id || "thornfield");
@@ -3317,14 +3376,15 @@ export class Engine {
         const seconds = this._controlSeconds(victim, spell);
         victim.rootUntil = Math.max(victim.rootUntil || 0, this.time + seconds);
         this.vfx?.aura("root", victim, seconds, rank);
+        held += 1;
       }
-      return;
+      return held;
     }
     this.vfx?.bolt(spell.element, h, foe, rank);
     if (spell.shape === "ensnare") this._spellHit(h, foe, damage, spell.element, sourceId, true);
-    if (foe.hp <= 0 || this._spellImmune(foe)) return;
+    if (foe.hp <= 0 || this._spellImmune(foe)) return 0;
     const seconds = this._controlSeconds(foe, spell);
-    if (!(seconds > 0)) { this._float(foe.x, foe.y - 18, "RESISTS", spell.color); return; }
+    if (!(seconds > 0)) { this._float(foe.x, foe.y - 18, "RESISTS", spell.color); return false; }
     if (spell.shape === "ensnare") {
       foe.rootUntil = Math.max(foe.rootUntil || 0, this.time + seconds);
       this.vfx?.aura("root", foe, seconds, rank);
@@ -3341,6 +3401,7 @@ export class Engine {
       this._float(foe.x, foe.y - 18, "DOMINATED", spell.color);
       this.vfx?.aura("dominate", foe, seconds, rank);
     }
+    return 1;
   }
 
   // A frightened foe runs from the nearest hero and doesn't attack.
@@ -3688,6 +3749,7 @@ export class Engine {
       }
     }
     this.clutches.push(record);
+    this._log("death", `Clutch: ${this._name(h)} ${record.choice === "drink" ? "drinks" : record.landed ? "lands an Ultra Crit" : "goes for the Ultra Crit and misses"}`);
     return true;
   }
 
@@ -3700,19 +3762,21 @@ export class Engine {
         e.wardsUsed = (e.wardsUsed || 0) + 1;
         e.hp = Math.min(e.maxHp, e.hp + e.maxHp * CHAMPION_WARD);
         this._float(e.x, e.y - 34, "WARDED", "#38BDF8");
+        this._log("boss", `${this._foeName(e)} wards itself`);
         this.effects.push({ kind: "shield", x: e.x, y: e.y, r: 44, life: 1, color: "#38BDF8" });
       }
     } else if (e.champion === "swarming") {
       e.swarmCd = (e.swarmCd ?? 3) - dt;
       if (e.swarmCd <= 0) {
         e.swarmCd = 4;
-        if (this._summonUpTo(["skeleton", "skeleton"], CHAMPION_SWARM)) this._float(e.x, e.y - 34, "SWARM", e.color);
+        if (this._summonUpTo(["skeleton", "skeleton"], CHAMPION_SWARM)) { this._float(e.x, e.y - 34, "SWARM", e.color); this._log("boss", `${this._foeName(e)} calls a swarm`); }
       }
     } else if (e.champion === "frenzied" && !e.frenzied && share < 0.5) {
       e.frenzied = true;
       e.attackSpeed = (e.attackSpeed || 1) * 1.4;
       e.damage *= 1.2;
       this._float(e.x, e.y - 34, "FRENZY", "#F43F5E");
+      this._log("boss", `${this._foeName(e)} goes into a frenzy`);
       this.effects.push({ kind: "impact", x: e.x, y: e.y, r: 46, life: 0.7, color: "#F43F5E" });
     }
   }
@@ -3741,6 +3805,10 @@ export class Engine {
   _killEnemy(e, sourceId, silent) {
     if (e._dead) return;
     e._dead = true; e.hp = 0;
+    if ((e.boss || e.tier === "elite") && !e.raised) {
+      const killer = typeof sourceId === "string" && sourceId[0] === "H" ? this.heroes[Number(sourceId.slice(1))] : null;
+      this._log("death", `${e.boss ? "Boss" : "Elite"} ${this._foeName(e)} slain${killer ? ` by ${this._name(killer)}` : ""}`);
+    }
     if (e.nemesisId) this.nemesisSlain = e.nemesisId;
     // Gauntlet: a sapper's bomb goes off when it falls (at half strength), and
     // necromancers can raise anyone else who falls.
@@ -4020,6 +4088,7 @@ export class Engine {
     const anyHero = this.heroes.some((h) => h.alive);
     if (!anyHero || this.forcedDefeat) {
       this.ended = true;
+      this._logbook().finish(this.time, "Defeat");
       this.stop();
       this.cb.onEnd && this.cb.onEnd({
         victory: false,
@@ -4058,6 +4127,7 @@ export class Engine {
         }
       }
       this.ended = true;
+      this._logbook().finish(this.time, "Victory");
       this.stop();
       this.cb.onEnd && this.cb.onEnd({
         victory: true,
