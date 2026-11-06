@@ -417,7 +417,7 @@ export class Engine {
         const damage = Number.isFinite(definition.damageMultiplier)
           ? Math.round(h.d.attack * definition.damageMultiplier) : undefined;
         const canPayHealthCost = this._classlessCanPayActiveCost(h);
-        // Mana Surge needs a mana pool (spells from the Arcane Focus perk).
+        // Mana Surge needs a mana pool (spells from the Arcane Spark perk).
         const noMana = definition.requiresMana && !(h.maxMana > 0);
         return { id: definition.id, name: definition.name, desc: definition.description, branch: definition.branch,
           cooldown: abilityCooldown, cooldownSeconds, resourceCost: definition.resourceCost,

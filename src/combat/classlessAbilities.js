@@ -230,7 +230,7 @@ export const STARTER_MOVES = Object.freeze([
     branch: "Starter",
     starterWeapon: "staff",
     name: "Mana Surge",
-    description: "Restore 25 mana; the next spell costs nothing. Needs spells (Arcane Focus perk).",
+    description: "Restore 25 mana; the next spell costs nothing. Needs spells (Arcane Spark perk).",
     cooldownSeconds: 20,
     resourceCost: 0,
     targetMode: null,

@@ -99,6 +99,11 @@ export default function ClasslessPerkTree({ hero, onPurchase, onAllocate, onLear
           </p>
         </section>
         <Spellbook hero={hero} onLearnElement={onLearnElement} onChooseBeast={onChooseBeast} />
+        <p className="rounded border border-yellow-300/40 bg-yellow-300/[0.05] p-2 font-mono-g text-[10px] text-yellow-100" data-testid="moves-note">
+          <span className="font-black text-yellow-300">⚡ MOVE</span> perks add a button to the battle panel. Every hero also has
+          Shared Strike and their weapon's move (sword Lunge, bow Pinning Shot, staff Mana Surge) from level 1. Spells start with
+          Arcane Spark (Arcana).
+        </p>
         <div className="grid gap-3 sm:grid-cols-2">
           {branches.map((branch) => (
             <section key={branch} className="rounded-lg border border-white/10 p-2" aria-label={`${branch} perks`}>
@@ -110,11 +115,17 @@ export default function ClasslessPerkTree({ hero, onPurchase, onAllocate, onLear
                   const label = isOwned ? "OWNED" : result.ok ? "PURCHASE" :
                     BLOCKED_NODE_REASONS[node.id] || REASONS[result.reason] || "Unavailable";
                   return (
-                    <div key={node.id} className="flex items-center gap-2 rounded border border-white/10 bg-white/[0.025] p-2" data-testid={`classless-node-${node.id}`}>
+                    <div
+                      key={node.id}
+                      className={`flex items-center gap-2 rounded border p-2 ${SPECIAL_MOVE_NODES.has(node.id) ? "border-yellow-300/50 bg-yellow-300/[0.05]" : "border-white/10 bg-white/[0.025]"}`}
+                      data-testid={`classless-node-${node.id}`}
+                    >
                       <div className="min-w-0 flex-1">
                         <div className="font-mono-g text-xs font-bold text-slate-100">
                           {node.name} · {node.id} · Tier {node.tier}
-                          {SPECIAL_MOVE_NODES.has(node.id) && <span className="ml-1 text-yellow-300" data-testid="special-move-node">★ Special move</span>}
+                          {SPECIAL_MOVE_NODES.has(node.id) && (
+                            <span className="ml-1 rounded bg-yellow-300 px-1 text-[9px] font-black text-black" data-testid="special-move-node">⚡ MOVE</span>
+                          )}
                           {SPELL_NODES.has(node.id) && <span className="ml-1 text-fuchsia-300">✦ Spell</span>}
                         </div>
                         <div className="font-mono-g text-[9px] text-slate-400">
