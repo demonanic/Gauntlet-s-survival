@@ -38,7 +38,7 @@ Last updated: 2026-11-01. At that point Phases 6 and 7 were merged (#34–#36) a
 - **Supabase:** the connected Supabase tools can reach the "gauntlet" project (xtgpznknlaihmfohdmqs); Sam allowed using them. Migrations in supabase/migrations say when they were applied. Each step needs Sam's go, and new visuals need his design check first.
 - **Checking screens:** npm is blocked here, so CI is the test runner; to see real screens, a temporary commit that prints `dist/assets` as base64 to the CI log can be decoded and served with Playwright, then dropped (never merged).
 - **Still owed:** a watched-fight browser check after 6D-1 and batches 2–3, plus the byte-identity probe and seeded runs for batches 2–3 (the sessions that made them could not install dependencies).
-- **Tests:** 631 (including 15 fight-result and 11 party-decision characterization cases, re-recorded for Mastery's saved counts).
+- **Tests:** 632 (including 15 fight-result and 11 party-decision characterization cases, re-recorded for Mastery's saved counts).
 - **Running tests here:** npm is blocked, but `~/.bun/bin/bun test <file>` runs the vitest files locally (one characterization case differs under bun even on main; CI is the judge).
 - **After that:** Phases 8 (A–D, split `engine.js`), 9, 10 and 11. The recommendation was to resume features (Endgame B/C/D) after Phase 7 and interleave phases 8–11.
 - **Sam's earlier decisions:**

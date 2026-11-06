@@ -69,7 +69,7 @@ export function bossAbility(engine, e, dt) {
 }
 
 // Champion bosses (game/regions.js CHAMPIONS): Warded, Swarming, Frenzied.
-// (Vampiric heals on each hit it lands: engine._vampiric.)
+// (Vampiric heals on each hit it or its minions land: engine._vampiric.)
 export function championTick(engine, e, dt) {
   const share = e.hp / e.maxHp;
   if (e.champion === "warded") {

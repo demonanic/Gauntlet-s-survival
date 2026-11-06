@@ -34,7 +34,7 @@ export const CHAMPIONS = Object.freeze({
   warded: { name: "Warded", text: "shields itself at 66% and 33% HP, restoring 15% of its health" },
   swarming: { name: "Swarming", text: "calls two skeletons every 4 seconds, up to six alive" },
   frenzied: { name: "Frenzied", text: "below half HP attacks 40% faster and hits 20% harder" },
-  vampiric: { name: "Vampiric", text: "heals 2% of its max HP with every hit" },
+  vampiric: { name: "Vampiric", text: "heals 2% of its max HP with every hit, and 0.5% with every hit its minions land" },
 });
 export const CHAMPION_ORDER = Object.freeze(["warded", "swarming", "frenzied", "vampiric"]);
 

@@ -626,7 +626,7 @@ bonuses are stamped onto every hero as `hero.guildBonus` so the engine can read 
   `_championTick` / `_vampiric` in the engine): boss ranks 5, 10, 15... (`CHAMPION_EVERY`)
   rotate Warded (at 66% and 33% HP restore 15% max HP), Swarming (two skeletons every 4 s,
   up to 6 summons alive), Frenzied (below 50%: attack speed ×1.4, damage ×1.2, once) and
-  Vampiric (2% max HP back per hit landed, melee or projectile). The boss is named for it
+  Vampiric (2% max HP back per hit landed, melee or projectile, and 0.5% per hit one of its summoned minions lands; added Nov 2026 because the Imperial Necromancer lands almost no hits itself). The boss is named for it
   ("Frenzied Abomination"), the feed explains the mechanic, and a kill pays double bounty
   and a second Flawless crystal.
 - **The Endless Rift** (LV 3+): one continuous fight. Each cleared wave rolls into the next
