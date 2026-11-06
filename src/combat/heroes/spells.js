@@ -12,6 +12,8 @@ import { getEquippedHeroWeaponType } from "../heroWeapon";
 // on auto they're cast only when Barrier isn't ready.
 const SUPPORT_PRIORITY = Object.freeze(["lifeline", "heal", "veil", "mirror", "renew", "barrier", "iron_skin", "spellguard", "aegis", "empower",
   "haste", "true_aim", "kindred", "quiver", "insight", "summon", "elemental", "blades"]);
+// The summon each summoning spell makes (a spirit beast has no summonKind).
+const SUMMON_KINDS = Object.freeze({ summon: "beast", blades: "blades", elemental: "elemental", mirror: "mirror" });
 // Foes whose shots are magic (Spellguard's concern on auto).
 const MAGIC_SHOOTERS = Object.freeze(new Set(["warlock", "carrionPriest", "lesserNecromancer", "watcher"]));
 // Spells that hold foes (Shadow, Wild Magic, Dominate), cast at a foe.
@@ -65,6 +67,8 @@ export const heroSpellMethods = {
         busy, queued: h.spellQueue.includes(spell.id), queue: h.spellQueue.slice(),
         // A support spell with nobody to help can't be cast (no heal at full HP).
         noTarget: !!spell.support && !this._supportTarget(h, spell, false),
+        // A summon of this kind is already out (one at a time), for the label.
+        out: SUMMON_KINDS[spell.shape] ? this.pets.some((pet) => pet.summoned && pet.owner === h && !pet.down && (pet.summonKind || "beast") === SUMMON_KINDS[spell.shape]) : false,
         available: h.alive && cooldown <= 0 && h.mana >= cost && !this.ended
           && (!spell.support || !!this._supportTarget(h, spell, false)) };
     });

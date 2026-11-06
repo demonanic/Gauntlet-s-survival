@@ -2,7 +2,7 @@
 
 Read this first, then `docs/ROADMAP.md` (the living checklist and pass log) and `docs/DESIGN.md` (every approved design, with its measurements). `docs/LEGACY_MANIFEST.md` tracks the old Demonanic code.
 
-Last updated: 2026-11-06, with spells part 4 open as draft PR #59.
+Last updated: 2026-11-06, with the test tools open as draft PR #60.
 
 ## The project
 
@@ -60,8 +60,9 @@ Last updated: 2026-11-06, with spells part 4 open as draft PR #59.
   - #52: spell targets (tap a foe; auto bolts on the weakest foe);
   - #53: battle log, plus the battle field keeping half the screen;
   - #48 and #54–#57: Phase 8, splitting engine.js, plus Vampiric minions feeding their master and a dead Reaper/Dark Elf branch removed;
-  - #58: spells part 3, Enchanting (Haste and True Aim party-wide, Endless Quiver, Kindred Bond, Insight) and the Iron Skin and Spellguard wards.
-- **Open:** draft PR #59, spells part 4: Conjuration (Spectral Blades, Summon Elemental) and Mirror Self (Shadow V). CI is green; numbers are in the PR and DESIGN.md. Retuned on Sam's picks (blades 15%; elemental 80% / 40% HP / 24 mana; Mirror Self 60%, fooling every non-boss foe on the caster). Measured: Conjuration a bit above Fire, the elemental now adds wins, Mirror Self still no measurable effect for a staff caster. Waiting on Sam's "Merge".
+  - #58: spells part 3, Enchanting (Haste and True Aim party-wide, Endless Quiver, Kindred Bond, Insight) and the Iron Skin and Spellguard wards;
+  - #59: spells part 4, Conjuration (Spectral Blades 15%, Summon Elemental) and Mirror Self (60%, fools every non-boss foe on the caster).
+- **Open:** draft PR #60, test tools under `?debug`: a separate test save (no cloud sync), magic tools, test fights and battle cheats (see DESIGN.md "Test mode tools"). CI green; checked on a phone-sized screen. Waiting on Sam's "Merge".
 - **Next (Sam's choice):**
   - **Phases 9–11:** one definition per enemy, performance measurements, final review (ROADMAP).
 - **Later, if Sam asks:** tuning after play (Restoration, familiars, control, armory percentages, mastery pace), a sound effects overhaul, a Play Store release.

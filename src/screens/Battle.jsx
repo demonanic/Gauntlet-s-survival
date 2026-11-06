@@ -14,7 +14,8 @@ const HUD_THROTTLE_MS = 90;
 
 // One live encounter: the trimmed Demonanic engine on a canvas, plus a light
 // tactical HUD (abilities, move orders, speed). Hands the result back up.
-export default function Battle({ expedition, party, createWave, onComplete, speeds = [1, 2] }) {
+// `cheats`: test mode's buttons (fill mana, ready cooldowns, god mode, kill all).
+export default function Battle({ expedition, party, createWave, onComplete, speeds = [1, 2], cheats = false }) {
   const canvasRef = useRef(null);
   const engineRef = useRef(null);
   const hudThrottle = useRef(0);
@@ -34,6 +35,7 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
   // A Clutch moment (Fortune perk): which hero, the odds, and when it started.
   const [clutch, setClutch] = useState(null);
   const [clutchLeft, setClutchLeft] = useState(0);
+  const [god, setGod] = useState(false);
   const region = getRegion(expedition.regionId);
   const endless = !!region.endless;
 
@@ -130,6 +132,19 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
           <NeonButton color="#00F3FF" onClick={toggleSpeed}>{speed}×</NeonButton>
         </div>
       </header>
+
+      {cheats && (
+        <div className="flex flex-wrap items-center gap-1.5 px-3 pb-1 font-mono-g text-[10px]" data-testid="battle-cheats">
+          <span className="font-bold text-orange-300">TEST</span>
+          {[["mana", "Mana"], ["cooldowns", "Cooldowns"], ["kill", "Kill all"]].map(([kind, label]) => (
+            <button key={kind} type="button" disabled={!engine || !!result} onClick={() => engine?.debugCheat(kind)}
+              className="rounded border border-orange-400/60 px-2 py-1 text-orange-200 disabled:opacity-40" data-testid={`cheat-${kind}`}>{label}</button>
+          ))}
+          <button type="button" disabled={!engine || !!result} onClick={() => setGod(!!engine?.debugCheat("god"))} aria-pressed={god}
+            className={`rounded border px-2 py-1 disabled:opacity-40 ${god ? "border-lime-300 bg-lime-300/15 text-lime-200" : "border-orange-400/60 text-orange-200"}`}
+            data-testid="cheat-god">God {god ? "on" : "off"}</button>
+        </div>
+      )}
 
       {/* The field always keeps at least half the screen; the dock below scrolls instead of squeezing it. */}
       <div className="relative flex min-h-[50dvh] flex-1 items-center justify-center px-2" data-testid="battle-field">
@@ -382,7 +397,7 @@ function SpellTile({ spell, index, locked, engine }) {
     engine?.queueHeroSpell(index, spell.id);
   };
   const line = queuedAt >= 0 ? `Queued #${queuedAt + 1} · tap to cancel`
-    : short ? `Needs ${spell.cost} mana` : cooling ? `Ready in ${Math.ceil(spell.cooldown)}s` : spell.noTarget ? "No one needs it"
+    : short ? `Needs ${spell.cost} mana` : cooling ? `Ready in ${Math.ceil(spell.cooldown)}s` : spell.out ? "Already out" : spell.noTarget ? "No one needs it"
       : `${spell.free ? "Free" : `${spell.cost} mana`} · ${Math.round(spell.success * 100)}%${spell.strain > 0 ? ` (now ${Math.round(spell.nowSuccess * 100)}%)` : ""}`;
   return (
     <button

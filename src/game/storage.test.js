@@ -1,6 +1,6 @@
 import { createGuild, recruitHero, STATE_VERSION } from "./guild";
 import {
-  BACKUP_KEY, SAVE_MIGRATIONS, loadSave, migrateSave, parseGuild, readGuild, readSaveBackups, saveGuild,
+  BACKUP_KEY, SAVE_MIGRATIONS, TEST_SAVE_KEY, clearGuild, loadSave, migrateSave, parseGuild, readGuild, readRealSave, readSaveBackups, saveGuild, saveKey,
 } from "./storage";
 import { needsSaveChoice } from "../cloud/cloudSave";
 import { buildWildEncounter } from "./encounters";
@@ -175,5 +175,47 @@ describe("a save with a stray class field", () => {
     const wave = buildWildEncounter(getRegion("gutter"), 0, seededRandom(3), { waves: 1 });
     const { result } = simulateEncounter(state.heroes, wave, { rng: seededRandom(4) });
     expect(result).toBeTruthy();
+  });
+});
+
+describe("test mode's own save", () => {
+  const inTestMode = (fn) => {
+    const before = globalThis.location;
+    globalThis.location = { search: "?debug" };
+    try { return fn(); } finally { globalThis.location = before; }
+  };
+
+  test("?debug reads and writes its own key; the real save is never touched", () => {
+    expect(saveKey("")).toBe(SAVE_KEY);
+    expect(saveKey("?debug")).toBe(TEST_SAVE_KEY);
+    const storage = memoryStorage();
+    const real = recruitHero(createGuild()).state;
+    real.gold = 1234;
+    saveGuild(real, storage);
+    const raw = storage.getItem(SAVE_KEY);
+    inTestMode(() => {
+      expect(loadSave(storage, NOW).status).toBe("new");
+      const test = createGuild();
+      test.gold = 99999;
+      saveGuild(test, storage);
+      clearGuild(storage);
+      saveGuild(test, storage);
+      // A copy of the real save, to test from; the real one stays as it was.
+      const copy = readRealSave(storage);
+      expect(copy.ok).toBe(true);
+      expect(copy.state.gold).toBe(1234);
+    });
+    expect(storage.getItem(SAVE_KEY)).toBe(raw);
+    expect(JSON.parse(storage.getItem(TEST_SAVE_KEY)).gold).toBe(99999);
+    expect(loadSave(storage, NOW).state.gold).toBe(1234);
+  });
+
+  test("an unreadable test save is backed up apart from the real save's backups", () => {
+    const storage = memoryStorage();
+    storage.setItem(TEST_SAVE_KEY, "{not json");
+    inTestMode(() => expect(loadSave(storage, NOW).replaced).toBe(true));
+    expect(storage.getItem(BACKUP_KEY)).toBeNull();
+    expect(JSON.parse(storage.getItem(`${TEST_SAVE_KEY}.backups`))).toHaveLength(1);
+    expect(readRealSave(storage).ok).toBe(false);
   });
 });

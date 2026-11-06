@@ -57,8 +57,10 @@ describe("Conjuration: Spectral Blades", () => {
     }
     const engine = fight([conjurer()], [foe(300, 380)]);
     cast(engine, "spectral_blades", null);
-    // One set at a time.
-    expect(engine.getHeroSpellStatus(0).find((s) => s.id === "spectral_blades").available).toBe(false);
+    // One set at a time; the tile says it's out.
+    const status = engine.getHeroSpellStatus(0).find((s) => s.id === "spectral_blades");
+    expect(status.available).toBe(false);
+    expect(status.out).toBe(true);
     engine.time += 10;
     engine._updatePets(0.1);
     expect(blades(engine)).toHaveLength(0);
