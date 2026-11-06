@@ -38,6 +38,19 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
   const [clutch, setClutch] = useState(null);
   const [clutchLeft, setClutchLeft] = useState(0);
   const [god, setGod] = useState(false);
+  // Test mode: frames drawn per second, to check performance on a real phone.
+  const [fps, setFps] = useState(null);
+  useEffect(() => {
+    if (!cheats) return undefined;
+    let frames = 0, since = performance.now(), raf = 0;
+    const step = (t) => {
+      frames += 1;
+      if (t - since >= 1000) { setFps(Math.round((frames * 1000) / (t - since))); frames = 0; since = t; }
+      raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [cheats]);
   const region = getRegion(expedition.regionId);
   const endless = !!region.endless;
 
@@ -161,6 +174,7 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
           <button type="button" disabled={!engine || !!result} onClick={() => setGod(!!engine?.debugCheat("god"))} aria-pressed={god}
             className={`rounded border px-2 py-1 disabled:opacity-40 ${god ? "border-lime-300 bg-lime-300/15 text-lime-200" : "border-orange-400/60 text-orange-200"}`}
             data-testid="cheat-god">God {god ? "on" : "off"}</button>
+          {fps != null && <span className={fps >= 50 ? "text-lime-300" : fps >= 30 ? "text-yellow-300" : "text-red-300"} data-testid="cheat-fps">{fps} fps</span>}
         </div>
       )}
 
