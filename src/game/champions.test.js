@@ -1,5 +1,6 @@
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import { Engine } from "../combat/engine";
+import { championTick } from "../combat/enemies/abilities";
 import { buildBossEncounter, buildWildEncounter, createEncounterSim } from "./encounters";
 import { choosePending, createGuild, currentEncounterParty, resolveEncounter, startExpedition } from "./guild";
 import { createGearItem } from "./items";
@@ -36,32 +37,32 @@ describe("Champion bosses", () => {
   test("Warded shields itself at 66% and 33% HP", () => {
     const { engine, boss } = engineWithBoss(4);
     boss.hp = boss.maxHp * 0.6;
-    engine._championTick(boss, 1 / 30);
+    championTick(engine, boss, 1 / 30);
     expect(boss.hp).toBeCloseTo(boss.maxHp * 0.75);
-    engine._championTick(boss, 1 / 30);
+    championTick(engine, boss, 1 / 30);
     expect(boss.hp).toBeCloseTo(boss.maxHp * 0.75);
     boss.hp = boss.maxHp * 0.3;
-    engine._championTick(boss, 1 / 30);
+    championTick(engine, boss, 1 / 30);
     expect(boss.hp).toBeCloseTo(boss.maxHp * 0.45);
     boss.hp = boss.maxHp * 0.1;
-    engine._championTick(boss, 1 / 30);
+    championTick(engine, boss, 1 / 30);
     expect(boss.hp).toBeCloseTo(boss.maxHp * 0.1);
   });
 
   test("Swarming calls skeletons, up to six alive", () => {
     const { engine, boss } = engineWithBoss(9);
-    for (let t = 0; t < 30; t += 1) engine._championTick(boss, 1);
+    for (let t = 0; t < 30; t += 1) championTick(engine, boss, 1);
     expect(engine.active.filter((enemy) => enemy.summoned).length).toBe(6);
   });
 
   test("Frenzied speeds up and hits harder below half HP, once", () => {
     const { engine, boss } = engineWithBoss(14);
     const damage = boss.damage;
-    engine._championTick(boss, 1 / 30);
+    championTick(engine, boss, 1 / 30);
     expect(boss.frenzied).toBeUndefined();
     boss.hp = boss.maxHp * 0.4;
-    engine._championTick(boss, 1 / 30);
-    engine._championTick(boss, 1 / 30);
+    championTick(engine, boss, 1 / 30);
+    championTick(engine, boss, 1 / 30);
     expect(boss.damage).toBeCloseTo(damage * 1.2);
     expect(boss.attackSpeed).toBeCloseTo(1.4);
   });
@@ -75,6 +76,28 @@ describe("Champion bosses", () => {
     plain.hp = plain.maxHp * 0.5;
     engine._vampiric(plain);
     expect(plain.hp).toBeCloseTo(plain.maxHp * 0.5);
+  });
+
+  test("a Vampiric boss also heals 0.5% for every hit its summoned minions land", () => {
+    const { engine, boss, hero } = engineWithBoss(19);
+    boss.hp = boss.maxHp * 0.5;
+    engine._summonUpTo(["skeleton"], 4, boss);
+    const minion = engine.active.find((enemy) => enemy.summoned);
+    expect(minion.master).toBe(boss);
+    Object.assign(minion, { x: hero.x, y: hero.y - 20, dmgBy: {} });
+    const roll = vi.spyOn(Math, "random").mockReturnValue(0.99); // no dodge
+    try { engine._enemyAttack(minion, { kind: "hero", obj: hero }); } finally { roll.mockRestore(); }
+    expect(boss.hp).toBeCloseTo(boss.maxHp * 0.505);
+    // A plain boss's minions don't; nor does a dead master.
+    const plain = engineWithBoss(18);
+    plain.boss.hp = plain.boss.maxHp * 0.5;
+    plain.engine._summonUpTo(["skeleton"], 4, plain.boss);
+    const theirs = plain.engine.active.find((enemy) => enemy.summoned);
+    plain.engine._vampiric(theirs);
+    expect(plain.boss.hp).toBeCloseTo(plain.boss.maxHp * 0.5);
+    boss.hp = 0;
+    engine._vampiric(minion);
+    expect(boss.hp).toBe(0);
   });
 
   test("beating a Champion pays double bounty and an extra crystal", () => {

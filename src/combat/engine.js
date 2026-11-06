@@ -7,6 +7,9 @@
 import { heroLuck, luckEffects } from "./luck";
 import { BEASTS, CASTING, CONTROL, ELEMENTS, HEX, MAGIC, SHIELD_CAP, SPELLS, castSuccessChance, heroBeast, knownSpells, maxMana as spellMaxMana, proficiency, spellPower, spellRadius, supportPower } from "./spells";
 import { BattleLog } from "./battleLog";
+import { bossAbility, championTick, warlockMageHunt } from "./enemies/abilities";
+import { enemyRole } from "./enemies/roles";
+import { BODY_PAD, CHAMPION_VAMPIRIC, CHAMPION_VAMPIRIC_MINION, SAPPER_SPRINT_RANGE } from "./enemies/tuning";
 import { SpellVfx } from "./spellVfx";
 import { BONDS, memorialDamage } from "../game/bonds";
 import * as C from "./config";
@@ -129,10 +132,6 @@ const WAVE_BREAK_SECONDS = 3;
 // Shots a bow gets out of one arrow (they are gathered and loosed again).
 const ARROW_SHOTS = 4;
 // Enemy body radii for collisions (bosses and elites need more room).
-// The most bandits the Bandit Warlord keeps around him at once.
-const WARLORD_GANG = 3;
-// The most summoned minions the Demon or the Imperial Necromancer keeps alive.
-const BOSS_MINIONS = 4;
 // Clutch (Fortune perk F2a): once per hero per fight, when the next hit would
 // kill them, the fight slows down while the player picks Drink or Ultra Crit.
 export const CLUTCH = Object.freeze({
@@ -161,22 +160,14 @@ const KITE_MARGIN = 18;
 // try to get this far outside its blast.
 const DODGE_WARNING = 0.8;
 const DODGE_CLEARANCE = 8;
-// Sappers sheltering behind a Bulwark break cover inside this range.
-const SAPPER_SPRINT_RANGE = 110;
 // Body radii for collisions, sized to the drawn art so units don't pile on top
 // of each other. They grew by 4-5 px (Oct 2026); every melee reach grew by
 // BODY_PAD, the extra distance between two touching bodies, so who can hit
-// whom from contact is unchanged.
+// whom from contact is unchanged (BODY_PAD lives in enemies/tuning.js).
 const HERO_BODY_RADIUS = 20;
 const ENEMY_BODY_RADIUS = (e) => (e.boss ? 33 : e.tier === "elite" ? 24 : 18);
-const BODY_PAD = 9;
 // Seconds a foe counts as busy with whoever it last attacked (backstabs).
 const BACKSTAB_WINDOW = 3;
-// Champion bosses: Warded heals this share of max HP at each ward; Swarming
-// keeps up to this many summons alive; Vampiric heals this share per hit.
-const CHAMPION_WARD = 0.15;
-const CHAMPION_SWARM = 6;
-const CHAMPION_VAMPIRIC = 0.02;
 // Heroes this close to a boss are in melee with it: it won't lob bombs at them.
 const BOSS_MELEE_REACH = 90;
 function laneX(i) { return (W / LANES) * (i + 0.5); }
@@ -1006,18 +997,20 @@ export class Engine {
   }
 
   // Gauntlet scales summoned minions to the encounter through sim.makeMinion.
-  _summon(type) {
+  // `master`: the boss that called it (a Vampiric master heals from its hits).
+  _summon(type, master = null) {
     const minion = this.sim.makeMinion(type);
     minion.summoned = true;
+    if (master) minion.master = master;
     this.injectEnemy(minion);
   }
 
   // Summon from `types` in order until `cap` summoned minions are alive.
   // Returns how many were called.
-  _summonUpTo(types, cap) {
+  _summonUpTo(types, cap, master = null) {
     const alive = this.active.filter((enemy) => enemy.summoned && enemy.hp > 0).length;
     const called = types.slice(0, Math.max(0, cap - alive));
-    for (const type of called) this._summon(type);
+    for (const type of called) this._summon(type, master);
     return called.length;
   }
 
@@ -1352,7 +1345,7 @@ export class Engine {
 
   _updateEnemy(e, dt) {
     if (e.nemesisId && this._nemesisTick(e, dt)) return;
-    if (e.champion && !(e.silenceUntil > this.time)) this._championTick(e, dt);
+    if (e.champion && !(e.silenceUntil > this.time)) championTick(this, e, dt);
     e.atkCd -= dt * (e.attackSlowUntil > this.time ? (e.attackSlowMultiplier || 1) : 1) * (e.attackSpeed || 1);
     if (e.stunUntil && e.stunUntil > this.time) return;
     // Shadow and Mind control: a frightened foe flees; a confused or
@@ -1363,66 +1356,7 @@ export class Engine {
     // It no longer damages every hero simultaneously. The target is the nearest
     // living hero inside the boss's configured attack range.
     const silenced = e.silenceUntil > this.time;
-    if (e.boss && !silenced) {
-      e.abilityCd = (e.abilityCd == null ? 5 : e.abilityCd) - dt;
-      // Gauntlet boss identities: the Abomination enrages once, below 35% HP.
-      if (e.type === "nuclearBehemoth" && !e.enraged && e.hp < e.maxHp * 0.35) {
-        e.enraged = true;
-        e.speed *= 1.5;
-        e.damage *= 1.3;
-        this._float(e.x, e.y - 34, "ENRAGED", "#84CC16");
-        this._log("boss", `${this._foeName(e)} is enraged`);
-        this.effects.push({ x: e.x, y: e.y, r: 46, life: 0.6, color: "#84CC16", ring: true });
-      }
-      if (e.abilityCd <= 0) {
-        const range = e.attackRange || 420;
-        const target = this._nearestDefender(e.x, e.y, range);
-        // Gauntlet: bombs and bile are lobbed at heroes keeping their distance;
-        // heroes in melee face the boss's own attacks instead.
-        const lobTarget = this._lobTarget(e, range);
-        if (e.type === "nuclearBehemoth") {
-          // Toxic slam: no minions, heavy damage to every hero close by.
-          if (this._nearestDefender(e.x, e.y, 110)) {
-            e.abilityCd = e.enraged ? 3.5 : 5;
-            this.effects.push({ x: e.x, y: e.y, r: 100, life: 0.45, color: "#84CC16", ring: true });
-            this._explodeNapalm(e.x, e.y, { dmg: e.damage * 1.1 * this._hexDamage(e), splash: 100 });
-          } else {
-            e.abilityCd = 0.5;
-          }
-        } else if (e.type === "banditWarlord") {
-          // Calls his gang in (topping it back up to WARLORD_GANG, never
-          // past it, so cutting his bandits down gets somewhere), then
-          // charges the weakest hero himself.
-          e.abilityCd = 10;
-          const gang = this.active.filter((ally) => ally.type === "bandit" && ally.hp > 0).length;
-          const called = Math.min(2, Math.max(0, WARLORD_GANG - gang));
-          for (let k = 0; k < called; k++) this._summon("bandit");
-          if (called) { this._float(e.x, e.y - 34, "TO ME, LADS!", e.color); this._log("boss", `${this._foeName(e)} calls ${called} bandit${called > 1 ? "s" : ""}`); }
-          e.blitzUntil = this.time + 0.6;
-          e.blitzStrike = true;
-        } else if (target && e.type === "bogLich") {
-          // Mends its court, drags the dead back up, and spits bile.
-          e.abilityCd = 7;
-          this._healAllies(e, 250, 0.12);
-          this._raiseFallen(e, 250, 2);
-          if (lobTarget) this._throwNapalm(e, lobTarget);
-        } else if (target) {
-          // Both top their minions back up to BOSS_MINIONS alive, never past
-          // it: in a long fight, unlimited summons buried the party.
-          if (e.type === "imperialNecromancer") {
-            // Raise dead: a larger, slower pack of minions, plus a soul bomb.
-            e.abilityCd = 8;
-            if (this._summonUpTo(["skeleton", "skeleton", "ghost"], BOSS_MINIONS)) { this._float(e.x, e.y - 34, "RAISE DEAD", e.color); this._log("boss", `${this._foeName(e)} raises the dead`); }
-          } else {
-            e.abilityCd = 6;
-            this._summonUpTo(["skeleton", "skeleton"], BOSS_MINIONS);
-          }
-          if (lobTarget) this._throwNapalm(e, lobTarget);
-        } else {
-          e.abilityCd = 1;
-        }
-      }
-    }
+    if (e.boss && !silenced) bossAbility(this, e, dt);
     if (this._updateSpecialEnemy(e, dt)) return;
     // Enemy archetypes get a small tactical identity on top of their
     // existing stats/objectives. These are intentionally readable rules:
@@ -1430,25 +1364,7 @@ export class Engine {
     // and lieutenants reinforce nearby attackers.
     const tactical = this._selectEnemyTacticalTarget(e);
     const commanderBoost = e._commanderBoost || 1;
-    if (e.type === "warlock" && !silenced) {
-      e.abilityCd = (e.abilityCd == null ? 3 : e.abilityCd) - dt;
-      if (e.abilityCd <= 0) {
-        // Warlocks are Mage Hunters: Mage first, then any living hero.
-        const target =
-          this._nearestMageEntity(e.x, e.y, 300) ||
-          this._nearestHeroEntity(e.x, e.y, 300);
-
-        if (target?.kind === "hero") {
-          this._enemyAttack(e, target);
-          if (target.obj?.ref?.type === "mage") {
-            this._float(target.obj.x, target.obj.y - 22, "MAGE HUNT", e.color);
-          }
-          e.abilityCd = 4.5;
-        } else {
-          e.abilityCd = 1;
-        }
-      }
-    }
+    if (e.type === "warlock" && !silenced) warlockMageHunt(this, e, dt);
     const baseMoveSpeed =
       e.type === "goblin" ? e.speed * 1.18 * commanderBoost :
       e.type === "darkElf" ? e.speed * 1.08 * commanderBoost :
@@ -1458,32 +1374,34 @@ export class Engine {
     if (e.rootUntil > this.time) return;
     const moveSpeed = baseMoveSpeed * (e.slowUntil > this.time ? (e.slowMultiplier || 1) : 1);
 
-    // Reapers, orcs, lieutenants, ghosts, Dark Elves and Warlocks peel toward
-    // the heroes they pick (_selectEnemyTacticalTarget).
-    if (tactical && (e.type === "reaper" || e.type === "orc" || e.type === "lieutenant" || e.type === "ghost" || e.type === "darkElf" || e.type === "warlock")) {
+    // Orcs, lieutenants, ghosts and Warlocks peel toward the heroes they pick
+    // (_selectEnemyTacticalTarget). (Reapers and Dark Elves take their turns
+    // in enemies/roles.js; they only get here when no hero can be targeted,
+    // so they never peel.)
+    if (tactical && (e.type === "orc" || e.type === "lieutenant" || e.type === "ghost" || e.type === "warlock")) {
       const target = tactical.obj;
       const dist = Math.hypot(target.x - e.x, target.y - e.y) || 1;
-      // Dark Elves shoot from range; Warlocks cast ranged bolts while
-      // retaining their separate Mage-Hunter drain ability above.
-      const ranged = e.type === "darkElf" || e.type === "warlock";
-      const attackRange = e.type === "darkElf" ? 245 : e.type === "warlock" ? 225 : e.type === "reaper" ? 34 + BODY_PAD : 30 + BODY_PAD;
+      // Warlocks cast ranged bolts while retaining their separate
+      // Mage-Hunter drain ability above.
+      const ranged = e.type === "warlock";
+      const attackRange = ranged ? 225 : 30 + BODY_PAD;
       if (ranged && dist <= attackRange) {
         if (e.atkCd <= 0) {
-          this._throwEnemyBolt(e, tactical, e.type === "darkElf" ? e.damage * 1.15 : e.damage, e.type === "darkElf" ? "#F43F5E" : "#C026D3", e.type === "warlock");
-          e.atkCd = e.type === "darkElf" ? 1.35 : 1.65;
+          this._throwEnemyBolt(e, tactical, e.damage, "#C026D3", true);
+          e.atkCd = 1.65;
         }
         return;
       }
       if (!ranged && dist <= attackRange) {
         if (e.atkCd <= 0) {
           this._enemyAttack(e, tactical);
-          e.atkCd = e.type === "reaper" ? 0.72 : e.type === "orc" ? 1.15 : 0.9;
+          e.atkCd = e.type === "orc" ? 1.15 : 0.9;
         }
         return;
       }
       // Ranged enemies hold a firing lane; melee specialists peel toward
       // nearby targets but resume advancing if the target escapes.
-      const peelRange = e.type === "reaper" ? 260 : ranged ? 300 : 150;
+      const peelRange = ranged ? 300 : 150;
       if (dist <= peelRange) {
         if (ranged && dist < attackRange * 0.55) {
           e.x -= ((target.x - e.x) / dist) * moveSpeed * dt;
@@ -1556,237 +1474,9 @@ export class Engine {
     const nearest = living.reduce((best, h) => (Math.hypot(h.x - e.x, h.y - e.y) < Math.hypot(best.x - e.x, best.y - e.y) ? h : best));
     const distTo = (h) => Math.hypot(h.x - e.x, h.y - e.y);
 
-    if (e.bomber) {
-      // Gnome Sapper: sprints at the nearest hero, lights the fuse, and blows up.
-      if (e.fuseAt != null) {
-        if (this.time >= e.fuseAt) this._detonate(e, 1);
-        return true;
-      }
-      if (distTo(nearest) <= 30 + BODY_PAD) {
-        e.fuseAt = this.time + 0.7;
-        this._float(e.x, e.y - 20, "FUSE LIT!", "#FB923C");
-        return true;
-      }
-      // With a Bulwark in the squad it keeps to the shield's shadow until it
-      // is close enough to sprint the rest of the way.
-      const shield = distTo(nearest) > SAPPER_SPRINT_RANGE &&
-        this.active.find((ally) => ally.type === "bulwark" && ally.hp > 0);
-      if (shield) {
-        const away = Math.hypot(shield.x - nearest.x, shield.y - nearest.y) || 1;
-        const behind = { x: shield.x + ((shield.x - nearest.x) / away) * 22, y: shield.y + ((shield.y - nearest.y) / away) * 22 };
-        if (Math.hypot(behind.x - e.x, behind.y - e.y) > 4) move(behind, e.speed * 1.25);
-        return true;
-      }
-      move(nearest, e.speed * 1.25);
-      return true;
-    }
-
-    if (e.type === "bulwark") {
-      // Anchor: fights whoever reaches it; otherwise plants itself between its
-      // most threatened ward (a support or control ally) and the hero closest
-      // to that ward. With no wards left it advances like any frontliner.
-      if (distTo(nearest) <= 32 + BODY_PAD) {
-        if (e.atkCd <= 0) {
-          this._enemyAttack(e, { kind: "hero", obj: nearest });
-          e.atkCd = 1.25;
-        }
-        return true;
-      }
-      const ward = this._bulwarkWard(e, living);
-      e.guarding = ward?.ally || null;
-      if (!ward) {
-        move(nearest, e.speed);
-        return true;
-      }
-      const { ally, threat, dist } = ward;
-      const out = Math.min(44, dist * 0.5);
-      const post = { x: ally.x + ((threat.x - ally.x) / (dist || 1)) * out, y: ally.y + ((threat.y - ally.y) / (dist || 1)) * out };
-      // Hurries when a hero is closing in on its ward.
-      if (Math.hypot(post.x - e.x, post.y - e.y) > 3) move(post, e.speed * (dist < 200 ? 1.5 : 1.1));
-      return true;
-    }
-
-    if (e.families?.includes("hunter") && !e.boss && e.type !== "bandit" && e.type !== "darkElf") {
-      // Hunters (Harriers, Stalkers, legends) go for the most wounded hero. A
-      // Stalker's first strike lands extra hard. A Harrier only hunts when
-      // someone is hurt (below 70%); otherwise it skirmishes: strike the
-      // nearest hero, then fall back for a moment.
-      const weakest = living.reduce((best, h) => (h.ref.hp / h.d.maxHp < best.ref.hp / best.d.maxHp ? h : best));
-      const hunting = e.type !== "harrier" || weakest.ref.hp / weakest.d.maxHp < 0.7;
-      const prey = hunting ? weakest : nearest;
-      if (!hunting && e.fallBackUntil > this.time) {
-        move(prey, e.speed, true);
-        return true;
-      }
-      if (distTo(prey) <= 30 + BODY_PAD) {
-        if (e.atkCd <= 0) {
-          const base = e.damage;
-          if (e.type === "stalker" && !e.struck) e.damage *= 1.5;
-          this._enemyAttack(e, { kind: "hero", obj: prey });
-          e.damage = base;
-          e.struck = true;
-          e.atkCd = e.type === "harrier" ? 0.7 : 0.9;
-          if (!hunting) e.fallBackUntil = this.time + 0.6;
-        }
-        return true;
-      }
-      move(prey, e.speed * 1.1);
-      return true;
-    }
-
-    if (e.type === "carrionPriest") {
-      // Protector: feeds on the weak. Sacrifices a dying ally (or eats a
-      // corpse) to heal and empower the rest of the squad.
-      e.feedCd = (e.feedCd ?? 3) - dt;
-      if (e.feedCd <= 0 && !(e.silenceUntil > this.time)) {
-        const victim = this.active.find((ally) => ally !== e && ally.hp > 0 && !ally.boss && ally.type !== "carrionPriest" &&
-          ally.hp < ally.maxHp * 0.25 && Math.hypot(ally.x - e.x, ally.y - e.y) <= 220);
-        const corpse = victim ? null : this._fallenNear(e, 220);
-        if (victim || corpse) {
-          e.feedCd = 5;
-          if (victim) {
-            victim.hp = 0;
-            victim._dead = true;
-            this.killed += 1;
-            this.effects.push({ kind: "death", x: victim.x, y: victim.y, r: 14, life: 0.5, color: e.color });
-            this._float(victim.x, victim.y - 16, "SACRIFICED", e.color);
-          } else {
-            this.fallen.splice(this.fallen.indexOf(corpse), 1);
-            this._float(corpse.x, corpse.y - 16, "DEVOURED", e.color);
-          }
-          this._healAllies(e, 220, victim ? 0.2 : 0.1);
-          if (victim) for (const ally of this.active) if (ally.hp > 0 && Math.hypot(ally.x - e.x, ally.y - e.y) <= 220) ally.empoweredUntil = this.time + 6;
-          return true;
-        }
-        e.feedCd = 0.5;
-      }
-      const dist = distTo(nearest);
-      if (dist < 170) move(nearest, e.speed * 1.2, true);
-      else if (dist > 240) move(nearest, e.speed);
-      else if (e.atkCd <= 0) {
-        this._throwEnemyBolt(e, { kind: "hero", obj: nearest }, e.damage, e.color, true);
-        e.atkCd = 2.2;
-      }
-      return true;
-    }
-
-    if (e.type === "watcher") {
-      // Watchers make sneaking past them hard; in a fight they mark a hero,
-      // leaving them exposed (+15% damage taken) for a few seconds.
-      const dist = distTo(nearest);
-      if (dist < 160) move(nearest, e.speed * 1.1, true);
-      else if (dist > 260) move(nearest, e.speed);
-      else if (e.atkCd <= 0) {
-        // It picks the hero its squad is best placed to punish: the most
-        // enemies close by, then the most wounded.
-        const unmarked = living.filter((h) => !(h.exposedUntil > this.time));
-        const pressure = (h) => this.active.filter((ally) => ally !== e && ally.hp > 0 && Math.hypot(ally.x - h.x, ally.y - h.y) <= 90).length;
-        const marked = unmarked.length
-          ? unmarked.reduce((best, h) => {
-            const diff = pressure(h) - pressure(best);
-            return diff > 0 || (diff === 0 && h.ref.hp / h.d.maxHp < best.ref.hp / best.d.maxHp) ? h : best;
-          })
-          : nearest;
-        marked.exposedUntil = this.time + 4;
-        this._float(marked.x, marked.y - 26, "MARKED", e.color);
-        this._throwEnemyBolt(e, { kind: "hero", obj: marked }, e.damage, e.color, true);
-        e.atkCd = 2.4;
-      }
-      return true;
-    }
-
-    if (e.type === "bandit" || (e.type === "banditWarlord" && e.blitzUntil > this.time)) {
-      // Bandits blitz the weakest hero: a burst of speed and a heavy first strike.
-      const prey = living.reduce((best, h) => (h.ref.hp / h.d.maxHp < best.ref.hp / best.d.maxHp ? h : best));
-      const dist = distTo(prey);
-      e.blitzCd = (e.blitzCd ?? 1.5) - dt;
-      if (dist <= (e.boss ? 40 : 30) + BODY_PAD) {
-        if (e.atkCd <= 0) {
-          const base = e.damage;
-          if (e.blitzStrike) e.damage *= 1.6;
-          this._enemyAttack(e, { kind: "hero", obj: prey });
-          e.damage = base;
-          e.blitzStrike = false;
-          e.atkCd = e.boss ? 1 : 0.75;
-        }
-        return true;
-      }
-      if (e.blitzCd <= 0 && dist > 60 && dist < 220 && !(e.blitzUntil > this.time) && !(e.silenceUntil > this.time)) {
-        e.blitzUntil = this.time + 0.45;
-        e.blitzCd = 6;
-        e.blitzStrike = true;
-        this._float(e.x, e.y - 18, "BLITZ", e.color);
-      }
-      move(prey, e.speed * (e.blitzUntil > this.time ? 3.2 : 1.15));
-      return true;
-    }
-
-    if (e.type === "darkElf") {
-      // Dark Elf sniper: hangs back, takes aim at a ranged hero (or the most
-      // wounded), and fires one heavy shot. The aim line warns the target.
-      const ranged = living.filter((h) => h.d.rangeMode === "midline");
-      const pool = ranged.length ? ranged : living;
-      const target = e.aimTarget?.alive && pool.includes(e.aimTarget) ? e.aimTarget
-        : pool.reduce((best, h) => (h.ref.hp < best.ref.hp ? h : best));
-      const dist = distTo(target);
-      if (e.aimUntil != null) {
-        if (!e.aimTarget?.alive) { e.aimUntil = null; e.aimTarget = null; return true; }
-        if (this.time >= e.aimUntil) {
-          this._throwEnemyBolt(e, { kind: "hero", obj: e.aimTarget }, e.damage * 2, "#F43F5E");
-          e.aimUntil = null;
-          e.aimTarget = null;
-          e.atkCd = 2.6;
-        }
-        return true;
-      }
-      if (distTo(nearest) < 150) {
-        move(nearest, e.speed * 1.1, true);
-        return true;
-      }
-      if (dist > 330) {
-        move(target, e.speed);
-        return true;
-      }
-      if (e.atkCd <= 0) {
-        e.aimUntil = this.time + 0.9;
-        e.aimTarget = target;
-      }
-      return true;
-    }
-
-    if (e.type === "lesserNecromancer") {
-      // Keeps its distance, mends the wounded, and raises one fallen ally.
-      e.healCd = (e.healCd ?? 2) - dt;
-      e.raiseCd = (e.raiseCd ?? 5) - dt;
-      if (e.raisingUntil != null) {
-        if (this.time >= e.raisingUntil) {
-          e.raisingUntil = null;
-          if (this._raiseFallen(e, 240, 1)) e.raised_ = true;
-        }
-        return true;
-      }
-      const silenced = e.silenceUntil > this.time;
-      if (e.healCd <= 0 && !silenced) {
-        e.healCd = 4.5;
-        this._healAllies(e, 200, 0.18, 1);
-      }
-      if (e.raiseCd <= 0 && !e.raised_ && !silenced && this._fallenNear(e, 240)) {
-        e.raisingUntil = this.time + 1.5;
-        e.raiseCd = 99;
-        this._float(e.x, e.y - 20, "RAISE DEAD", e.color);
-        this.effects.push({ kind: "charge", x: e.x, y: e.y, r: 24, life: 1.5, color: e.color });
-        return true;
-      }
-      const dist = distTo(nearest);
-      if (dist < 170) move(nearest, e.speed * 1.2, true);
-      else if (dist > 230) move(nearest, e.speed);
-      else if (e.atkCd <= 0) {
-        this._throwEnemyBolt(e, { kind: "hero", obj: nearest }, e.damage, e.color, true);
-        e.atkCd = 2;
-      }
-      return true;
-    }
-    return false;
+    // Gauntlet enemy roles (enemies/roles.js): the first that matches takes the turn.
+    const role = enemyRole(this, e);
+    return role ? role.act(this, e, dt, { move, living, nearest, distTo }) : false;
   }
 
   // Familiars: attackers go for whatever is closest to their partner (melee
@@ -3753,38 +3443,19 @@ export class Engine {
     return true;
   }
 
-  // ---- Champion bosses (game/regions.js CHAMPIONS) ----
-  _championTick(e, dt) {
-    const share = e.hp / e.maxHp;
-    if (e.champion === "warded") {
-      const next = [0.66, 0.33][e.wardsUsed || 0];
-      if (next != null && share < next) {
-        e.wardsUsed = (e.wardsUsed || 0) + 1;
-        e.hp = Math.min(e.maxHp, e.hp + e.maxHp * CHAMPION_WARD);
-        this._float(e.x, e.y - 34, "WARDED", "#38BDF8");
-        this._log("boss", `${this._foeName(e)} wards itself`);
-        this.effects.push({ kind: "shield", x: e.x, y: e.y, r: 44, life: 1, color: "#38BDF8" });
-      }
-    } else if (e.champion === "swarming") {
-      e.swarmCd = (e.swarmCd ?? 3) - dt;
-      if (e.swarmCd <= 0) {
-        e.swarmCd = 4;
-        if (this._summonUpTo(["skeleton", "skeleton"], CHAMPION_SWARM)) { this._float(e.x, e.y - 34, "SWARM", e.color); this._log("boss", `${this._foeName(e)} calls a swarm`); }
-      }
-    } else if (e.champion === "frenzied" && !e.frenzied && share < 0.5) {
-      e.frenzied = true;
-      e.attackSpeed = (e.attackSpeed || 1) * 1.4;
-      e.damage *= 1.2;
-      this._float(e.x, e.y - 34, "FRENZY", "#F43F5E");
-      this._log("boss", `${this._foeName(e)} goes into a frenzy`);
-      this.effects.push({ kind: "impact", x: e.x, y: e.y, r: 46, life: 0.7, color: "#F43F5E" });
-    }
-  }
-
-  // A Vampiric Champion heals with every hit it lands.
+  // ---- Champion bosses (game/regions.js CHAMPIONS; Warded, Swarming and Frenzied in enemies/abilities.js) ----
+  // A Vampiric Champion heals with every hit it lands, and a little with every
+  // hit one of its summoned minions lands (owner's call, Nov 2026: the
+  // Imperial Necromancer lands almost none itself).
   _vampiric(e) {
-    if (e?.champion !== "vampiric" || !(e.hp > 0)) return;
-    e.hp = Math.min(e.maxHp, e.hp + e.maxHp * CHAMPION_VAMPIRIC);
+    if (!e) return;
+    if (e.champion === "vampiric") {
+      if (e.hp > 0) e.hp = Math.min(e.maxHp, e.hp + e.maxHp * CHAMPION_VAMPIRIC);
+      return;
+    }
+    const master = e.master;
+    if (master?.champion !== "vampiric" || !(master.hp > 0) || master._dead) return;
+    master.hp = Math.min(master.maxHp, master.hp + master.maxHp * CHAMPION_VAMPIRIC_MINION);
   }
 
   // A nemesis regenerates, and once per fight, nearly dead, may flee the
