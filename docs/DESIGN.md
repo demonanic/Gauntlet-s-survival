@@ -763,6 +763,7 @@ Owner-approved design (canvas "Gauntlet battle ability UI"):
   Both run only in the live frame loop (`_loop`), never in headless fights, so they
   cannot change a fight's result.
 - The hero sprites, enemies and the rest of the battle canvas are unchanged.
+- **Layout (fixed Nov 2026, Sam's report):** the field keeps at least half the screen height (`min-h-[50dvh]`); the dock under it (party tabs pinned at its top, then the action panel or the log) scrolls instead of squeezing the field. Before, a caster's panel could shrink the field to almost nothing on a phone. Measured on a 412×760 screen: the field is 210×380 with a caster's panel open (it had been a sliver), 251×454 with the log open.
 
 ## Spells and familiars: the agreed plan (Nov 2026, not built yet)
 
