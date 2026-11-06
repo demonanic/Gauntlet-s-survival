@@ -131,7 +131,8 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
         </div>
       </header>
 
-      <div className="relative flex min-h-0 flex-1 items-center justify-center px-2">
+      {/* The field always keeps at least half the screen; the dock below scrolls instead of squeezing it. */}
+      <div className="relative flex min-h-[50dvh] flex-1 items-center justify-center px-2" data-testid="battle-field">
         <canvas
           ref={canvasRef}
           width={LAYOUT.W}
@@ -189,8 +190,8 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
 
       <LogTicker lines={(engine?.battleLog?.lines || []).slice(0, 2)} />
 
-      <footer className="flex flex-col gap-2 px-2 pb-2" data-testid="battle-dock">
-        <nav aria-label="Party" className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${Math.max(1, party.length)}, minmax(0, 1fr)) 3.25rem` }}>
+      <footer className="flex min-h-0 shrink flex-col gap-2 overflow-y-auto px-2 pb-2" data-testid="battle-dock">
+        <nav aria-label="Party" className="sticky top-0 z-10 grid gap-1.5 bg-[var(--bg)] pb-0.5" style={{ gridTemplateColumns: `repeat(${Math.max(1, party.length)}, minmax(0, 1fr)) 3.25rem` }}>
           {party.map((hero, index) => {
             const status = hud?.heroes?.[index];
             const ready = (hud?.heroAbilities?.[index] || []).filter((ability) => ability.available).length;
@@ -243,10 +244,10 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
             engine={engine}
           />
         )}
+        <p className="text-center font-mono-g text-[9px] text-slate-500">
+          Tap a hero to see their moves; tap a foe to aim their spells. Tap the hero again, then the field, to move them (or tap a foe to attack it). Auto returns them to normal targeting.
+        </p>
       </footer>
-      <p className="pb-2 text-center font-mono-g text-[9px] text-slate-500">
-        Tap a hero to see their moves; tap a foe to aim their spells. Tap the hero again, then the field, to move them (or tap a foe to attack it). Auto returns them to normal targeting.
-      </p>
     </div>
   );
 }
@@ -254,7 +255,7 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
 // The last two log lines, always under the field.
 function LogTicker({ lines }) {
   return (
-    <div className="mx-2 mt-1 min-h-[30px] font-mono-g text-[10px] leading-[15px]" aria-live="polite" data-testid="battle-log-ticker">
+    <div className="mx-2 mt-1 min-h-[30px] shrink-0 font-mono-g text-[10px] leading-[15px]" aria-live="polite" data-testid="battle-log-ticker">
       {lines.map((line) => (
         <div key={line.id} className="truncate" style={{ color: line.color }}>
           <span className="mr-1 text-slate-500">{formatTime(line.t)}</span>{line.text}
