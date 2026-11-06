@@ -26,7 +26,8 @@ export const enemyAttackMethods = {
       return;
     }
     const empowered = e.empoweredUntil > this.time ? 1.15 : 1;
-    const damage = e.damage * empowered * (1 - (pet.body.armor || 0)) * this._hexDamage(e);
+    const damage = e.damage * empowered * (1 - (pet.body.armor || 0)) * this._hexDamage(e)
+      * (pet.owner?.kindredUntil > this.time ? 1 - pet.owner.kindredGuard : 1);
     pet.hp = Math.max(0, pet.hp - damage);
     pet.hurtAt = this.time;
     this._float(pet.x, pet.y - 14, "-" + Math.round(damage), "#FF3366");
@@ -201,7 +202,7 @@ export const enemyAttackMethods = {
           this._float(h.x, h.y - 20, "DODGE", "#00F3FF"); this._tally(h, "dodges", 1);
           continue;
         }
-        dmg = this._classlessReducedDamage(h, dmg);
+        dmg = this._classlessReducedDamage(h, dmg) * this._wardCut(h, "magic");
         dmg *= 1 - Math.min(0.9, h.d.gear?.blastWard || 0);
         if (p.source) { h.lastHitBy = p.source; this._vampiric(p.source); }
         if (h.ref.shield > 0) {
@@ -282,7 +283,7 @@ export const enemyAttackMethods = {
         this._float(h.x, h.y - 20, "DODGE", "#00F3FF"); this._tally(h, "dodges", 1);
         return;
       }
-      let damage = this._classlessReducedDamage(h, p.dmg);
+      let damage = this._classlessReducedDamage(h, p.dmg) * this._wardCut(h, p.magic ? "magic" : "weapon");
       if (p.source) { h.lastHitBy = p.source; this._vampiric(p.source); }
       if (h.ref.shield > 0) {
         const absorbed = Math.min(h.ref.shield, damage);
@@ -317,7 +318,7 @@ export const enemyAttackMethods = {
     const predator = e.families?.includes("predator") && h.ref.hp < h.d.maxHp * 0.5 ? 1.4 : 1;
     const empowered = e.empoweredUntil > this.time ? 1.15 : 1;
     const raw = e.damage * predator * empowered * this._hexDamage(e);
-    let dmg = this._classlessReducedDamage(h, raw);
+    let dmg = this._classlessReducedDamage(h, raw) * this._wardCut(h, e.type === "warlock" ? "magic" : "weapon");
     h.lastHitBy = e;
     if (h.ref.shield > 0) { const ab = Math.min(h.ref.shield, dmg); h.ref.shield -= ab; dmg -= ab; }
     this._resolveClasslessHeroDamage(h, dmg);

@@ -147,7 +147,8 @@ export const familiarMethods = {
     const { attack, color } = pet.stats;
     const owner = pet.owner;
     const sourceId = "H" + owner.i;
-    const damage = attack.damage;
+    // Kindred Bond (Enchanting): the familiar hits harder for a while.
+    const damage = attack.damage * (owner.kindredUntil > this.time ? 1 + owner.kindredDamage : 1);
     this.effects.push({ kind: "impact", x: target.x, y: target.y, r: 8, life: 0.2, color });
     if (attack.mark > 0) {
       target.petMarkUntil = this.time + 3;

@@ -8,7 +8,10 @@ import { BIG_SPELLS } from "../abilityLook";
 import { getEquippedHeroWeaponType } from "../heroWeapon";
 
 // The order an unattended caster weighs its support spells in.
-const SUPPORT_PRIORITY = Object.freeze(["lifeline", "heal", "veil", "renew", "barrier", "aegis", "empower", "summon"]);
+const SUPPORT_PRIORITY = Object.freeze(["lifeline", "heal", "veil", "iron_skin", "spellguard", "renew", "barrier", "aegis", "empower",
+  "haste", "true_aim", "kindred", "quiver", "insight", "summon"]);
+// Foes whose shots are magic (Spellguard's concern on auto).
+const MAGIC_SHOOTERS = Object.freeze(new Set(["warlock", "carrionPriest", "lesserNecromancer", "watcher"]));
 // Spells that hold foes (Shadow, Wild Magic, Dominate), cast at a foe.
 const CONTROL_SHAPES = Object.freeze(new Set(["terror", "confusion", "ensnare", "thornfield", "dominate"]));
 // Auto bolts and curses go at the weakest foe in range (see _autoCast).
@@ -202,6 +205,40 @@ export const heroSpellMethods = {
         return this.active.some((enemy) => enemy.hp > 0 && enemy.boss) || this._partyHpFraction() < 0.6 ? h : null;
       }
       case "veil": return lowest(near.filter((ally) => !this._isHeroUntargetable(ally) && (!auto || (frac(ally) < 0.4 && underAttack(ally)))));
+      // Enchanting and the two wards. Auto picks the ally they help most now.
+      case "haste":
+      case "true_aim": {
+        const until = spell.shape === "haste" ? "hasteUntil" : "trueAimUntil";
+        const fighting = (ally) => this.active.some((enemy) => enemy.hp > 0 && Math.hypot(enemy.x - ally.x, enemy.y - ally.y) <= 260);
+        return near.filter((ally) => !(ally[until] > this.time) && (!auto || fighting(ally)))
+          .sort((a, b) => (b.d.attack || 0) - (a.d.attack || 0))[0] || null;
+      }
+      case "quiver": {
+        const archers = near.filter((ally) => getEquippedHeroWeaponType(ally.model) === "bow" && !(ally.quiverUntil > this.time));
+        if (!auto) return archers[0] || null;
+        const fighting = (ally) => this.active.some((enemy) => enemy.hp > 0 && Math.hypot(enemy.x - ally.x, enemy.y - ally.y) <= 320);
+        return archers.find((ally) => fighting(ally) && (this._arrowSlot(ally)?.qty ?? 0) < 30) || null;
+      }
+      case "kindred": {
+        const bonded = near.filter((ally) => !(ally.kindredUntil > this.time) && this.pets.some((pet) => pet.owner === ally && !pet.down));
+        if (!auto) return bonded[0] || null;
+        return bonded.find((ally) => this.pets.some((pet) => pet.owner === ally && !pet.down
+          && this.active.some((enemy) => enemy.hp > 0 && Math.hypot(enemy.x - pet.x, enemy.y - pet.y) <= 120))) || null;
+      }
+      case "insight": {
+        if (this.insightBonus > 0 || !this.active.some((enemy) => enemy.hp > 0)) return null;
+        return !auto || h.mana - spell.cost >= CONTROL.manaReserve ? h : null;
+      }
+      case "iron_skin":
+      case "spellguard": {
+        const until = spell.shape === "iron_skin" ? "ironSkinUntil" : "spellguardUntil";
+        const open = near.filter((ally) => !(ally[until] > this.time));
+        if (!auto) return lowest(open);
+        const threatened = spell.shape === "iron_skin"
+          ? (ally) => this.active.some((enemy) => enemy.hp > 0 && !MAGIC_SHOOTERS.has(enemy.type) && Math.hypot(enemy.x - ally.x, enemy.y - ally.y) <= 70)
+          : (ally) => this.active.some((enemy) => enemy.hp > 0 && (MAGIC_SHOOTERS.has(enemy.type) || enemy.boss) && Math.hypot(enemy.x - ally.x, enemy.y - ally.y) <= 320);
+        return lowest(open.filter((ally) => frac(ally) < 0.7 && underAttack(ally) && threatened(ally)));
+      }
       case "summon": {
         const mine = this.pets.some((pet) => pet.summoned && pet.owner === h && !pet.down);
         if (mine || !this.active.some((enemy) => enemy.hp > 0)) return null;
@@ -276,8 +313,45 @@ export const heroSpellMethods = {
         ally.aegisReduction = power;
         this.vfx?.aura("aegis", ally, spell.seconds, rank);
       }
+    } else if (spell.shape === "haste") {
+      target.hasteUntil = this.time + spell.seconds;
+      target.hasteAmount = spell.amount;
+      this._float(target.x, target.y - 26, "HASTE", spell.color);
+      this.vfx?.aura("empower", target, spell.seconds, rank);
+    } else if (spell.shape === "true_aim") {
+      target.trueAimUntil = this.time + spell.seconds;
+      target.trueAimCrit = spell.amount;
+      this._float(target.x, target.y - 26, "TRUE AIM", spell.color);
+      this.vfx?.aura("empower", target, spell.seconds, rank);
+    } else if (spell.shape === "quiver") {
+      target.quiverUntil = this.time + spell.seconds;
+      this._float(target.x, target.y - 26, "ENDLESS QUIVER", spell.color);
+      this.vfx?.aura("empower", target, spell.seconds, rank);
+    } else if (spell.shape === "kindred") {
+      target.kindredUntil = this.time + spell.seconds;
+      target.kindredDamage = spell.amount;
+      target.kindredGuard = spell.guard;
+      this._float(target.x, target.y - 26, "KINDRED BOND", spell.color);
+      for (const pet of this.pets) if (pet.owner === target && !pet.down) this.vfx?.aura("empower", pet, spell.seconds, rank);
+    } else if (spell.shape === "insight") {
+      this.insightBonus = spell.amount;
+      this._float(h.x, h.y - 26, `INSIGHT +${Math.round(spell.amount * 100)}% XP`, spell.color);
+      this.vfx?.supportBurst("warding", h, rank);
+    } else if (spell.shape === "iron_skin" || spell.shape === "spellguard") {
+      const key = spell.shape === "iron_skin" ? "ironSkin" : "spellguard";
+      target[`${key}Until`] = this.time + spell.seconds;
+      target[`${key}Cut`] = spell.amount;
+      this._float(target.x, target.y - 26, spell.name.toUpperCase(), spell.color);
+      this.vfx?.aura("aegis", target, spell.seconds, rank);
     }
     return true;
+  },
+
+  // Iron Skin and Spellguard (Warding): what's left of a hit of this kind
+  // ("weapon": melee and arrows; "magic": magic bolts and bombs).
+  _wardCut(h, kind) {
+    if (kind === "magic") return h.spellguardUntil > this.time ? 1 - h.spellguardCut : 1;
+    return h.ironSkinUntil > this.time ? 1 - h.ironSkinCut : 1;
   },
 
   // How much of a hex this foe takes: elites half, bosses a quarter.

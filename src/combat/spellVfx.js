@@ -27,6 +27,7 @@ export const ELEMENT_LOOKS = Object.freeze({
   warding: { color: "#FFB547", light: "#FFE7B0" },
   shadow: { color: "#8EA3C7", light: "#E2E8F0" },
   wild: { color: "#9BE15D", light: "#E3FFC2" },
+  enchanting: { color: "#F472B6", light: "#FCE7F3" },
 });
 
 // Lingering effects the engine can attach to a foe or a hero.
@@ -147,9 +148,11 @@ export class SpellVfx {
   // ---- what the engine calls ---------------------------------------------
 
   // The caster gathers power.
-  cast(element, x, y, rank = 1) {
+  cast(school, x, y, rank = 1) {
+    // Enchanting borrows Warding's shapes in its own colours.
+    const element = school === "enchanting" ? "warding" : school;
     const look = rankLook(element, rank);
-    const { color, light } = ELEMENT_LOOKS[element] || ELEMENT_LOOKS.arcane;
+    const { color, light } = ELEMENT_LOOKS[school] || ELEMENT_LOOKS.arcane;
     const R = this.rand;
     if (element === "arcane") {
       for (let i = 0; i < look.rings; i += 1) {
@@ -208,7 +211,7 @@ export class SpellVfx {
 
   // A heal or a shield lands on a hero.
   supportBurst(element, target, rank = 1) {
-    const look = rankLook(element, rank);
+    const look = rankLook(element === "enchanting" ? "warding" : element, rank);
     const { color, light } = ELEMENT_LOOKS[element] || ELEMENT_LOOKS.restoration;
     const R = this.rand;
     const x = target.x;

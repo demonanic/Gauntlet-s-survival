@@ -158,7 +158,7 @@ const GOLDEN = {
   "poison and lightning": "0d23c7231de48cc3",
   "restoration and warding": "6441e7b6bfb0f617",
   "spells by hand": "50b52657b93c816a",
-  "spells by hand on a boss": "cdb06e38b91470da",
+  "spells by hand on a boss": "f70e04540671321d",
   "spells by hand on auto": "d84043bc86b7f89b",
   "starter moves": "c4db6cdfaae10260",
   "wild and arcane": "e0ad4da28ed4e03b",
