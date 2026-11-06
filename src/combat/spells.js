@@ -127,6 +127,7 @@ export const SPELLS = Object.freeze({
   // Spectral Blades: one sword per spell rank; they can't be hit, and cut every
   // foe within `reach` of them every `interval` s.
   spectral_blades: { name: "Spectral Blades", element: "conjuration", shape: "blades", power: 1, damage: 0.25, reach: 22, interval: 1, mana: 20, cooldown: 18, seconds: 10, unlock: 1, support: true, desc: "one spinning sword per spell rank (up to 5) for 10 s; they can't be hit and cut foes that come close" },
+  summon_elemental: { name: "Summon Elemental", element: "conjuration", shape: "elemental", power: 1, damage: 0.5, hp: 0.3, mana: 34, cooldown: 30, seconds: 12, unlock: 4, support: true, desc: "an elemental of the caster's best other school fights for 12 s" },
   expose: { name: "Expose", element: "mind", shape: "expose", power: 0, bonus: 0.3, mana: 20, cooldown: 16, range: 300, seconds: 6, unlock: 4, desc: "the party's main kind of damage hits it 30% harder for 6 s" },
 });
 
@@ -195,8 +196,39 @@ export const ELEMENT_EFFECTS = Object.freeze({
   shadow: "hides allies; frightens, confuses, blinds and disarms foes",
   wild: "roots foes; calls a spirit beast",
   enchanting: "speeds, sharpens and strengthens allies",
-  conjuration: "spinning blades fight beside the caster",
+  conjuration: "spinning blades and an elemental fight beside the caster",
 });
+
+// Summon Elemental: the kind comes from the caster's best other school (highest
+// proficiency; ties go to the one learned first; none: Arcane). Each hits with
+// its school's touch. Support schools' elementals hit for half and help allies
+// within 120 every second instead: Restoration heals 3% of max HP, Warding
+// shields 2% (up to SHIELD_CAP), Enchanting has them attack and move 10% faster.
+export const ELEMENTALS = Object.freeze({
+  arcane: { range: 150, moveSpeed: 150 },
+  fire: { range: 30, moveSpeed: 160, burn: 0.3 },
+  ice: { range: 150, moveSpeed: 140, slow: 0.3 },
+  poison: { range: 30, moveSpeed: 160, poison: 0.4 },
+  electric: { range: 150, moveSpeed: 170, arc: 0.5 },
+  mind: { range: 150, moveSpeed: 140, stun: 0.3 },
+  shadow: { range: 30, moveSpeed: 180, blind: 0.3 },
+  wild: { range: 30, moveSpeed: 160, web: Object.freeze({ every: 4, seconds: 1 }) },
+  restoration: { range: 150, moveSpeed: 150, support: true, pulse: Object.freeze({ heal: 0.03 }) },
+  warding: { range: 30, moveSpeed: 140, support: true, pulse: Object.freeze({ shield: 0.02 }) },
+  enchanting: { range: 150, moveSpeed: 150, support: true, pulse: Object.freeze({ haste: 0.1 }) },
+});
+export const ELEMENTAL_PULSE_RADIUS = 120;
+
+// The school a hero's elemental comes from.
+export function heroElementalSchool(hero) {
+  let best = null, bestRank = 0;
+  for (const element of heroMagic(hero).elements || []) {
+    if (element === "conjuration" || !ELEMENTALS[element]) continue;
+    const rank = proficiency(hero, element);
+    if (rank > bestRank) { best = element; bestRank = rank; }
+  }
+  return best || "arcane";
+}
 
 
 // Shields from Barrier stack up to this share of a hero's max HP.

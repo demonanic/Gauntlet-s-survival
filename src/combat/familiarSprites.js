@@ -206,6 +206,25 @@ const DRAW = {
     ctx.beginPath(); ctx.moveTo(8, -4); ctx.lineTo(7, -7); ctx.stroke();
     ctx.fillStyle = "#FFE600"; ctx.beginPath(); ctx.arc(9, -3, 0.7, 0, TAU); ctx.fill();
   },
+  // A summoned elemental: a flickering core in its school's colour with
+  // three shards circling it; it flares when it hits.
+  elemental(ctx, { time, strikeK, color }) {
+    ctx.translate(0, Math.sin(time * 3) * 1.5);
+    const flicker = 0.85 + 0.15 * Math.sin(time * 19) * Math.sin(time * 6);
+    const r = (5.5 + strikeK * 2.5) * flicker;
+    ctx.fillStyle = "#0B1018";
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = color; ctx.globalAlpha *= 0.6;
+    ctx.beginPath(); ctx.arc(0, 0, r * 0.55, 0, TAU); ctx.fill();
+    ctx.globalAlpha /= 0.6;
+    ctx.beginPath();
+    for (let i = 0; i < 3; i += 1) {
+      const a = time * 3.4 + (i / 3) * TAU;
+      const px = Math.cos(a) * 9, py = Math.sin(a) * 5;
+      ctx.moveTo(px - 1.6, py); ctx.lineTo(px, py - 2.2); ctx.lineTo(px + 1.6, py); ctx.lineTo(px, py + 2.2); ctx.closePath();
+    }
+    ctx.stroke();
+  },
   // Spectral Blade: a sword hanging in the air, spinning on its hilt; it
   // spins faster for a moment when it cuts.
   blade(ctx, { time, strikeK, color }) {

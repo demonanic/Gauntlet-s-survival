@@ -11,7 +11,7 @@ import { getEquippedHeroWeaponType } from "../heroWeapon";
 // Iron Skin and Spellguard come after Barrier (owner's call after measuring):
 // on auto they're cast only when Barrier isn't ready.
 const SUPPORT_PRIORITY = Object.freeze(["lifeline", "heal", "veil", "renew", "barrier", "iron_skin", "spellguard", "aegis", "empower",
-  "haste", "true_aim", "kindred", "quiver", "insight", "summon", "blades"]);
+  "haste", "true_aim", "kindred", "quiver", "insight", "summon", "elemental", "blades"]);
 // Foes whose shots are magic (Spellguard's concern on auto).
 const MAGIC_SHOOTERS = Object.freeze(new Set(["warlock", "carrionPriest", "lesserNecromancer", "watcher"]));
 // Spells that hold foes (Shadow, Wild Magic, Dominate), cast at a foe.
@@ -247,6 +247,7 @@ export const heroSpellMethods = {
       }
       // Each summon is one at a time, but they stack with each other (owner's call).
       case "summon":
+      case "elemental":
       case "blades": {
         const kind = spell.shape === "summon" ? "beast" : spell.shape;
         // A spirit beast has no summonKind of its own.
@@ -321,6 +322,8 @@ export const heroSpellMethods = {
       this.vfx?.aura("veil", target, spell.seconds, rank, () => this._isHeroUntargetable(target));
     } else if (spell.shape === "summon") {
       this._summonBeast(h, spell, power, rank);
+    } else if (spell.shape === "elemental") {
+      this._summonElemental(h, spell, power, rank);
     } else if (spell.shape === "blades") {
       this._summonBlades(h, spell, power, rankFor(spellCasts(h.model, spellId)), rank);
     } else if (spell.shape === "aegis") {

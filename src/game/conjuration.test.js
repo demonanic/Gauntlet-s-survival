@@ -2,7 +2,7 @@ import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import * as C from "../combat/config";
 import { enemyTurn } from "../combat/enemies/turn";
 import { Engine } from "../combat/engine";
-import { RANK_CASTS, knownSpells, learnElement } from "../combat/spells";
+import { RANK_CASTS, heroElementalSchool, knownSpells, learnElement } from "../combat/spells";
 import { buildWildEncounter, createEncounterSim } from "./encounters";
 import { createGuild, recruitHero } from "./guild";
 import { createGearItem } from "./items";
@@ -111,5 +111,98 @@ describe("Conjuration: Spectral Blades", () => {
     expect(engine._supportTarget(h, spell, true)).toBeNull();
     orc.y = 300;
     expect(engine._supportTarget(h, spell, true)).toBe(h);
+  });
+});
+
+describe("Conjuration: Summon Elemental", () => {
+  const elementalist = (other, otherCasts = {}) => ({ weapon: "staff", elements: [...other, "conjuration"],
+    casts: { spectral_blades: RANK_CASTS[3], ...otherCasts } });
+  const elemental = (engine) => engine.pets.find((pet) => pet.summonKind === "elemental");
+
+  test("opens at Conjuration IV; its school is the caster's best other one (none: Arcane)", () => {
+    const [low, high] = heroes([conjurer(RANK_CASTS[2]), elementalist(["fire", "ice"], { rime_lance: RANK_CASTS[2], ember_bolt: RANK_CASTS[1] })]);
+    expect(knownSpells(low).map((s) => s.id)).not.toContain("summon_elemental");
+    expect(knownSpells(high).map((s) => s.id)).toContain("summon_elemental");
+    expect(heroElementalSchool(high)).toBe("ice");
+    expect(heroElementalSchool(heroes([elementalist(["fire", "ice"])])[0])).toBe("fire"); // a tie: the first learned
+    expect(heroElementalSchool(heroes([conjurer(RANK_CASTS[3])])[0])).toBe("arcane");
+  });
+
+  test("fights for 12 s with 30% of the caster's HP and its school's touch", () => {
+    const orc = foe(300, 380, { speed: 0 });
+    const engine = fight([elementalist(["fire"], { ember_bolt: RANK_CASTS[2] })], [orc]);
+    expect(cast(engine, "summon_elemental", null)).toBe(true);
+    const pet = elemental(engine);
+    const h = engine.heroes[0];
+    expect(pet.name).toBe("Fire Elemental");
+    expect(pet.maxHp).toBe(Math.round(h.d.maxHp * 0.3));
+    expect(pet.stats.attack.burn).toBe(0.3);
+    expect(pet.stats.attack.damage).toBeGreaterThan(h.d.attack * 0.5);
+    for (let i = 0; i < 60; i += 1) engine._updatePets(1 / 30);
+    expect(orc.hp).toBeLessThan(5000);
+    expect((orc.dots || []).length).toBeGreaterThan(0);
+    // Foes can hit it.
+    expect(engine._nearestPetInReach(pet.x, pet.y, 10)?.pet).toBe(pet);
+    engine.time += 12;
+    engine._updatePets(0.1);
+    expect(elemental(engine)).toBeUndefined();
+  });
+
+  test("Mind stuns, Shadow blinds, Lightning arcs", () => {
+    const touch = (school, first) => {
+      const orc = foe(300, 380, { speed: 0 });
+      const other = foe(330, 380, { speed: 0 });
+      const engine = fight([elementalist([school], { [first]: RANK_CASTS[2] })], [orc, other]);
+      cast(engine, "summon_elemental", null);
+      const pet = elemental(engine);
+      pet.x = orc.x; pet.y = orc.y + 20; pet.cd = 0; pet.target = orc;
+      engine._updatePets(1 / 30);
+      return { orc, other, engine };
+    };
+    const mind = touch("mind", "thought_lance");
+    expect(mind.orc.stunUntil).toBeCloseTo(mind.engine.time + 0.3);
+    const shadow = touch("shadow", "veil");
+    expect(shadow.orc.blindChance).toBeCloseTo(0.3);
+    const lightning = touch("electric", "arc_surge");
+    expect(lightning.other.hp).toBeLessThan(5000);
+  });
+
+  test("support schools: half damage, and help allies within 120 every second", () => {
+    const engine = fight([elementalist(["restoration"], { mend: RANK_CASTS[2] }), { weapon: "sword" }], [foe(300, 100, { speed: 0 })]);
+    const [h, ally] = engine.heroes;
+    cast(engine, "summon_elemental", null);
+    const pet = elemental(engine);
+    expect(pet.stats.attack.damage).toBeLessThan(h.d.attack * 0.5);
+    ally.ref.hp = ally.d.maxHp * 0.5;
+    pet.x = ally.x; pet.y = ally.y; pet.pulseCd = 0;
+    engine._elementalPulse(pet, 0);
+    expect(ally.ref.hp).toBeCloseTo(ally.d.maxHp * 0.53);
+
+    const warding = fight([elementalist(["warding"], { barrier: RANK_CASTS[2] })], [foe(300, 100)]);
+    cast(warding, "summon_elemental", null);
+    const ward = elemental(warding);
+    ward.pulseCd = 0;
+    warding._elementalPulse(ward, 0);
+    const caster = warding.heroes[0];
+    expect(caster.ref.shield).toBeCloseTo(caster.d.maxHp * 0.02);
+
+    const enchant = fight([elementalist(["enchanting"], { haste: RANK_CASTS[2] })], [foe(300, 100)]);
+    cast(enchant, "summon_elemental", null);
+    const spark = elemental(enchant);
+    spark.pulseCd = 0;
+    enchant._elementalPulse(spark, 0);
+    expect(enchant.heroes[0].hasteAmount).toBe(0.1);
+  });
+
+  test("stacks with blades and a spirit beast; one elemental at a time", () => {
+    const engine = fight([{ weapon: "staff", elements: ["wild", "conjuration"], casts: { ensnare: RANK_CASTS[3], spectral_blades: RANK_CASTS[3] }, traits: ["brawny"] }], [foe(300, 380)]);
+    const h = engine.heroes[0];
+    const again = () => { h.lastCastAt = -99; h.castCd = 0; };
+    expect(cast(engine, "summon_beast", null)).toBe(true); again();
+    expect(cast(engine, "spectral_blades", null)).toBe(true); again();
+    expect(cast(engine, "summon_elemental", null)).toBe(true); again();
+    expect(elemental(engine).name).toBe("Wild Magic Elemental");
+    h.spellCooldowns = {};
+    expect(engine.getHeroSpellStatus(0).find((s) => s.id === "summon_elemental").available).toBe(false);
   });
 });
