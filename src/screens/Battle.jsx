@@ -58,7 +58,7 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
     const wave = createWave();
     const sim = createEncounterSim(party, region.tier, wave);
     const engine = new Engine(canvasRef.current, sim, wave, {
-      ...(endless ? { nextWave: endlessWaveSource(sim) } : {}),
+      ...(endless ? { nextWave: endlessWaveSource(sim, sim.rng, region.endlessKind) } : {}),
       // Throttled, but the latest HUD always lands: one skipped is shown when
       // the throttle opens again, and the fight's last one when it ends (at
       // 8× the final "enemies left" was often skipped and went stale).
@@ -86,6 +86,8 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
         setResult(buildFightOutcome({ victory: false, reason: "error" }, sim));
       },
     });
+    // Test mode can start an endless run part-way (debugTestMarch).
+    if (endless && expedition.pending?.startWave > 1) engine.wavesCleared = expedition.pending.startWave - 1;
     engineRef.current = engine;
     engine.render();
 

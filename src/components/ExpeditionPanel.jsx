@@ -58,6 +58,12 @@ function PendingPrompt({ pending, now, gold, onAttack, onChoose }) {
       button(`Push deeper · leg ${pending.depth}`, "#F59E0B", () => onChoose("push"), "prompt-push"),
       button("Head home", "#39FF14", () => onChoose("home"), "prompt-home"),
     ];
+  } else if (pending.kind === "rift" && pending.march) {
+    title = "The dead are marching";
+    actions = [
+      button("Hold the line", "#94C973", onAttack, "prompt-attack"),
+      button("Head home", "#94A3B8", () => onChoose("leave"), "prompt-leave"),
+    ];
   } else if (pending.kind === "rift") {
     title = "The Rift is open";
     actions = [

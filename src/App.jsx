@@ -290,7 +290,7 @@ export default function App() {
       {report && !inBattle && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/75 p-4">
           <Panel className="w-full max-w-sm">
-            <h2 className="font-display text-lg font-bold text-cyan-200">{OUTCOME_TITLE[report.outcome]}</h2>
+            <h2 className="font-display text-lg font-bold text-cyan-200">{report.outcome === "returned" && report.regionId === "march" ? "Back from the Dead March" : OUTCOME_TITLE[report.outcome]}</h2>
             <p className="font-mono-g text-[11px] text-slate-400">
               {getRegion(report.regionId)?.name}{report.depth > 0 && ` · pushed ${report.depth} leg${report.depth > 1 ? "s" : ""} deeper`}
             </p>

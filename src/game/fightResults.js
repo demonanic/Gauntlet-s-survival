@@ -14,7 +14,7 @@ import { getUnlockedClasslessAbilities } from "../combat/classlessAbilities";
 import { HERO_BASELINE } from "../combat/heroModel";
 import { heroTraitEffects, roadEffect } from "../combat/traits";
 import { LEGENDARY } from "./adventure";
-import { HORDE } from "./encounters";
+import { HORDE, MARCH } from "./encounters";
 import { BOND_NAMES, recordSharedWin } from "./bonds";
 import {
   addFeed, changeMorale, closePending, completeExpedition, findHero, firstName, halveLoot, heal, heroId, livingParty, offerDeeper, pick,
@@ -48,6 +48,11 @@ export function masteryLine(hero, { kind, id, rank }) {
 
 export function riftBounty(wavesCleared) {
   return 10 * wavesCleared;
+}
+
+// The Dead March pays MARCH.bounty gold a wave cleared.
+export function marchBounty(wavesCleared) {
+  return MARCH.bounty * wavesCleared;
 }
 
 export function applyFightResult(state, region, { victory, party, xpGains, gold, items, wavesCleared = 0, ...outcome }, at, rng) {
@@ -120,17 +125,32 @@ export function applyFightResult(state, region, { victory, party, xpGains, gold,
   }
 
   if (pending.kind === "rift") {
-    const bounty = riftBounty(wavesCleared);
+    const march = !!pending.march;
+    const bounty = march ? marchBounty(wavesCleared) : riftBounty(wavesCleared);
     run.loot.gold += bounty;
     run.wavesCleared = wavesCleared;
-    state.records = { ...(state.records || {}), riftBest: Math.max(state.records?.riftBest || 0, wavesCleared) };
+    const record = march ? "marchBest" : "riftBest";
+    state.records = { ...(state.records || {}), [record]: Math.max(state.records?.[record] || 0, wavesCleared) };
+    // The Dead March: a chest every MARCH.chestEvery waves cleared.
+    const chests = march ? Math.floor(wavesCleared / MARCH.chestEvery) : 0;
+    if (chests > 0) {
+      let chestGold = 0;
+      for (let i = 0; i < chests; i += 1) {
+        chestGold += Math.round(randomBetween(MARCH.chestGold, rng) * tierMult(region.tier + Math.floor(i / 2)));
+        run.loot.items.push(randomCrystal(1 + Math.min(2, Math.floor(i / 2)), rng));
+      }
+      run.loot.gold += chestGold;
+      addFeed(run, at, `${chests} chest${chests > 1 ? "s" : ""} from the march: ${chestGold} gold and ${chests} crystal${chests > 1 ? "s" : ""}.`, "loot", true);
+    }
     run.pending = null;
     if (!victory) {
       halveLoot(run);
       addFeed(run, at, `Overrun on wave ${wavesCleared + 1}. Retreating with half the loot.`, "danger");
       completeExpedition(state, "retreat", at);
     } else {
-      addFeed(run, at, `Returned from the Rift after ${wavesCleared} waves. +${bounty} gold bounty.`, "good");
+      addFeed(run, at, march
+        ? `Held the line for ${wavesCleared} waves of the dead. +${bounty} gold bounty.`
+        : `Returned from the Rift after ${wavesCleared} waves. +${bounty} gold bounty.`, "good");
       completeExpedition(state, "returned", at);
     }
     return;

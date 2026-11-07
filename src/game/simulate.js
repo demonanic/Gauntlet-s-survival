@@ -11,12 +11,13 @@ const MAX_ENDLESS_SECONDS = 3600;
 // `endless` runs an Endless Rift fight; `shouldReturn(engine)` decides when to go home.
 // `rng` (game/random.js) drives every roll in the fight; a seeded one makes the
 // fight repeatable. Without it the fight uses Math.random.
-export function simulateEncounter(party, wave, { regionTier = 1, onStep = null, endless = false, shouldReturn = null, rng } = {}) {
+// `endlessKind`: the endless region's kind ("rift" or "march"; encounters.js).
+export function simulateEncounter(party, wave, { regionTier = 1, onStep = null, endless = false, endlessKind = "rift", shouldReturn = null, rng } = {}) {
   const sim = createEncounterSim(party, regionTier, wave, { rng });
   let result = null;
   const engine = new Engine({ getContext: () => null }, sim, structuredClone(wave), {
     onEnd: (outcome) => { result = outcome; },
-    ...(endless ? { nextWave: endlessWaveSource(sim) } : {}),
+    ...(endless ? { nextWave: endlessWaveSource(sim, sim.rng, endlessKind) } : {}),
   });
   let elapsed = 0;
   const limit = endless ? MAX_ENDLESS_SECONDS : MAX_SECONDS;

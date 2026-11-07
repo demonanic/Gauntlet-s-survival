@@ -13,7 +13,7 @@ import { LEGENDARY_KEYS, createGearItem } from "./items";
 import { emptyLegacy } from "./legacy";
 import { developQualities, sharedQualities } from "./qualities";
 import { REGIONS, getRegion } from "./regions";
-import { buildBossEncounter, buildHordeEncounter, buildWildEncounter, describeSquad } from "./encounters";
+import { buildBossEncounter, buildHordeEncounter, buildMarchWave, buildWildEncounter, describeSquad } from "./encounters";
 import { MAX_PARTY_SIZE, startExpedition } from "./expedition";
 
 export const MAX_HERO_LEVEL = C.HERO_XP.length;
@@ -231,4 +231,24 @@ export function debugTestFight(state, regionId, { boss = false, horde = false, d
     : horde ? `a horde of ${wave.enemies.length} zombies` : describeSquad(wave);
   next.expedition.pending = { kind: boss ? "boss" : "ambush", wave, label: `Test: ${label}`, promptAt: now, engagedAt: now, ...(horde ? { horde: true } : {}) };
   return { ok: true, state: next };
+}
+
+// The Dead March from wave `wave` (test mode): the first four heroes set out,
+// healed, and the fight starts at once. The waves before `wave` count as
+// cleared (and pay their bounty). The March's own rule holds: Frostfang
+// cleared first.
+export function debugTestMarch(state, wave = 1, { now = Date.now(), rng = Math.random } = {}) {
+  if (state.expedition) return { ok: false, reason: state.expedition.pending?.engagedAt != null ? "in_fight" : "on_trip" };
+  const next = serializeGameState(state);
+  next.injuries = {};
+  for (const hero of next.heroes) hero.combat.hp = classlessMaxHp(hero);
+  const ids = next.heroes.slice(0, MAX_PARTY_SIZE).map((hero) => hero.identity.id);
+  const started = startExpedition(next, "march", ids, now, rng);
+  if (!started.ok) return started;
+  const run = started.state.expedition;
+  const n = Math.max(1, Math.floor(wave));
+  if (n > 1) run.pending.wave = buildMarchWave(n, rng, run.threat);
+  run.pending.startWave = n;
+  run.pending.engagedAt = now;
+  return { ok: true, state: started.state };
 }

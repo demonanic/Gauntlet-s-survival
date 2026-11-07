@@ -18,7 +18,7 @@ import {
   moraleDamageBonus, rollBanter, rollFlavor, rollHazard, rollWeather, sneakChance,
 } from "./adventure";
 import {
-  HORDE, buildBossEncounter, buildEndlessWave, buildHordeEncounter, buildLegendaryEncounter, buildNemesisEncounter, buildStalkerEncounter, buildWildEncounter, describeSquad,
+  HORDE, buildBossEncounter, buildEndlessWave, buildFirstEndlessWave, buildHordeEncounter, buildLegendaryEncounter, buildNemesisEncounter, buildStalkerEncounter, buildWildEncounter, describeSquad,
 } from "./encounters";
 import { ECOLOGIES } from "./ecology";
 import { recordHistory } from "./qualities";
@@ -121,7 +121,8 @@ function hurt(hero, fraction) {
 // quickly and is an easy encounter that waits for the player.
 // Campaign regions open in order: a region needs the one before it cleared
 // (as well as its level). A region the guild has cleared, or one before a
-// region it has cleared, stays open. The Endless Rift is outside the order.
+// region it has cleared, stays open. Endless regions are outside the order;
+// one with `opensAfter` (the Dead March) needs that region cleared.
 export function previousRegion(region) {
   if (!region || region.endless) return null;
   const campaign = REGIONS.filter((entry) => !entry.endless);
@@ -129,7 +130,8 @@ export function previousRegion(region) {
 }
 
 export function regionOpen(state, region) {
-  if (!region || region.endless) return true;
+  if (!region) return true;
+  if (region.endless) return !region.opensAfter || (state.clears?.[region.opensAfter] || 0) > 0;
   const campaign = REGIONS.filter((entry) => !entry.endless);
   const index = campaign.indexOf(region);
   if (index <= 0) return true;
@@ -201,8 +203,11 @@ export function startExpedition(state, regionId, heroIds, now, rng = Math.random
     addFeed(run, now, `${run.night ? "Night has fallen. Ambushes are likelier, but so is treasure. " : ""}${WEATHER[run.weather].intro}`, "flavor");
   }
   if (region.endless) {
-    addFeed(run, now, "The Rift tears open before them. Something stirs on the other side.", "danger");
-    openPending(run, now, { kind: "rift", wave: buildEndlessWave(1, rng, run.threat) });
+    const march = region.endlessKind === "march";
+    addFeed(run, now, march
+      ? "The road ahead is choked with the dead, and more keep coming. The party draws steel."
+      : "The Rift tears open before them. Something stirs on the other side.", "danger");
+    openPending(run, now, { kind: "rift", wave: buildFirstEndlessWave(region, rng, run.threat), ...(march ? { march: true } : {}) });
   }
   return { ok: true, state: next };
 }
@@ -819,7 +824,7 @@ function attemptSneak(state, at, rng) {
 function leaveFight(state, region, at) {
   const run = state.expedition;
   addFeed(run, at, run.pending.kind === "rift"
-    ? "The party decides the Rift can wait and heads home."
+    ? (run.pending.march ? "The party decides the dead can wait and heads home." : "The party decides the Rift can wait and heads home.")
     : `The party slips away before ${run.pending.label} notices them. No bounty this time.`, "flavor");
   run.pending = null;
   completeExpedition(state, "recalled", at);
@@ -975,7 +980,7 @@ function autoFight(state, region, at, rng, onStep) {
   const pending = state.expedition.pending;
   const endless = pending.kind === "rift";
   const { result, sim, elapsed } = simulateEncounter(currentEncounterParty(state), pending.wave, {
-    regionTier: region.tier, onStep, endless, rng,
+    regionTier: region.tier, onStep, endless, endlessKind: region.endlessKind, rng,
     shouldReturn: riftShouldReturn,
   });
   state.expedition.stats.autoFightSeconds += Math.round(elapsed);

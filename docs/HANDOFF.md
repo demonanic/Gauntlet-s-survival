@@ -2,7 +2,7 @@
 
 Read this first, then `docs/ROADMAP.md` (the living checklist and pass log) and `docs/DESIGN.md` (every approved design, with its measurements). `docs/LEGACY_MANIFEST.md` tracks the old Demonanic code.
 
-Last updated: 2026-11-07, with hordes open as draft PR #63.
+Last updated: 2026-11-07, with the Dead March open as draft PR #64.
 
 ## The project
 
@@ -65,7 +65,8 @@ Last updated: 2026-11-07, with hordes open as draft PR #63.
   - #60: test tools under `?debug` (own save, no cloud sync; magic tools; test fights; battle cheats).
   - #61: reliability (cloud save grants tightened and applied; HUD fresh at 8×; Phase 10 measured; test-mode FPS readout).
   - #62: combos (Shatter, Ignite, Steam, Wildfire, Nightmare), stronger but rarer.
-- **Open:** draft PR #63, zombies and random hordes (DESIGN.md "Zombies and hordes"); a "Horde now" test button. Set to Sam's "medium" (35–50 zombies, 28 HP, 6 damage, 18 on the field): Fire V party 119 / 117 / 10 wins of 120 in Frostfang / Ashen / Blightmire.
+  - #63: zombies and random hordes (medium difficulty), a "Horde now" test button.
+- **Open:** draft PR #64, the Dead March: an endless run of hordes beside the Rift (DESIGN.md "The Dead March"); a test button to start it at any wave. Same waves reached as the Rift; runs longer and pay about 25–30% more a minute.
 - **Approved next (Sam, Nov 7):** staff shards (staff-only crystals: Wellspring mana, Focus spell damage, Reach area size, Fury rate of damage; Chipped / Flawless / Radiant).
 - **Waiting on Sam:** error boundary, auto-cast switches, the wolf's taunt, thinning glow, spreading unattended fights (proposals in #61), and his phone's fps.
 - **Next (Sam's choice):**

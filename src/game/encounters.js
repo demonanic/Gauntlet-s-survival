@@ -70,6 +70,42 @@ export const HORDE = Object.freeze({
   chance: 1 / 8, fromRegion: "frostfang", gold: 2, xp: 1.5, chestGold: Object.freeze([60, 120]),
 });
 
+// The Dead March (owner's design, Nov 2026): an endless run like the Rift,
+// but horde after horde of zombies. Wave n has `count.first` zombies plus
+// `count.step` a wave (at most `count.max`); every `surgeEvery`th wave is a
+// surge with `surge` times as many (at most `surgeMax`). HP and damage grow
+// like the Rift's (ENDLESS growth) from `hpBase` and `dmgBase`. Bounty:
+// `bounty` gold a wave cleared, and a chest every `chestEvery` waves.
+export const MARCH = Object.freeze({
+  count: Object.freeze({ first: 20, step: 3, max: 60 }),
+  surgeEvery: 5, surge: 1.5, surgeMax: 80,
+  hpBase: 1, dmgBase: 1,
+  bounty: 15, chestEvery: 5, chestGold: Object.freeze([40, 80]),
+  firstLootTier: 2,
+});
+
+// Dead March wave `n` (1 is the first).
+export function buildMarchWave(n, rng = Math.random, threat = { hp: 1, dmg: 1 }) {
+  const surge = n % MARCH.surgeEvery === 0;
+  const base = Math.min(MARCH.count.max, MARCH.count.first + MARCH.count.step * (n - 1));
+  const count = surge ? Math.min(MARCH.surgeMax, Math.round(base * MARCH.surge)) : base;
+  const scale = {
+    hp: MARCH.hpBase * ENDLESS.hpGrowth ** (n - 1) * threat.hp,
+    dmg: MARCH.dmgBase * ENDLESS.dmgGrowth ** (n - 1) * threat.dmg,
+  };
+  const squad = Array.from({ length: count }, () => HORDE.enemy);
+  return {
+    ...assembleWave(squad, scale, MARCH.firstLootTier + Math.floor((n - 1) / ENDLESS.wavesPerLootTier)),
+    horde: true, fieldCap: HORDE.onField, spawnEvery: HORDE.spawnEvery,
+    waveNumber: n, threat, ...(surge ? { surge: true } : {}),
+  };
+}
+
+// The first wave of an endless region (`region.endlessKind`: "rift" or "march").
+export function buildFirstEndlessWave(region, rng = Math.random, threat = { hp: 1, dmg: 1 }) {
+  return region?.endlessKind === "march" ? buildMarchWave(1, rng, threat) : buildEndlessWave(1, rng, threat);
+}
+
 // A horde for `region`, scaled like its wild squads at `progress` (0-1).
 export function buildHordeEncounter(region, progress = 0, rng = Math.random) {
   const [min, max] = HORDE.count;
@@ -266,9 +302,10 @@ export function createEncounterSim(party, regionTier, wave = null, { rng = defau
 
 // Engine `nextWave` callback for an Endless Rift fight: builds the next wave
 // and moves the sim's loot tier and minion scale along with it.
-export function endlessWaveSource(sim, rng = sim.rng) {
+// `kind`: the endless region's `endlessKind` ("rift", the default, or "march").
+export function endlessWaveSource(sim, rng = sim.rng, kind = "rift") {
   return (wavesCleared) => {
-    const wave = buildEndlessWave(wavesCleared + 1, rng, sim.threat);
+    const wave = kind === "march" ? buildMarchWave(wavesCleared + 1, rng, sim.threat) : buildEndlessWave(wavesCleared + 1, rng, sim.threat);
     sim.lootTier = wave.lootTier;
     sim.minionScale = wave.scale;
     return wave;

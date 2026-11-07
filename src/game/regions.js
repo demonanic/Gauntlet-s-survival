@@ -175,6 +175,28 @@ export const REGIONS = Object.freeze([
     environment: null,
     set: null,
   },
+  // Owner's design (Nov 2026): the Rift, but horde after horde of zombies
+  // (MARCH in encounters.js). Opens once Frostfang, where hordes start, is cleared.
+  {
+    id: "march",
+    name: "The Dead March",
+    blurb: "Horde after horde of the walking dead, each worse than the last. Hold the line as long as you dare.",
+    color: "#94C973",
+    tier: 2,
+    endless: true,
+    endlessKind: "march",
+    opensAfter: "frostfang",
+    minLevel: 4,
+    durationMinutes: null,
+    hpScale: 1,
+    dmgScale: 1,
+    completionGold: 0,
+    recoverySeconds: 180,
+    wildlife: null,
+    boss: null,
+    environment: null,
+    set: null,
+  },
 ]);
 
 export function getRegion(regionId) {

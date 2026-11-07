@@ -115,3 +115,21 @@ describe("test mode: test fights", () => {
     expect(state.expedition).toBeFalsy(); // input untouched
   });
 });
+
+describe("test mode: the Dead March", () => {
+  test("starts at any wave, once Frostfang is cleared; not during a trip", async () => {
+    const { debugTestMarch } = await import("./debug");
+    let state = recruitHero(createGuild()).state;
+    state = debugSetLevels(state, 12).state;
+    expect(debugTestMarch(state, 1).reason).toBe("previous_region");
+    state = debugClearRegions(state).state;
+    const from8 = debugTestMarch(state, 8, { now: 1000, rng: () => 0.5 });
+    expect(from8.ok).toBe(true);
+    const pending = from8.state.expedition.pending;
+    expect(pending.march).toBe(true);
+    expect(pending.startWave).toBe(8);
+    expect(pending.engagedAt).toBe(1000);
+    expect(pending.wave.waveNumber).toBe(8);
+    expect(debugTestMarch(from8.state, 1).reason).toBe("in_fight");
+  });
+});
