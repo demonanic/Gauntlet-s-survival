@@ -175,6 +175,7 @@ describe("timed expeditions", () => {
     expect(previousRegion(getRegion("frostfang")).id).toBe("boneyard");
     expect(previousRegion(getRegion("gutter"))).toBeNull();
     expect(previousRegion(getRegion("rift"))).toBeNull();
+    expect(previousRegion(getRegion("march")).id).toBe("frostfang");
   });
 
   test("the end boss waits at the end of the timer; beating it conquers the region", () => {
