@@ -18,7 +18,7 @@ import {
   moraleDamageBonus, rollBanter, rollFlavor, rollHazard, rollWeather, sneakChance,
 } from "./adventure";
 import {
-  buildBossEncounter, buildEndlessWave, buildLegendaryEncounter, buildNemesisEncounter, buildStalkerEncounter, buildWildEncounter, describeSquad,
+  HORDE, buildBossEncounter, buildEndlessWave, buildHordeEncounter, buildLegendaryEncounter, buildNemesisEncounter, buildStalkerEncounter, buildWildEncounter, describeSquad,
 } from "./encounters";
 import { ECOLOGIES } from "./ecology";
 import { recordHistory } from "./qualities";
@@ -451,6 +451,11 @@ function runEvent(state, region, at, rng) {
       startEncounter(state, region, at, buildNemesisEncounter(region, nemesis, nemesisLevel(nemesis, at), progress, rng), false, rng);
       return;
     }
+    // A horde (from Frostfang on) takes the place of some wild fights.
+    if (hordeRegion(region) && rng() < HORDE.chance) {
+      startHorde(state, region, at, progress, rng);
+      return;
+    }
     startEncounter(state, region, at, buildWildEncounter(region, progress, rng), rng() < ambushChance(state, conditions, environment), rng);
   } else if (kind === "rare") {
     rareEvent(state, region, hero, at, rng);
@@ -650,6 +655,26 @@ function findSomething(state, region, hero, at, rng) {
     addFeed(run, at, findLine("gear", hero.identity.name, item.name, rng), "loot", rarity === "rare");
   }
   changeMorale(state, 3);
+}
+
+// Hordes come in regions from HORDE.fromRegion on (in REGIONS order).
+export function hordeRegion(region) {
+  const from = REGIONS.findIndex((entry) => entry.id === HORDE.fromRegion);
+  const at = REGIONS.indexOf(region);
+  return !region?.endless && from >= 0 && at >= from;
+}
+
+// A horde can't be avoided or sneaked past: it opens as an ambush would, but
+// without the opening volley (the dead are slow).
+function startHorde(state, region, at, progress, rng) {
+  const run = state.expedition;
+  run.stats.encounters += 1;
+  run.quietEvents = 0;
+  const wave = buildHordeEncounter(region, progress, rng);
+  const label = `a horde of ${wave.enemies.length} zombies`;
+  changeMorale(state, -5);
+  addFeed(run, at, `A horde! ${wave.enemies.length} zombies shamble out from every side. There's no getting around them.`, "danger", true);
+  openPending(run, at, { kind: "ambush", wave, label, horde: true });
 }
 
 // A sighting asks the player to attack or sneak; an ambush skips the choice

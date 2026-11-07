@@ -67,7 +67,7 @@ function weightedPick(weights, rng) {
 // fight's, plus a chest (expedition.js).
 export const HORDE = Object.freeze({
   enemy: "zombie", count: Object.freeze([40, 60]), onField: 20, spawnEvery: 0.3,
-  chance: 1 / 8, fromRegion: "frostfang", gold: 2, xp: 1.5,
+  chance: 1 / 8, fromRegion: "frostfang", gold: 2, xp: 1.5, chestGold: Object.freeze([60, 120]),
 });
 
 // A horde for `region`, scaled like its wild squads at `progress` (0-1).

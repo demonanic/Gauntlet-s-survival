@@ -33,7 +33,7 @@ const GOLDEN = {
   "rift overrun": "358d8d27b23271ff",
   "unattended trip, gutter": "a51e5c0216af715b",
   "unattended trip, boneyard": "07e5418738d25f5f",
-  "unattended trip, frostfang": "7df941d3c29060a4",
+  "unattended trip, frostfang": "b2ef330bd8152670",
   "unattended trip, rift": "0b62566ca26ac3da",
 };
 

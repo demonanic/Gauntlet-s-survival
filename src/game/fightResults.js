@@ -14,6 +14,7 @@ import { getUnlockedClasslessAbilities } from "../combat/classlessAbilities";
 import { HERO_BASELINE } from "../combat/heroModel";
 import { heroTraitEffects, roadEffect } from "../combat/traits";
 import { LEGENDARY } from "./adventure";
+import { HORDE } from "./encounters";
 import { BOND_NAMES, recordSharedWin } from "./bonds";
 import {
   addFeed, changeMorale, closePending, completeExpedition, findHero, firstName, halveLoot, heal, heroId, livingParty, offerDeeper, pick,
@@ -52,8 +53,10 @@ export function riftBounty(wavesCleared) {
 export function applyFightResult(state, region, { victory, party, xpGains, gold, items, wavesCleared = 0, ...outcome }, at, rng) {
   // Wisdom (guild) and Fast Learner (hero) boost the XP the engine awarded.
   const xpBonus = legacyBonuses(state).xp;
+  // A horde won teaches HORDE.xp times as much.
+  const hordeXp = victory && state.expedition.pending?.horde ? HORDE.xp : 1;
   const boostedXp = Object.fromEntries(Object.entries(xpGains || {}).map(([index, xp]) =>
-    [index, Math.round(Number(xp) * (1 + xpBonus + heroTraitEffects(party[index]).xpBonus))]));
+    [index, Math.round(Number(xp) * (1 + xpBonus + heroTraitEffects(party[index]).xpBonus) * hordeXp)]));
   // Heroes who avenge themselves on a nemesis learn the most from it.
   const fought = state.expedition.pending?.nemesisId && state.nemeses?.find((entry) => entry.id === state.expedition.pending.nemesisId);
   if (fought && victory && outcome.nemesisSlain === fought.id) {
@@ -163,6 +166,17 @@ export function applyFightResult(state, region, { victory, party, xpGains, gold,
     }
   }
   addFeed(run, at, `Victory over ${pending.label}! +${Math.round(gold || 0)} gold${items?.length ? `, ${items.length} item${items.length > 1 ? "s" : ""}` : ""}.`, "good");
+  // A horde broken: its kills' gold again (HORDE.gold in all) and a chest.
+  if (pending.horde) {
+    const bonus = Math.round((gold || 0) * (HORDE.gold - 1));
+    const chestGold = Math.round(randomBetween(HORDE.chestGold, rng) * tierMult(region.tier));
+    const crystal = randomCrystal(1, rng);
+    run.loot.gold += bonus + chestGold;
+    run.loot.items.push(crystal);
+    run.stats.hordes = (run.stats.hordes || 0) + 1;
+    changeMorale(state, 12);
+    addFeed(run, at, `The horde is broken! +${bonus} gold for the fallen, and a chest in the wreckage: ${chestGold} gold and a ${crystalInfo(crystal.key).fullName}.`, "loot", true);
+  }
   if (pending.legendary) {
     const bonus = Math.round(randomBetween(LEGENDARY.rewardGold, rng) * tierMult(region.tier));
     const trophy = createGearItem({ slot: pick(GEAR_SLOTS, rng), rarity: pick(["rare", "epic"], rng), tier: region.tier + 1 }, rng);
