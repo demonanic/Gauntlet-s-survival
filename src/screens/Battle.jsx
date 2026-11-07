@@ -19,6 +19,8 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
   const canvasRef = useRef(null);
   const engineRef = useRef(null);
   const hudThrottle = useRef(0);
+  const hudLatest = useRef(null);
+  const hudTimer = useRef(null);
   const [hud, setHud] = useState(null);
   const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
   // `selected`: the hero who takes move orders on a field tap (as before).
@@ -36,6 +38,19 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
   const [clutch, setClutch] = useState(null);
   const [clutchLeft, setClutchLeft] = useState(0);
   const [god, setGod] = useState(false);
+  // Test mode: frames drawn per second, to check performance on a real phone.
+  const [fps, setFps] = useState(null);
+  useEffect(() => {
+    if (!cheats) return undefined;
+    let frames = 0, since = performance.now(), raf = 0;
+    const step = (t) => {
+      frames += 1;
+      if (t - since >= 1000) { setFps(Math.round((frames * 1000) / (t - since))); frames = 0; since = t; }
+      raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [cheats]);
   const region = getRegion(expedition.regionId);
   const endless = !!region.endless;
 
@@ -44,11 +59,27 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
     const sim = createEncounterSim(party, region.tier, wave);
     const engine = new Engine(canvasRef.current, sim, wave, {
       ...(endless ? { nextWave: endlessWaveSource(sim) } : {}),
+      // Throttled, but the latest HUD always lands: one skipped is shown when
+      // the throttle opens again, and the fight's last one when it ends (at
+      // 8× the final "enemies left" was often skipped and went stale).
       onHud: (next) => {
         const t = performance.now();
-        if (t - hudThrottle.current > HUD_THROTTLE_MS) { hudThrottle.current = t; setHud(next); }
+        hudLatest.current = next;
+        if (t - hudThrottle.current > HUD_THROTTLE_MS) {
+          hudThrottle.current = t; setHud(next);
+        } else if (!hudTimer.current) {
+          hudTimer.current = setTimeout(() => {
+            hudTimer.current = null; hudThrottle.current = performance.now(); setHud(hudLatest.current);
+          }, HUD_THROTTLE_MS);
+        }
       },
-      onEnd: (outcome) => setResult(buildFightOutcome(outcome, sim)),
+      onEnd: (outcome) => {
+        // The fight can end after this frame's HUD went out: send a fresh one.
+        clearTimeout(hudTimer.current); hudTimer.current = null;
+        hudThrottle.current = 0;
+        engine._hud();
+        setResult(buildFightOutcome(outcome, sim));
+      },
       onClutch: (info) => setClutch(info ? { ...info, startedAt: performance.now() } : null),
       onError: (error) => {
         setEngineError(String(error?.message || error));
@@ -64,7 +95,7 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
       setCountdown(remaining);
       if (remaining <= 0) { clearInterval(interval); engine.start(); }
     }, 1000);
-    return () => { clearInterval(interval); engine.stop(); };
+    return () => { clearInterval(interval); clearTimeout(hudTimer.current); engine.stop(); };
     // The engine owns the fight for this mount; party/expedition are fixed per encounter.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -143,6 +174,7 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
           <button type="button" disabled={!engine || !!result} onClick={() => setGod(!!engine?.debugCheat("god"))} aria-pressed={god}
             className={`rounded border px-2 py-1 disabled:opacity-40 ${god ? "border-lime-300 bg-lime-300/15 text-lime-200" : "border-orange-400/60 text-orange-200"}`}
             data-testid="cheat-god">God {god ? "on" : "off"}</button>
+          {fps != null && <span className={fps >= 50 ? "text-lime-300" : fps >= 30 ? "text-yellow-300" : "text-red-300"} data-testid="cheat-fps">{fps} fps</span>}
         </div>
       )}
 

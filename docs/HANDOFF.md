@@ -2,7 +2,7 @@
 
 Read this first, then `docs/ROADMAP.md` (the living checklist and pass log) and `docs/DESIGN.md` (every approved design, with its measurements). `docs/LEGACY_MANIFEST.md` tracks the old Demonanic code.
 
-Last updated: 2026-11-06, with the test tools open as draft PR #60.
+Last updated: 2026-11-06, with the reliability batch open as draft PR #61.
 
 ## The project
 
@@ -62,7 +62,8 @@ Last updated: 2026-11-06, with the test tools open as draft PR #60.
   - #48 and #54–#57: Phase 8, splitting engine.js, plus Vampiric minions feeding their master and a dead Reaper/Dark Elf branch removed;
   - #58: spells part 3, Enchanting (Haste and True Aim party-wide, Endless Quiver, Kindred Bond, Insight) and the Iron Skin and Spellguard wards;
   - #59: spells part 4, Conjuration (Spectral Blades 15%, Summon Elemental) and Mirror Self (60%, fools every non-boss foe on the caster).
-- **Open:** draft PR #60, test tools under `?debug`: a separate test save (no cloud sync), magic tools, test fights and battle cheats (see DESIGN.md "Test mode tools"). CI green; checked on a phone-sized screen. Waiting on Sam's "Merge".
+  - #60: test tools under `?debug` (own save, no cloud sync; magic tools; test fights; battle cheats).
+- **Open:** draft PR #61, reliability: cloud save grants tightened (migration to apply on merge), the HUD no longer stale at 8×, Phase 10 measurements (ROADMAP), a test-mode FPS readout. Waiting on Sam's "Merge" and his calls on the proposals in the PR (error boundary, auto-cast controls, the wolf's taunt, canvas glow, spreading unattended fights).
 - **Next (Sam's choice):**
   - **Phases 9–11:** one definition per enemy, performance measurements, final review (ROADMAP).
 - **Later, if Sam asks:** tuning after play (Restoration, familiars, control, armory percentages, mastery pace), a sound effects overhaul, a Play Store release.
@@ -106,7 +107,6 @@ Last updated: 2026-11-06, with the test tools open as draft PR #60.
 
 - An engine error in an unattended fight escapes `tick()`. Sam wants this in its own error-boundary PR.
 - Only unattended fights record fight time; watched fights are not seeded.
-- The HUD count goes stale at 8× speed.
 - Several earlier batches (6D) never had a watched-fight browser check, byte-identity probe or seeded runs (those sessions couldn't install dependencies). Phase 8's fingerprints now cover combat behavior.
 - Balance:
   - Blightmire is the hardest wild region for mixed parties.
