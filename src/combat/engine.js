@@ -370,6 +370,15 @@ export class Engine {
   forceDefeat() { this.forcedDefeat = true; }
 
   // Gauntlet endless mode: the player ends the fight and keeps what was earned.
+  // A horde comes from every side: half at the top, a quarter down each edge
+  // (in the upper half of the field, away from the heroes).
+  _hordeEntry(e) {
+    const roll = this.rng();
+    if (roll < 0.5) { e.x = 20 + this.rng() * (W - 40); e.y = 10 + this.rng() * 20; return; }
+    e.x = roll < 0.75 ? 12 : W - 12;
+    e.y = 40 + this.rng() * (H * 0.45 - 40);
+  }
+
   // Test mode only (the battle screen shows these with ?debug): "mana" fills
   // every caster's mana, "cooldowns" readies every move and spell (and clears
   // focus strain), "god" toggles heroes taking no damage (and heals them to
@@ -447,17 +456,19 @@ export class Engine {
     // spawn: release enemies gradually (group release proxy)
     this.spawnTimer -= dt;
     if (this.spawnTimer <= 0 && this.spawnQueue.length) {
-      // Keep the battlefield readable: limit concurrent enemies to roughly half a wave.
-      const capInZone = Math.max(4, this.wave.total * 0.5);
+      // Keep the battlefield readable: limit concurrent enemies to roughly half
+      // a wave (a horde sets its own cap).
+      const capInZone = this.wave.fieldCap || Math.max(4, this.wave.total * 0.5);
       if (this.active.length < capInZone) {
         const e = this.spawnQueue.shift();
-        e.x = laneX(pickLane(this, e)); e.y = 10 + this.rng() * 20;
-        e.lane = Math.round(e.x / (W / LANES) - 0.5);
+        if (this.wave.horde) this._hordeEntry(e);
+        else { e.x = laneX(pickLane(this, e)); e.y = 10 + this.rng() * 20; }
+        e.lane = Math.max(0, Math.min(LANES - 1, Math.round(e.x / (W / LANES) - 0.5)));
         e.dmgBy = {}; e.atkCd = 0; e.state = "advance";
         this.active.push(e);
       }
       // Wider spacing prevents large clumps while preserving steady wave pressure.
-      this.spawnTimer = this.wave.hasBoss && this.spawnQueue.length === 0 ? 0 : 0.75;
+      this.spawnTimer = this.wave.hasBoss && this.spawnQueue.length === 0 ? 0 : (this.wave.spawnEvery || 0.75);
     }
 
     // enemies

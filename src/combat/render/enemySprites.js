@@ -128,6 +128,20 @@ export function drawEnemySprite(engine, e) {
       const a = (k / 8) * Math.PI * 2;
       ctx.beginPath(); ctx.moveTo(Math.cos(a) * 11, Math.sin(a) * 11); ctx.lineTo(Math.cos(a) * 16, Math.sin(a) * 16); ctx.stroke();
     }
+  } else if (e.type === "zombie") {
+    // A hunched shambler: lolling head, arms reaching out in front, a ragged
+    // body that sways as it drags itself along.
+    const sway = Math.sin(engine.time * 3 + (e.x || 0) * 0.05) * 0.12;
+    ctx.rotate(sway);
+    ctx.fillStyle = "#141C14";
+    ctx.beginPath(); ctx.moveTo(-6, 0); ctx.lineTo(-7, 12); ctx.lineTo(-2, 10); ctx.lineTo(0, 13); ctx.lineTo(3, 10); ctx.lineTo(7, 12); ctx.lineTo(6, 0); ctx.closePath();
+    ctx.fill(); outline();
+    ctx.beginPath(); ctx.arc(-2, -6, 6.5, 0, Math.PI * 2); ctx.fill(); outline();
+    eye(-4.5, -7, 1.6); eye(0.5, -6, 1.2);
+    neon(1.4); ctx.beginPath(); ctx.moveTo(-5, -2); ctx.lineTo(0, -1); ctx.stroke();
+    neon(2.2);
+    const reach = Math.sin(engine.time * 3 + (e.y || 0) * 0.05) * 1.5;
+    ctx.beginPath(); ctx.moveTo(5, 2); ctx.lineTo(15, 0 + reach); ctx.moveTo(4, 5); ctx.lineTo(14, 5 - reach); ctx.stroke();
   } else if (e.type === "skeleton") {
     // Minimal skull/ribcage silhouette — intentionally readable at small size.
     ctx.fillStyle = "#111922";
