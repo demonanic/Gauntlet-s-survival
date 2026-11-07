@@ -19,6 +19,10 @@ export const SPECIAL_STAT_KEYS = Object.freeze([
   "damageBonus", "healthBonus", "attackSpeed", "critDamage", "lifesteal", "thorns", "regen", "goldFind",
   "arrowSaver", "chill", "burn", "venom", "shock", "cleave", "volley", "revive", "blastWard",
   "darkResist", "coldResist", "heatResist", "toxicResist",
+  // Staff shards (CRYSTALS kind "staff"): max mana, spell damage, spell area,
+  // and fury (the staff's own attacks faster, its wielder's burns and poisons
+  // land that much sooner).
+  "manaBonus", "spellDamage", "spellArea", "fury",
 ]);
 export const GEAR_STAT_KEYS = Object.freeze([...CORE_STAT_KEYS, ...SPECIAL_STAT_KEYS]);
 
@@ -29,6 +33,7 @@ export const GEAR_STAT_LABELS = Object.freeze({
   venom: "VENOM", shock: "SHOCK",
   cleave: "CLEAVE", volley: "VOLLEY", revive: "REVIVE", blastWard: "BLAST WARD",
   darkResist: "DARK RES", coldResist: "COLD RES", heatResist: "HEAT RES", toxicResist: "TOXIC RES",
+  manaBonus: "MANA", spellDamage: "SPELL DMG", spellArea: "SPELL AREA", fury: "FURY",
 });
 
 // Stats stored as fractions (0.05 = 5%). regen is HP per second, volley a count.
@@ -37,8 +42,10 @@ export const PERCENT_STATS = new Set(GEAR_STAT_KEYS.filter((key) => !["attack", 
 export const RESIST_KEYS = Object.freeze(["darkResist", "coldResist", "heatResist", "toxicResist"]);
 
 // Crystals are infused into gear sockets. Weapon crystals give attacks an
-// element or an edge; armor crystals (every other slot) protect. Three of a
-// kind fuse into the next tier. `values` are per tier: Chipped, Flawless, Radiant.
+// element or an edge; armor crystals (every other slot) protect; staff shards
+// (owner's design, Nov 2026) fit staves only and feed their wielder's magic.
+// Three of a kind fuse into the next tier. `values` are per tier: Chipped,
+// Flawless, Radiant.
 export const CRYSTAL_TIERS = Object.freeze(["Chipped", "Flawless", "Radiant"]);
 export const CRYSTALS = Object.freeze({
   ember: Object.freeze({ key: "ember", name: "Ember", kind: "weapon", stat: "burn", values: [0.12, 0.2, 0.3], color: "#FF6600", desc: "Hits set foes ablaze." }),
@@ -53,7 +60,12 @@ export const CRYSTALS = Object.freeze({
   dawn: Object.freeze({ key: "dawn", name: "Dawn", kind: "armor", stat: "darkResist", values: [0.15, 0.25, 0.4], color: "#FDE68A", desc: "Lights the dark." }),
   vigor: Object.freeze({ key: "vigor", name: "Vigor", kind: "armor", stat: "healthBonus", values: [0.04, 0.07, 0.1], color: "#F472B6", desc: "More max HP." }),
   stone: Object.freeze({ key: "stone", name: "Stone", kind: "armor", stat: "defense", values: [4, 8, 13], color: "#A8A29E", desc: "More defense." }),
+  wellspring: Object.freeze({ key: "wellspring", name: "Wellspring", kind: "staff", noun: "Shard", stat: "manaBonus", values: [0.15, 0.25, 0.4], color: "#38BDF8", desc: "More max mana." }),
+  focus: Object.freeze({ key: "focus", name: "Focus", kind: "staff", noun: "Shard", stat: "spellDamage", values: [0.1, 0.18, 0.28], color: "#E879F9", desc: "Stronger damage spells." }),
+  reach: Object.freeze({ key: "reach", name: "Reach", kind: "staff", noun: "Shard", stat: "spellArea", values: [0.1, 0.18, 0.28], color: "#34D399", desc: "Wider area spells." }),
+  fury: Object.freeze({ key: "fury", name: "Fury", kind: "staff", noun: "Shard", stat: "fury", values: [0.08, 0.14, 0.2], color: "#F97316", desc: "Faster staff attacks; burns and poisons land sooner." }),
 });
+export const STAFF_SHARD_KEYS = Object.freeze(["wellspring", "focus", "reach", "fury"]);
 export const CRYSTAL_KEYS = Object.freeze(Object.keys(CRYSTALS));
 
 // A crystal in the stash or a socket is "type-tier", e.g. "ember-2".
@@ -62,7 +74,7 @@ export function crystalInfo(id) {
   const crystal = CRYSTALS[key];
   const tier = Number(tierText);
   if (!crystal || !(tier >= 1 && tier <= CRYSTAL_TIERS.length)) return null;
-  return { ...crystal, id, tier, value: crystal.values[tier - 1], fullName: `${CRYSTAL_TIERS[tier - 1]} ${crystal.name} Crystal` };
+  return { ...crystal, id, tier, value: crystal.values[tier - 1], fullName: `${CRYSTAL_TIERS[tier - 1]} ${crystal.name} ${crystal.noun || "Crystal"}` };
 }
 
 // Sockets an item has, by rarity; weapons get one more than armor.
@@ -72,8 +84,12 @@ export function itemSockets(item) {
   return Math.min(2, (SOCKETS[item.rarity] || 0) + (item.slot === "weapon" ? 1 : 0));
 }
 
+// Weapon crystals and staff shards go in weapons (shards in staves only),
+// armor crystals in everything else.
 export function crystalFits(item, crystal) {
-  return !!crystal && (crystal.kind === "weapon") === (item.slot === "weapon");
+  if (!crystal) return false;
+  if (crystal.kind === "staff") return item.slot === "weapon" && item.weaponType === "staff";
+  return (crystal.kind === "weapon") === (item.slot === "weapon");
 }
 
 // Gear sets: pieces drop in their home region. Wearing 2 or 4 pieces of one

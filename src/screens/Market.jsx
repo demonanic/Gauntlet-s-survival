@@ -64,8 +64,8 @@ function CrystalShop({ guild, onBuy, onFuse }) {
       <h2 className="mb-1 font-display text-base font-bold text-cyan-200">CRYSTALS</h2>
       <p className="mb-2 font-mono-g text-[10px] text-slate-500">
         Infuse crystals into gear sockets from a hero&apos;s Gear screen: weapon crystals into weapons, armor crystals into
-        everything else. Fuse {FUSE_COUNT} of a kind into the next tier ({CRYSTAL_TIERS.join(" → ")}). Bosses, treasure and
-        tough enemies drop them too.
+        everything else, staff shards into staves only. Fuse {FUSE_COUNT} of a kind into the next tier
+        ({CRYSTAL_TIERS.join(" → ")}). Bosses, treasure, tough enemies and horde chests drop them too.
       </p>
       <ul className="space-y-1.5 font-mono-g text-[11px]">
         {Object.values(CRYSTALS).map((crystal) => (

@@ -82,7 +82,7 @@ function classlessHeroDerived(hero) {
     range: weapon?.range ?? attack.range,
     rangeMode: weapon?.rangeMode ?? attack.rangeMode,
     rate: (attack.intervalSeconds * (weapon?.intervalScale ?? 1) * (1 + (env?.attackSlow || 0)))
-      / ((1 + effects.attackSpeed) * (1 + traits.attackSpeed) * (1 + gear.attackSpeed)),
+      / ((1 + effects.attackSpeed) * (1 + traits.attackSpeed) * (1 + gear.attackSpeed) * (1 + gear.fury)),
     movementSpeed: attack.movementSpeed * (1 + traits.moveSpeed) * (1 - (env?.moveSlow || 0)),
     magic: false,
     damageType: null,
@@ -995,6 +995,9 @@ export class Engine {
   // Poison and burns on enemies: { dps, until, sourceId, color }.
   _applyDot(target, total, seconds, color, sourceId) {
     if (!(total > 0) || !(seconds > 0) || target.hp <= 0) return;
+    // A Fury shard on the source hero's staff: the same damage, sooner.
+    const fury = typeof sourceId === "string" && sourceId[0] === "H" ? this.heroes[Number(sourceId.slice(1))]?.d?.gear?.fury || 0 : 0;
+    if (fury > 0) seconds /= 1 + fury;
     target.dots ||= [];
     target.dots.push({ dps: total / seconds, until: this.time + seconds, sourceId, color });
     if (target.dots.length > 6) target.dots.shift();

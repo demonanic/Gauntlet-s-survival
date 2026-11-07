@@ -331,6 +331,12 @@ export function castSuccessChance(hero, element) {
   return Math.min(MAGIC.maxSuccess, Math.max(0.05, chance));
 }
 
+// A staff shard's bonus on the hero's weapon (gear.js CRYSTALS kind "staff").
+function shardBonus(hero, stat) {
+  const value = Number(hero?.equipment?.weapon?.stats?.[stat]);
+  return Number.isFinite(value) ? value : 0;
+}
+
 // Damage multiplier for a spell (on the hero's attack), before the element's effects.
 export function spellPower(hero, spellId, { staff = false } = {}) {
   const spell = SPELLS[spellId];
@@ -338,7 +344,7 @@ export function spellPower(hero, spellId, { staff = false } = {}) {
   const elementBonus = spell.element === "arcane" ? MAGIC.arcaneBonus : MAGIC.elementBonus;
   return spell.power * (1 + MAGIC.rankPower * (rank - 1)) * (1 + elementBonus)
     * (1 + MAGIC.intPower * Math.max(0, intelligence(hero) - 10)) * (staff ? 1 + MAGIC.staffPower : 1)
-    * (1 + (heroTraitEffects(hero).spellPower || 0));
+    * (1 + (heroTraitEffects(hero).spellPower || 0)) * (1 + shardBonus(hero, "spellDamage"));
 }
 
 // Strength of a support spell (a share of max HP, or a buff), scaled like
@@ -353,12 +359,12 @@ export function supportPower(hero, spellId, { staff = false } = {}) {
 
 export function spellRadius(hero, spellId) {
   const spell = SPELLS[spellId];
-  return (spell.radius || 0) * (1 + MAGIC.rankArea * (rankFor(spellCasts(hero, spellId)) - 1));
+  return (spell.radius || 0) * (1 + MAGIC.rankArea * (rankFor(spellCasts(hero, spellId)) - 1)) * (1 + shardBonus(hero, "spellArea"));
 }
 
 export function maxMana(hero) {
   if (!canCast(hero)) return 0;
-  return Math.round(60 + 4 * Math.max(0, intelligence(hero) - 10) + 2 * (Number(hero?.progression?.level) || 1));
+  return Math.round((60 + 4 * Math.max(0, intelligence(hero) - 10) + 2 * (Number(hero?.progression?.level) || 1)) * (1 + shardBonus(hero, "manaBonus")));
 }
 
 // Can the hero learn another element now? Returns { ok, reason, cost }.

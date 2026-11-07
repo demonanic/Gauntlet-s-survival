@@ -4,7 +4,7 @@
 import { classlessCombatEffects, classlessMaxHp } from "../combat/classlessCombatEffects";
 import * as C from "../combat/config";
 import {
-  CONSUMABLES, CORE_STAT_KEYS, CRYSTAL_KEYS, CRYSTALS, FLETCHING, GEAR_SETS, PROVISIONS, crystalFits, crystalInfo, itemSockets, GEAR_SLOTS, GEAR_STAT_KEYS, GEAR_STAT_LABELS, PERCENT_STATS,
+  CONSUMABLES, CORE_STAT_KEYS, CRYSTAL_KEYS, CRYSTALS, STAFF_SHARD_KEYS, FLETCHING, GEAR_SETS, PROVISIONS, crystalFits, crystalInfo, itemSockets, GEAR_SLOTS, GEAR_STAT_KEYS, GEAR_STAT_LABELS, PERCENT_STATS,
   QUICK_SLOT_COUNT, SUPPLY_STYLES, heroGearStats, heroUsesArrows, heroWeaponProfile,
 } from "../combat/gear";
 import { HERO_BASELINE, serializeGameState, statDefense } from "../combat/heroModel";
@@ -456,6 +456,16 @@ export function rollLoot(enemy, tier = 1, rng = Math.random, { set = null, luck 
   }
   if (rng() < LOOT_TABLE.crystalChance[enemyTier]) return randomCrystal(1, rng);
   return null;
+}
+
+// A staff shard (gear.js STAFF_SHARD_KEYS), as horde and Dead March chests give.
+export function randomShard(tier = 1, rng = Math.random) {
+  return { kind: "crystal", key: `${STAFF_SHARD_KEYS[Math.floor(rng() * STAFF_SHARD_KEYS.length)]}-${tier}`, qty: 1 };
+}
+
+// A chest's gem: a staff shard half the time, else any crystal.
+export function chestCrystal(tier = 1, rng = Math.random) {
+  return rng() < 0.5 ? randomShard(tier, rng) : randomCrystal(tier, rng);
 }
 
 export function randomCrystal(tier = 1, rng = Math.random) {
