@@ -156,6 +156,9 @@ export const familiarMethods = {
     // Kindred Bond (Enchanting): the familiar hits harder for a while.
     const damage = attack.damage * (owner.kindredUntil > this.time ? 1 + owner.kindredDamage : 1);
     this.effects.push({ kind: "impact", x: target.x, y: target.y, r: 8, life: 0.2, color });
+    // A summoned elemental's hit can set off a combo, at its caster's rank in
+    // that school (heroes/reactions.js).
+    if (pet.summonKind === "elemental") this._react(owner, target, pet.stats.element, damage, sourceId);
     if (attack.mark > 0) {
       target.petMarkUntil = this.time + 3;
       target.petMarkOwner = owner.i;

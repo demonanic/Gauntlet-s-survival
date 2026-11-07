@@ -133,6 +133,7 @@ export const heroSpellMethods = {
     } else if (spell.shape === "linger") {
       this.vfx?.bolt(spell.element, h, foe, rank);
       if (this._spellImmune(foe)) return true;
+      this._react(h, foe, spell.element, damage, sourceId);
       this._applyDot(foe, damage * 2, spell.seconds, spell.color, sourceId);
       this._spellElement(h, foe, damage, spell.element, sourceId, true);
       this.vfx?.aura(spell.element, foe, spell.seconds, rank);
@@ -167,6 +168,8 @@ export const heroSpellMethods = {
   _spellHit(h, enemy, damage, element, sourceId, showName) {
     if (this._spellImmune(enemy)) return;
     if (enemy.exposeUntil > this.time && enemy.exposeKind === "magic") damage *= 1 + enemy.exposeBonus;
+    // A combo (heroes/reactions.js) goes off before this hit's own effect.
+    this._react(h, enemy, element, damage, sourceId);
     this._bonusDamage(enemy, damage, sourceId, ELEMENTS[element].color);
     this._tally(h, "damage", damage);
     if (enemy.hp > 0) this._spellElement(h, enemy, damage, element, sourceId, false);
@@ -442,6 +445,8 @@ export const heroSpellMethods = {
 
   _hexOne(h, spell, foe, rank) {
     if (foe.hp <= 0 || this._spellImmune(foe)) return false;
+    // A Shadow hex on a stunned or confused foe can set off a Nightmare.
+    if (spell.element === "shadow") this._react(h, foe, "shadow", 0, "H" + h.i);
     const scale = this._hexScale(foe);
     const until = this.time + spell.seconds;
     let label = spell.name.toUpperCase();

@@ -203,6 +203,32 @@ export const ELEMENT_EFFECTS = Object.freeze({
   conjuration: "spinning blades and an elemental fight beside the caster",
 });
 
+// Reactions (combos, Nov 2026, owner's design): a hit of one school on a foe
+// carrying another school's effect can set one off. The chance is
+// `chance.base` plus `chance.perRank` for each rank of the hitting school past
+// I (30% at I, 50% at V); one reaction per foe every `cooldown` s; on bosses a
+// reaction's damage is halved and Nightmare doesn't frighten. Each uses up
+// the effect that set it off (heroes/reactions.js).
+//   Shatter: Lightning on a slowed foe: the hit again at `bonus` share.
+//   Ignite: Fire on a poisoned foe: its remaining poison lands at once at
+//     `burst`, and `splash` of that hits foes within `radius`.
+//   Steam: Ice on a burning foe: the burn goes out; foes within `radius` miss
+//     `blind` of their attacks for `seconds`.
+//   Wildfire: Fire on a rooted foe: foes within `radius` (up to `max`) catch a
+//     burn worth `burn` of the hit over 3 s.
+//   Nightmare: a Shadow spell on a stunned or confused foe: `burst` of the
+//     caster's attack, and it flees in fear for `seconds`.
+export const REACTIONS = Object.freeze({
+  chance: Object.freeze({ base: 0.3, perRank: 0.05 }),
+  cooldown: 4,
+  boss: 0.5,
+  shatter: Object.freeze({ name: "Shatter", by: "electric", bonus: 0.5 }),
+  ignite: Object.freeze({ name: "Ignite", by: "fire", burst: 1.5, splash: 0.5, radius: 60 }),
+  steam: Object.freeze({ name: "Steam", by: "ice", blind: 0.3, seconds: 2, radius: 70 }),
+  wildfire: Object.freeze({ name: "Wildfire", by: "fire", burn: 0.5, radius: 70, max: 4 }),
+  nightmare: Object.freeze({ name: "Nightmare", by: "shadow", burst: 0.6, seconds: 2 }),
+});
+
 // Summon Elemental: the kind comes from the caster's best other school (highest
 // proficiency; ties go to the one learned first; none: Arcane). Each hits with
 // its school's touch. Support schools' elementals hit for half and help allies
