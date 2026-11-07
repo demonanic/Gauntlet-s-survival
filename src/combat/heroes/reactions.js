@@ -61,12 +61,12 @@ export const reactionMethods = {
     } else if (kind === "wildfire") {
       const others = near(rule.radius).sort((a, b) => Math.hypot(a.x - e.x, a.y - e.y) - Math.hypot(b.x - e.x, b.y - e.y)).slice(0, rule.max);
       for (const o of others) this._applyDot(o, damage * rule.burn * (o.boss ? REACTIONS.boss : 1), 3, ELEMENTS.fire.color, sourceId);
-      this.vfx?.reaction?.("wildfire", e, others);
+      this.vfx?.reaction("wildfire", e, others);
     } else if (kind === "nightmare") {
       this._bonusDamage(e, (h.d.attack || 0) * rule.burst * scale, sourceId, color);
       if (!e.boss && e.hp > 0) { e.fearUntil = Math.max(e.fearUntil || 0, this.time + rule.seconds); e.stunUntil = Math.min(e.stunUntil || 0, this.time); }
     }
-    if (kind !== "wildfire") this.vfx?.reaction?.(kind, e, near(kind === "steam" ? rule.radius : kind === "ignite" ? rule.radius : 0));
+    if (kind !== "wildfire") this.vfx?.reaction(kind, e, near(kind === "steam" ? rule.radius : kind === "ignite" ? rule.radius : 0));
     this._float(e.x, e.y - 34, `${rule.name.toUpperCase()}!`, color);
     this._log("spell", `${this._name(h)}: ${rule.name.toUpperCase()} on ${e.name || "a foe"}`);
     this.reactionCount = (this.reactionCount || 0) + 1;

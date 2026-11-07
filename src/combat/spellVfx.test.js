@@ -83,4 +83,17 @@ describe("spell effects", () => {
     };
     expect(busy(0.25)).toBeLessThan(busy(1));
   });
+
+  test("every reaction has its own animation, drawn without errors and without Math.random", () => {
+    const spy = vi.spyOn(Math, "random");
+    for (const kind of ["shatter", "ignite", "steam", "wildfire", "nightmare"]) {
+      const vfx = new SpellVfx();
+      vfx.reaction(kind, { x: 100, y: 100 }, [{ x: 150, y: 110 }, { x: 60, y: 90 }]);
+      expect(vfx.particles.length).toBeGreaterThan(3);
+      const ctx = fakeContext();
+      for (let i = 0; i < 40; i += 1) { vfx.update(1 / 30); vfx.draw(ctx); }
+    }
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
 });
