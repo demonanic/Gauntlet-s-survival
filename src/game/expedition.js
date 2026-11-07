@@ -123,8 +123,11 @@ function hurt(hero, fraction) {
 // (as well as its level). A region the guild has cleared, or one before a
 // region it has cleared, stays open. Endless regions are outside the order;
 // one with `opensAfter` (the Dead March) needs that region cleared.
+// The region that must be cleared first: the campaign region before it, or an
+// endless region's `opensAfter` (the Dead March opens after Frostfang).
 export function previousRegion(region) {
-  if (!region || region.endless) return null;
+  if (!region) return null;
+  if (region.endless) return region.opensAfter ? getRegion(region.opensAfter) : null;
   const campaign = REGIONS.filter((entry) => !entry.endless);
   return campaign[campaign.indexOf(region) - 1] || null;
 }
