@@ -16,7 +16,7 @@
 import * as C from "../combat/config";
 import { Engine } from "../combat/engine";
 import { ECOLOGIES, FODDER, FRONTLINE, SQUAD_LIMITS, rolesOf } from "./ecology";
-import { ENDLESS_POOLS, buildWildEncounter, createEncounterSim } from "./encounters";
+import { ENDLESS_POOLS, HORDE, buildWildEncounter, createEncounterSim } from "./encounters";
 import { createGuild } from "./guild";
 import { BOSS_ROTATION, REGIONS } from "./regions";
 
@@ -42,6 +42,7 @@ function spawnSources() {
   sources["plain fodder"] = [...FODDER];
   sources["plain frontline"] = [...FRONTLINE];
   sources.stalker = ["stalker"];
+  sources.horde = [HORDE.enemy];
   return sources;
 }
 
@@ -183,5 +184,55 @@ describe("every enemy in a real fight", () => {
     expect(errors).toEqual([]);
     expect(moved).toBe(true);
     for (const type of summoned) expect(C.ENEMIES, `${key} summoned ${type}`).toHaveProperty(type);
+  });
+});
+
+describe("zombies and hordes", () => {
+  test("zombies only come in hordes: no region, Rift, ecology or plain pool names them", async () => {
+    const { REGIONS: regions } = await import("./regions");
+    for (const region of regions) expect(Object.keys(region.wildlife?.pool || {})).not.toContain("zombie");
+    expect(ENDLESS_POOLS.flatMap((entry) => entry.enemies)).not.toContain("zombie");
+    expect([...FODDER, ...FRONTLINE]).not.toContain("zombie");
+    expect(C.ENEMIES.zombie.horde).toBe(true);
+  });
+
+  test("a horde: 35-50 zombies scaled like the region's wild squads, 18 at a time, fast arrivals", async () => {
+    const { buildHordeEncounter } = await import("./encounters");
+    const region = REGIONS.find((entry) => entry.id === "ashen");
+    for (const roll of [0, 0.5, 0.999]) {
+      const wave = buildHordeEncounter(region, 0.5, () => roll);
+      expect(wave.horde).toBe(true);
+      expect(wave.enemies.length).toBeGreaterThanOrEqual(HORDE.count[0]);
+      expect(wave.enemies.length).toBeLessThanOrEqual(HORDE.count[1]);
+      expect(wave.enemies.every((enemy) => enemy.type === "zombie")).toBe(true);
+      expect(wave.fieldCap).toBe(HORDE.onField);
+      expect(wave.spawnEvery).toBe(HORDE.spawnEvery);
+      expect(wave.reinforcements).toBeUndefined();
+    }
+    const wild = buildWildEncounter(region, 0.5, () => 0.5);
+    const zombie = buildHordeEncounter(region, 0.5, () => 0.5).enemies[0];
+    const goblin = wild.enemies.find((enemy) => enemy.type === "goblin") || wild.enemies[0];
+    expect(zombie.maxHp / goblin.maxHp).toBeCloseTo(C.ENEMIES.zombie.hp / C.ENEMIES[goblin.type].hp, 1);
+  });
+
+  test("in a fight, a horde keeps at most HORDE.onField on the field and comes from the top and both sides", async () => {
+    const { buildHordeEncounter } = await import("./encounters");
+    const region = REGIONS.find((entry) => entry.id === "ashen");
+    const state = createGuild();
+    const engine = new Engine({ getContext: () => null }, createEncounterSim(state.heroes, region.tier), buildHordeEncounter(region, 0.5, () => 0.3), {});
+    for (const hero of engine.heroes) hero.ref.hp = 1e9;
+    let most = 0;
+    const entries = [];
+    for (let i = 0; i < 30 * 40 && !engine.ended; i += 1) {
+      const before = new Set(engine.active);
+      engine.update(STEP);
+      for (const e of engine.active) if (!before.has(e) && !e._seen) { e._seen = true; entries.push({ x: e.x, y: e.y }); }
+      most = Math.max(most, engine.active.length);
+    }
+    expect(most).toBeLessThanOrEqual(HORDE.onField);
+    expect(most).toBeGreaterThan(10);
+    expect(entries.some((p) => p.y < 40)).toBe(true);
+    expect(entries.some((p) => p.x < 20 && p.y >= 40)).toBe(true);
+    expect(entries.some((p) => p.x > 400 && p.y >= 40)).toBe(true);
   });
 });

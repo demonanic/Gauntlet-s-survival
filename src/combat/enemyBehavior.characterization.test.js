@@ -160,6 +160,7 @@ const GOLDEN = {
   "vampiric demon": "e624205d3ca8064b",
   "warlock": "20960c3a2099c87f",
   "watcher": "b2e0e7aa3aca15bb",
+  "zombie": "f8a83d6383e46905",
 };
 
 describe("enemy behavior (characterization)", () => {

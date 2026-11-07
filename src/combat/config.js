@@ -112,6 +112,12 @@ imperialNecromancer: { key: "imperialNecromancer", name: "Imperial Necromancer",
   banditWarlord: { key: "banditWarlord", name: "Bandit Warlord", tier: "boss", hp: 1500, speed: 30, damage: 32, color: "#FBBF24", boss: true },
   bogLich: { key: "bogLich", name: "The Bog Lich", tier: "boss", hp: 9000, speed: 16, damage: 70, color: "#A3E635", boss: true, attackRange: 400, splashRadius: 60, affinities: BOSS_AFFINITIES.imperialNecromancer },
 nuclearBehemoth: { key: "nuclearBehemoth", name: "The Abomination", tier: "boss", hp: 3800, speed: 16, damage: 60, color: "#84CC16", boss: true, affinities: BOSS_AFFINITIES.nuclearBehemoth },
+  // Hordes only (game/encounters.js HORDE; owner's design, Nov 2026, set to
+  // the "medium" difficulty Sam picked after measuring): a slow shambler with
+  // about a third of an ordinary foe's HP and half its damage, that comes in
+  // great numbers. Kept last so the other enemies' test seeds
+  // stay as they were.
+  zombie: { key: "zombie", name: "Zombie", tier: "basic", hp: 28, speed: 17, damage: 6, color: "#94C973", horde: true },
 };
 // Gauntlet behavior families. Squads are read by what they do, not just how
 // tough they are. Some families drive engine behavior directly: "hunter"
@@ -119,7 +125,7 @@ nuclearBehemoth: { key: "nuclearBehemoth", name: "The Abomination", tier: "boss"
 // harder); "watcher" makes sneaking past a squad harder (adventure.js). The
 // rest describe roles implemented per enemy in enemies/roles.js.
 export const ENEMY_FAMILIES = Object.freeze({
-  ghost: ["skirmisher"], slime: ["attrition"], goblin: ["skirmisher"], skeleton: [], orc: [],
+  ghost: ["skirmisher"], slime: ["attrition"], goblin: ["skirmisher"], skeleton: [], orc: [], zombie: [],
   reaper: ["hunter"], darkElf: ["hunter", "skirmisher"], warlock: ["disruptor"], lieutenant: ["protector"],
   gnome: ["ambusher", "attrition"], bandit: ["hunter", "ambusher"], lesserNecromancer: ["protector"],
   harrier: ["hunter", "predator"], carrionPriest: ["protector"], watcher: ["watcher", "disruptor"],
@@ -133,7 +139,7 @@ export const ENEMY_FAMILIES = Object.freeze({
 // the normal rules of a fight. Plain fighters are "frontline". Encounter
 // generation (game/ecology.js) builds squads from these.
 export const ENEMY_ROLES = Object.freeze({
-  ghost: ["frontline"], slime: ["frontline"], goblin: ["frontline"], skeleton: ["frontline"], orc: ["frontline"],
+  ghost: ["frontline"], slime: ["frontline"], goblin: ["frontline"], skeleton: ["frontline"], orc: ["frontline"], zombie: ["frontline"],
   reaper: ["pressure"], lieutenant: ["frontline"],
   harrier: ["pressure"], bandit: ["pressure"], stalker: ["pressure"], gnome: ["pressure", "wildcard"],
   carrionPriest: ["support"], lesserNecromancer: ["support", "wildcard"],

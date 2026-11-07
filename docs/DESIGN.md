@@ -141,6 +141,20 @@ A deliberately small model (not Demonanic's 11 slots), defined in `src/combat/ge
   Departure restocks every loaded slot from the stash and gives an arrowless archer
   plain arrows in a free slot.
 
+## Zombies and hordes (Nov 2026, `HORDE` and `buildHordeEncounter` in encounters.js, `startHorde` in expedition.js)
+
+Sam's design: hordes are random, unavoidable events of a new enemy, the zombie, which appears only in them. Set to the "medium" difficulty Sam picked after measuring.
+
+- **Zombie** (`C.ENEMIES.zombie`, last in the table so other enemies' test seeds hold): a slow shambler (speed 17), 28 HP and 6 damage at base (about a third of an ordinary foe's HP and half its damage), scaled by region like any foe. Its own sprite: hunched, head lolling, arms reaching, swaying. No region, Rift, ecology or plain pool names it.
+- **Horde:** 35–50 zombies scaled like the region's wild squads at the same depth, in one stream: one every 0.3 s, at most 18 on the field, half from the top and a quarter down each side (upper half of the field). The header's "enemies left" counts them all.
+- **On the road:** from Frostfang on (region order; never the Rift), 1 wild fight in 8 is a horde. It opens like an ambush (no sneaking past, no choice), without the opening volley; a feed line and -5 morale.
+- **Reward:** the kills' gold twice, 1.5× XP, and a chest: 60–120 gold × the region's tier multiplier and a Chipped crystal (staff shards to join it). +12 morale.
+- **Test mode:** "Horde now" in the test panel starts one.
+- **Measured** (120 seeded fights a case; party: sword with a wolf, bow with 40 arrows, the tested caster at V, a Fire III caster; level 8, common tier-1 gear, depth 0.8; Frostfang / Ashen / Blightmire). Shipped (medium): Fire V 119 / 117 / 10 wins; Conjuration V 120 / 120 / 81; Restoration V 120 / 120 / 117 (wild fights: 116 / 87 / 47, 119 / 107 / 57, 120 / 119 / 95).
+  - First version (40–60 zombies, 32 HP, 7 damage, 20 on the field): Fire V 33 / 19 / 0; Conjuration V 116 / 106 / 3; Restoration V 118 / 115 / 18. Damage taken 1.1–2.7× a wild fight's. Before the horde bonus, a horde's kills pay about 3× a wild fight's gold (88–199 vs 40–63) and XP (506–1,288 vs 244–428).
+  - Easy version tried: 30–45 zombies, 24 HP, 5 damage, 16 on the field: Fire V 120 / 120 / 109; Conjuration V and Restoration V 120 everywhere; damage taken below a wild fight's.
+- **Frame rate** (CI build, headless Chromium, no GPU, Ashen horde with ~20 zombies on the field): 44 fps (8 fps with the CPU slowed 4×), the same as an ordinary fight.
+
 ## Combos: reactions (Nov 2026, `REACTIONS` in spells.js, `heroes/reactions.js`)
 
 Sam's design: five reactions, each with its own animation, not certain or frequent, always better with the spell's level; after the first measurements, "stronger but less frequent". A hit of one school on a foe carrying another school's effect can set one off, before the hit's own effect:

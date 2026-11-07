@@ -59,6 +59,29 @@ function weightedPick(weights, rng) {
 // Some regions field a tactical composition instead (ecology.js); pass
 // `ecology: false` for a squad that must stay ordinary (tutorial, escorts).
 //
+// Hordes (owner's design, Nov 2026): a random event that takes the place of
+// about `chance` of wild fights from `fromRegion` on, and can't be avoided.
+// `count` zombies (C.ENEMIES.zombie: about 40% of an ordinary foe's HP and 60%
+// of its damage) pour in from the top and both sides, one every `spawnEvery`
+// s, at most `onField` at once. Winning pays `gold` and `xp` times a wild
+// fight's, plus a chest (expedition.js).
+export const HORDE = Object.freeze({
+  enemy: "zombie", count: Object.freeze([35, 50]), onField: 18, spawnEvery: 0.3,
+  chance: 1 / 8, fromRegion: "frostfang", gold: 2, xp: 1.5, chestGold: Object.freeze([60, 120]),
+});
+
+// A horde for `region`, scaled like its wild squads at `progress` (0-1).
+export function buildHordeEncounter(region, progress = 0, rng = Math.random) {
+  const [min, max] = HORDE.count;
+  const count = min + Math.floor(rng() * (max - min + 1));
+  const depth = 1 + DEPTH_SCALE_AT_END * Math.max(0, Math.min(1, progress));
+  const squad = Array.from({ length: count }, () => HORDE.enemy);
+  return {
+    ...assembleWave(squad, { hp: region.hpScale * depth, dmg: region.dmgScale * depth }, region.tier),
+    horde: true, fieldCap: HORDE.onField, spawnEvery: HORDE.spawnEvery, set: region.set || null,
+  };
+}
+
 // An encounter comes in `waves` (default: the region's `wildlife.waves`, else
 // ENCOUNTER_WAVES): the first is the squad the party sees, the rest arrive as
 // `reinforcements` once it is beaten. Later waves are ordinary squads.

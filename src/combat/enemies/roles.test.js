@@ -7,7 +7,7 @@ import { getRegion } from "../../game/regions";
 // advance-and-attack). A misspelt type in a role, or a type that loses its
 // role, shows up here.
 const EXPECTED = {
-  ghost: null, slime: null, goblin: null, skeleton: null, orc: null,
+  ghost: null, slime: null, goblin: null, skeleton: null, orc: null, zombie: null,
   reaper: "hunter", darkElf: "darkElf", warlock: null, lieutenant: null, demon: null, imperialNecromancer: null,
   harrier: "hunter", carrionPriest: "carrionPriest", watcher: "watcher", stalker: "hunter", gnome: "sapper",
   bandit: "bandit", lesserNecromancer: "lesserNecromancer", bulwark: "bulwark",
