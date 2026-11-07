@@ -5,9 +5,12 @@ import { buildWildEncounter, createEncounterSim } from "./encounters";
 import { createGuild } from "./guild";
 import { chestCrystal, composeStats, createGearItem, randomShard } from "./items";
 import { getRegion } from "./regions";
+import { seededRandom } from "./random";
 
+// Every test staff is the same roll (seeded), so only its shard differs.
 const staff = (shard, tier = 1) => {
-  const item = createGearItem({ slot: "weapon", variant: "staff", rarity: "rare", tier: 1 });
+  const item = createGearItem({ slot: "weapon", variant: "staff", rarity: "rare", tier: 1 }, seededRandom(7));
+  item.baseStats = { ...item.stats };
   item.runes = shard ? [`${shard}-${tier}`] : [];
   item.stats = composeStats(item);
   return item;
