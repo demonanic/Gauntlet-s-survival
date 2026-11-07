@@ -2,7 +2,7 @@
 
 Read this first, then `docs/ROADMAP.md` (the living checklist and pass log) and `docs/DESIGN.md` (every approved design, with its measurements). `docs/LEGACY_MANIFEST.md` tracks the old Demonanic code.
 
-Last updated: 2026-11-07, with combos open as draft PR #62.
+Last updated: 2026-11-07, with hordes open as draft PR #63.
 
 ## The project
 
@@ -64,8 +64,9 @@ Last updated: 2026-11-07, with combos open as draft PR #62.
   - #59: spells part 4, Conjuration (Spectral Blades 15%, Summon Elemental) and Mirror Self (60%, fools every non-boss foe on the caster).
   - #60: test tools under `?debug` (own save, no cloud sync; magic tools; test fights; battle cheats).
   - #61: reliability (cloud save grants tightened and applied; HUD fresh at 8×; Phase 10 measured; test-mode FPS readout).
-- **Open:** draft PR #62, combos: Shatter, Ignite, Steam, Wildfire, Nightmare, each with its own animation (DESIGN.md "Combos"). Retuned on Sam's call: stronger but less frequent (20–40%, every 6 s). Measured: small gains (up to +8 wins in Ashen with Wildfire).
-- **Approved next (Sam, Nov 7):** zombies and horde fights (random, unavoidable, about 1 in 8 wild fights from Frostfang on; 40-60 zombies at 40% HP, 60% damage; a chest), then staff shards (staff-only crystals: Wellspring mana, Focus spell damage, Reach area size, Fury rate of damage; Chipped / Flawless / Radiant).
+  - #62: combos (Shatter, Ignite, Steam, Wildfire, Nightmare), stronger but rarer.
+- **Open:** draft PR #63, zombies and random hordes (DESIGN.md "Zombies and hordes"); a "Horde now" test button. Measured hard as built (Fire V party 33 / 19 / 0 wins of 120 in Frostfang / Ashen / Blightmire); two easier versions measured for Sam to pick.
+- **Approved next (Sam, Nov 7):** staff shards (staff-only crystals: Wellspring mana, Focus spell damage, Reach area size, Fury rate of damage; Chipped / Flawless / Radiant).
 - **Waiting on Sam:** error boundary, auto-cast switches, the wolf's taunt, thinning glow, spreading unattended fights (proposals in #61), and his phone's fps.
 - **Next (Sam's choice):**
   - **Phases 9–11:** one definition per enemy, performance measurements, final review (ROADMAP).
