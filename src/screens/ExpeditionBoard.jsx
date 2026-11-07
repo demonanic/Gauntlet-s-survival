@@ -69,7 +69,7 @@ export default function ExpeditionBoard({ guild, now, onLaunch }) {
                 <span className="font-display text-sm font-bold" style={{ color: entry.color }}>{entry.name}</span>
                 <span className="font-mono-g text-[10px] text-slate-400">
                   {entry.endless
-                    ? `Endless waves · LV ${entry.minLevel}+ · best wave ${guild.records?.riftBest || 0}`
+                    ? `Endless waves · LV ${entry.minLevel}+ · best wave ${guild.records?.[entry.endlessKind === "march" ? "marchBest" : "riftBest"] || 0}`
                     : `${entry.durationMinutes} min · LV ${entry.minLevel}+ · ${entry.completionGold}g bounty`}
                 </span>
               </div>
