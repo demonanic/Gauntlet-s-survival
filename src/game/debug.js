@@ -13,7 +13,7 @@ import { LEGENDARY_KEYS, createGearItem } from "./items";
 import { emptyLegacy } from "./legacy";
 import { developQualities, sharedQualities } from "./qualities";
 import { REGIONS, getRegion } from "./regions";
-import { buildBossEncounter, buildWildEncounter, describeSquad } from "./encounters";
+import { buildBossEncounter, buildHordeEncounter, buildWildEncounter, describeSquad } from "./encounters";
 import { MAX_PARTY_SIZE, startExpedition } from "./expedition";
 
 export const MAX_HERO_LEVEL = C.HERO_XP.length;
@@ -205,12 +205,12 @@ export function debugSetSpellRank(state, heroId, spellId, rank) {
 }
 
 // ---- Test fight (test mode) -----------------------------------------------
-// A fight to watch right now: a wild squad (at `depth` 0-1 into the region)
-// or the region's boss (at the guild's boss rank). With no trip under way the
+// A fight to watch right now: a wild squad (at `depth` 0-1 into the region),
+// a horde (`horde`) or the region's boss (at the guild's boss rank). With no trip under way the
 // first four heroes set out to `regionId`, healed and with injuries cleared;
 // during a trip the fight is in that trip's region. It replaces any prompt
 // waiting, and it's won or lost like any fight on the road.
-export function debugTestFight(state, regionId, { boss = false, depth = 0.8, now = Date.now(), rng = Math.random } = {}) {
+export function debugTestFight(state, regionId, { boss = false, horde = false, depth = 0.8, now = Date.now(), rng = Math.random } = {}) {
   if (state.expedition?.pending?.engagedAt != null) return { ok: false, reason: "in_fight" };
   let next = serializeGameState(state);
   if (!next.expedition) {
@@ -224,9 +224,11 @@ export function debugTestFight(state, regionId, { boss = false, depth = 0.8, now
     next = started.state;
   }
   const region = getRegion(next.expedition.regionId);
-  const wave = boss ? buildBossEncounter(region, next.bossRank || 0, rng) : buildWildEncounter(region, depth, rng);
+  const wave = boss ? buildBossEncounter(region, next.bossRank || 0, rng)
+    : horde ? buildHordeEncounter(region, depth, rng) : buildWildEncounter(region, depth, rng);
   // As the road names a boss: the boss, else the elite, else the first foe.
-  const label = boss ? (wave.enemies.find((enemy) => enemy.boss || enemy.tier === "elite") || wave.enemies[0])?.name || "Boss" : describeSquad(wave);
-  next.expedition.pending = { kind: boss ? "boss" : "ambush", wave, label: `Test: ${label}`, promptAt: now, engagedAt: now };
+  const label = boss ? (wave.enemies.find((enemy) => enemy.boss || enemy.tier === "elite") || wave.enemies[0])?.name || "Boss"
+    : horde ? `a horde of ${wave.enemies.length} zombies` : describeSquad(wave);
+  next.expedition.pending = { kind: boss ? "boss" : "ambush", wave, label: `Test: ${label}`, promptAt: now, engagedAt: now, ...(horde ? { horde: true } : {}) };
   return { ok: true, state: next };
 }

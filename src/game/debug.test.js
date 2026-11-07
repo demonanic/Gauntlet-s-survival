@@ -109,6 +109,9 @@ describe("test mode: test fights", () => {
     const boss = debugTestFight(state, "boneyard", { boss: true, now: 1000, rng: () => 0.5 });
     expect(boss.state.expedition.pending.kind).toBe("boss");
     expect(boss.state.expedition.pending.wave.enemies.length).toBeGreaterThan(0);
+    const horde = debugTestFight(state, "ashen", { horde: true, now: 1000, rng: () => 0.5 });
+    expect(horde.state.expedition.pending.horde).toBe(true);
+    expect(horde.state.expedition.pending.wave.enemies.every((enemy) => enemy.type === "zombie")).toBe(true);
     expect(state.expedition).toBeFalsy(); // input untouched
   });
 });

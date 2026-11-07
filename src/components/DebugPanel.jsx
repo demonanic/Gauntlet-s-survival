@@ -38,8 +38,8 @@ export default function DebugPanel({ guild, apply, onTestFight }) {
   const [regionId, setRegionId] = useState(guild.expedition?.regionId || "ashen");
   const [depth, setDepth] = useState(0.8);
   const [fightNote, setFightNote] = useState(null);
-  const startFight = (boss) => {
-    const result = debugTestFight(guild, regionId, { boss, depth });
+  const startFight = (boss, horde = false) => {
+    const result = debugTestFight(guild, regionId, { boss, horde, depth });
     if (!result.ok) { setFightNote(FIGHT_REASONS[result.reason] || `Can't start: ${result.reason}`); return; }
     setFightNote(null);
     setOpen(false);
@@ -138,6 +138,7 @@ export default function DebugPanel({ guild, apply, onTestFight }) {
           <div className={row}>
             <NeonButton color="#FF5A5A" onClick={() => startFight(false)} data-testid="debug-fight-wild">Wild fight now</NeonButton>
             <NeonButton color="#FF0055" onClick={() => startFight(true)} data-testid="debug-fight-boss">Boss fight now</NeonButton>
+            <NeonButton color="#94C973" onClick={() => startFight(false, true)} data-testid="debug-fight-horde">Horde now</NeonButton>
           </div>
           <p className="text-[10px] text-slate-500">
             {guild.expedition ? "On a trip: the fight is in its region. " : "The first four heroes set out, healed. "}
