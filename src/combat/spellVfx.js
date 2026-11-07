@@ -638,6 +638,72 @@ export class SpellVfx {
     ctx.restore();
   }
 
+  // ---- reactions (combos) -------------------------------------------------
+
+  // Each reaction's own moment (heroes/reactions.js); `others`: the foes it
+  // reaches (Ignite's splash, Steam's cloud, Wildfire's spread).
+  reaction(kind, e, others = []) {
+    const R = this.rand;
+    // A delayed piece lives its full time once it shows.
+    const add = (p) => this._add(p.delay ? { ...p, life: p.life + p.delay } : p);
+    const { x, y } = e;
+    if (kind === "shatter") {
+      // The ice cracks, then bursts into spinning shards, with a spark.
+      for (let i = 0; i < 5; i += 1) add({ kind: "crack", x, y: y - 4, a: (i / 5) * TAU + R() * 0.4, len: 16 + R() * 8, color: "#E0FBFF", life: 0.3 });
+      add({ kind: "flash", x, y: y - 4, r: 26, color: "#00F3FF", life: 0.22, delay: 0.12 });
+      for (let i = 0; i < this._count(10); i += 1) {
+        const a = R() * TAU, v = 90 + R() * 110;
+        add({ kind: "shard", x, y: y - 4, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 40, gravity: 260, rot: a, spin: (R() - 0.5) * 18,
+          size: 2 + R() * 2.2, color: R() < 0.5 ? "#00F3FF" : "#E0FBFF", life: 0.55 + R() * 0.25, delay: 0.12 });
+      }
+      for (let i = 0; i < this._count(4); i += 1) {
+        const a = R() * TAU;
+        add({ kind: "spark", x, y: y - 4, vx: Math.cos(a) * 160, vy: Math.sin(a) * 160, size: 7, color: "#FFE600", life: 0.2, delay: 0.12 });
+      }
+    } else if (kind === "ignite") {
+      // A green flash turns orange, and a puff of flame rolls up and out.
+      add({ kind: "flash", x, y: y - 4, r: 24, color: "#39FF14", life: 0.18 });
+      add({ kind: "flash", x, y: y - 6, r: 34, color: "#FF6600", life: 0.35, delay: 0.1 });
+      for (let i = 0; i < this._count(9); i += 1) {
+        const a = R() * TAU, v = 30 + R() * 50;
+        add({ kind: "flame", x: x + Math.cos(a) * 6, y: y - 4, vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.5 - 50, size: 7 + R() * 5,
+          core: "#FFF1B8", edge: R() < 0.3 ? "#39FF14" : "#FF6600", life: 0.5 + R() * 0.3, delay: 0.08 });
+      }
+      for (const o of others) add({ kind: "flash", x: o.x, y: o.y - 4, r: 16, color: "#FF6600", life: 0.3, delay: 0.18 });
+      add({ kind: "ring", x, y, r0: 6, r1: 60, color: "#FF6600", life: 0.35, width: 2, delay: 0.1 });
+    } else if (kind === "steam") {
+      // A white cloud billows out and hangs over everyone it blinds.
+      add({ kind: "flash", x, y: y - 4, r: 20, color: "#E0FBFF", life: 0.2 });
+      for (const o of [e, ...others]) {
+        for (let i = 0; i < this._count(o === e ? 7 : 3); i += 1) {
+          const a = R() * TAU;
+          add({ kind: "mist", x: o.x + Math.cos(a) * 10, y: o.y - 8 + Math.sin(a) * 5, vx: Math.cos(a) * 14, vy: -10 - R() * 12,
+            size: 14 + R() * 10, color: "#F1F5F9", life: 1.6 + R() * 0.6, delay: o === e ? 0 : 0.12 });
+        }
+      }
+      add({ kind: "ring", x, y, r0: 8, r1: 70, color: "#E0FBFF", life: 0.5, width: 1.6 });
+    } else if (kind === "wildfire") {
+      // Flames run along the ground from the rooted foe to each foe it spreads to.
+      add({ kind: "flash", x, y: y - 2, r: 22, color: "#FF6600", life: 0.25 });
+      for (const o of others) {
+        const steps = this._count(6);
+        for (let i = 1; i <= steps; i += 1) {
+          const t = i / steps;
+          add({ kind: "flame", x: x + (o.x - x) * t, y: y + (o.y - y) * t + 4, vx: 0, vy: -24, size: 6 + R() * 3,
+            core: "#FFF1B8", edge: "#FF6600", life: 0.45, delay: t * 0.3 });
+        }
+        add({ kind: "flash", x: o.x, y: o.y - 4, r: 16, color: "#FF6600", life: 0.3, delay: 0.32 });
+      }
+    } else if (kind === "nightmare") {
+      // A dark face flickers over the foe, then dissolves into shadow.
+      add({ kind: "face", x, y: y - 26, size: 14, color: "#A855F7", life: 0.9 });
+      for (let i = 0; i < this._count(6); i += 1) {
+        const a = R() * TAU;
+        add({ kind: "smoke", x: x + Math.cos(a) * 8, y: y - 10, vx: Math.cos(a) * 20, vy: -18 - R() * 14, size: 9 + R() * 6, color: "#1E0B2E", life: 0.9 + R() * 0.4, delay: 0.3 });
+      }
+    }
+  }
+
   // A spirit beast appears in a swirl of leaves; it leaves the same way.
   // Conjured summons (`pet.school`) flash in and out in their school's colours.
   beastSpawn(pet, rank = 1) {
@@ -732,7 +798,7 @@ export class SpellVfx {
     const life = Math.max(0.0001, p.life - (p.delay || 0));
     const k = Math.min(1, (p.age - (p.delay || 0)) / life);
     const fade = 1 - k;
-    ctx.globalCompositeOperation = ["smoke", "mist", "fizzleText", "warning", "ghost"].includes(p.kind) ? "source-over" : "lighter";
+    ctx.globalCompositeOperation = ["smoke", "mist", "fizzleText", "warning", "ghost", "face"].includes(p.kind) ? "source-over" : "lighter";
     switch (p.kind) {
       case "ember": case "glint": {
         ctx.fillStyle = rgba(p.color, fade);
@@ -747,6 +813,21 @@ export class SpellVfx {
         g.addColorStop(1, rgba(p.edge, 0));
         ctx.fillStyle = g;
         ctx.beginPath(); ctx.ellipse(p.x, p.y, r * 0.8, r * 1.25, 0, 0, TAU); ctx.fill();
+        break;
+      }
+      case "face": {
+        // Nightmare: a hollow-eyed mask that flickers and grows, then fades.
+        const flicker = Math.sin(p.age * 40) > -0.3 ? 1 : 0.4;
+        const s = p.size * (0.85 + 0.35 * k);
+        const alpha = Math.min(1, k * 6) * fade * flicker;
+        ctx.fillStyle = rgba("#0B0610", 0.75 * alpha);
+        ctx.strokeStyle = rgba(p.color, alpha); ctx.lineWidth = 1.6;
+        ctx.beginPath(); ctx.ellipse(p.x, p.y, s * 0.8, s, 0, 0, TAU); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = rgba(p.color, alpha);
+        for (const side of [-1, 1]) {
+          ctx.beginPath(); ctx.ellipse(p.x + side * s * 0.32, p.y - s * 0.18, s * 0.16, s * 0.24, side * 0.3, 0, TAU); ctx.fill();
+        }
+        ctx.beginPath(); ctx.ellipse(p.x, p.y + s * 0.45, s * 0.22, s * 0.28 * (0.6 + 0.4 * Math.sin(p.age * 12)), 0, 0, TAU); ctx.fill();
         break;
       }
       case "ghost": {

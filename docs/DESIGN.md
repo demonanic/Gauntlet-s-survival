@@ -141,6 +141,20 @@ A deliberately small model (not Demonanic's 11 slots), defined in `src/combat/ge
   Departure restocks every loaded slot from the stash and gives an arrowless archer
   plain arrows in a free slot.
 
+## Combos: reactions (Nov 2026, `REACTIONS` in spells.js, `heroes/reactions.js`)
+
+Sam's design: five reactions, each with its own animation, not certain or frequent, always better with the spell's level; after the first measurements, "stronger but less frequent". A hit of one school on a foe carrying another school's effect can set one off, before the hit's own effect:
+
+- **Shatter:** Lightning on a slowed foe: the hit again in full; the slow ends. Ice cracks, then bursts into spinning shards.
+- **Ignite:** Fire on a poisoned foe: its remaining poison lands at once at 2×, and as much again hits each foe within 80. A green flash turns orange; a puff of flame.
+- **Steam:** Ice on a burning foe: the burn goes out; it and foes within 80 miss 50% of their attacks for 3 s. A white cloud that hangs over them.
+- **Wildfire:** Fire on a rooted foe: up to six foes within 80 catch a burn worth the whole hit over 3 s. Flames run along the ground to them.
+- **Nightmare:** a Shadow spell (hexes too) on a stunned or confused foe: 120% of the caster's attack, and 3 s of fear. A hollow-eyed face flickers over the foe.
+- **Rules:** chance 20% at the hitting school's rank I, +5% a rank (40% at V); one reaction per foe every 6 s; bosses take half the damage and aren't frightened; magic-immune foes don't react. Spell hits, lingering spells, Shadow hexes and summoned elementals (at their caster's rank) set them off; basic attacks and crystals don't. Burns and poisons are told apart by colour. Each shows its name over the foe and a line in the battle log.
+- **Measured** (120 seeded fights a case; party: sword with a wolf, bow with 40 arrows, two casters at V of the pair's schools; level 8, common tier-1 gear, wild fights at depth 0.8; wins Frostfang / Ashen / Blightmire / Boneyard boss, combos off → on):
+  - Shipped: Steam (Fire + Ice) 118→118 / 92→90 / 47→51 / 120; Ignite (Poison + Fire) 114→117 / 87→88 / 46→50 / 120; Shatter (Ice + Lightning) 116→117 / 90→91 / 46→48 / 120; Wildfire (Wild + Fire) 115→117 / 87→95 / 46→45 / 120; Nightmare (Mind + Shadow) 118→118 / 98→102 / 60→58 / 120. Reactions a fight: Steam and Ignite 4–5, Shatter about 3, Wildfire and Nightmare about 1 (rank I Steam: about 2). Damage taken down up to 7% (Ignite).
+  - First version (30–50%, every 4 s; Shatter half, Ignite 1.5× with half splash in 60, Steam 30% for 2 s in 70, Wildfire half-hit burn to four in 70, Nightmare 60% and 2 s): within ±6 wins of off, reactions 1–6 a fight.
+
 ## Test mode tools (Nov 2026, `game/debug.js`, `components/DebugPanel.jsx`, `saveKey` in storage.js)
 
 Owner-approved (Sam wanted a way to try spells in live play: "dev tools or a dev account"). Open the game with `?debug` in the address (https://demonanic.github.io/Gauntlet-s-survival/?debug); the TEST tab sits on the middle of the right edge.
