@@ -141,6 +141,18 @@ A deliberately small model (not Demonanic's 11 slots), defined in `src/combat/ge
   Departure restocks every loaded slot from the stash and gives an arrowless archer
   plain arrows in a free slot.
 
+## The Dead March (Nov 2026, `MARCH` and `buildMarchWave` in encounters.js, region `march`)
+
+Sam's design: a mode like the Rift, but horde after horde, every wave a little harder.
+
+- **Region:** "The Dead March", endless (`endlessKind: "march"`), beside the Rift on the trip board with its best wave. Opens once Frostfang is cleared (`opensAfter`), LV 4+.
+- **Waves:** zombies only. Wave n: 20 + 3 a wave (at most 60); every 5th wave a surge of 1.5× (at most 80). HP ×1.1 and damage ×1.07 a wave from 1.0 (the Rift's growth). As in a horde: one every 0.3 s from the top and both sides, at most 18 on the field. Loot tier 2, +1 every 5 waves.
+- **Going home:** as in the Rift (the party heads home on its own when battered, or is called back; overrun keeps half the loot).
+- **Pay:** 15 gold a wave cleared (the Rift: 10) and a chest every 5 waves: 40–80 gold × tier and a crystal (Chipped for the first two chests, then Flawless, then Radiant). Record `records.marchBest`.
+- **Lines:** "The dead are marching" / "Hold the line", "Held the line for N waves of the dead", "Back from the Dead March".
+- **Test mode:** "Dead March from wave N" (1, 3, 5, 8, 10, 15, 20); the waves before N count as cleared.
+- **Measured** (60 seeded runs a case, auto-return as in play; party: sword with a wolf, bow with 40 arrows, the tested caster at V, a Fire III caster; uncommon gear). Waves cleared, median (Rift with the same party in brackets): LV8 Fire V 9 (9), Conjuration V 11 (11), Restoration V 14 (17); LV12 12 (12), 13 (13), 17 (19); LV16 13, 14, 19. Every run went home rather than being overrun. A run lasts 2.5–3× a Rift run (546–1,427 s against 215–621 s) and its kills pay about 3× the gold and XP (LV8 Fire V: 1,496 gold and 8,673 XP against 453 and 2,712): about 25–30% more a minute, before the March's bigger bounty and chests.
+
 ## Zombies and hordes (Nov 2026, `HORDE` and `buildHordeEncounter` in encounters.js, `startHorde` in expedition.js)
 
 Sam's design: hordes are random, unavoidable events of a new enemy, the zombie, which appears only in them. Set to the "medium" difficulty Sam picked after measuring.
