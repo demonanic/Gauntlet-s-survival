@@ -22,7 +22,7 @@ const AT = T0 + 60_000;
 const GOLDEN = {
   "sighting, good odds: sneak": "8508e169540f1e7a",
   "sighting, poor odds, badly hurt: sneak": "15eab051c9fd143e",
-  "sighting, poor odds, healthy: fight": "5b24c2c62e9e5b93",
+  "sighting, poor odds, healthy: fight": "2a4b05b6bd80ecf0",
   "boss, worn down: leave": "29b3bec5acd06835",
   "boss, healthy: fight": "c1e6abbe5c4bf126",
   "merchant: decline": "ea8c358bc570fcf3",

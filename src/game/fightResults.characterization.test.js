@@ -31,7 +31,7 @@ const GOLDEN = {
   "legendary victory": "951a48f3b7633551",
   "rift return": "5944787a3d247c04",
   "rift overrun": "358d8d27b23271ff",
-  "unattended trip, gutter": "a51e5c0216af715b",
+  "unattended trip, gutter": "41baafd891ed74a6",
   "unattended trip, boneyard": "07e5418738d25f5f",
   "unattended trip, frostfang": "b2ef330bd8152670",
   "unattended trip, rift": "0b62566ca26ac3da",

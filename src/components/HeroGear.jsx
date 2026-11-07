@@ -88,7 +88,7 @@ function Sockets({ item, crystals, gold, onInfuse, onExtract }) {
         return (
           <div key={index} className="flex flex-wrap items-center gap-1">
             <span className="text-slate-500">◇ Empty socket</span>
-            {owned.length === 0 && <span className="text-slate-600">· no {item.slot === "weapon" ? "weapon" : "armor"} crystals (Market)</span>}
+            {owned.length === 0 && <span className="text-slate-600">· no {item.slot === "weapon" ? (item.weaponType === "staff" ? "weapon crystals or staff shards" : "weapon") : "armor"}{item.slot === "weapon" && item.weaponType === "staff" ? "" : " crystals"} (Market)</span>}
             {owned.map((entry) => (
               <button
                 key={entry.id}

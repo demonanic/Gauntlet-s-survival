@@ -20,7 +20,7 @@ import {
   addFeed, changeMorale, closePending, completeExpedition, findHero, firstName, halveLoot, heal, heroId, livingParty, offerDeeper, pick,
   randomBetween, returnArrows, road,
 } from "./expeditionRun";
-import { createGearItem, normalizeHeroGear, randomCrystal, tierMult } from "./items";
+import { chestCrystal, createGearItem, normalizeHeroGear, randomCrystal, tierMult } from "./items";
 import { legacyBonuses } from "./legacy";
 import { NEMESIS, growNemesis, nemesisLevel, nemesisTriumphs, riseNemesis, slayNemesis } from "./nemesis";
 import { awardPetXp, earnPetCrate } from "./pets";
@@ -137,10 +137,10 @@ export function applyFightResult(state, region, { victory, party, xpGains, gold,
       let chestGold = 0;
       for (let i = 0; i < chests; i += 1) {
         chestGold += Math.round(randomBetween(MARCH.chestGold, rng) * tierMult(region.tier + Math.floor(i / 2)));
-        run.loot.items.push(randomCrystal(1 + Math.min(2, Math.floor(i / 2)), rng));
+        run.loot.items.push(chestCrystal(1 + Math.min(2, Math.floor(i / 2)), rng));
       }
       run.loot.gold += chestGold;
-      addFeed(run, at, `${chests} chest${chests > 1 ? "s" : ""} from the march: ${chestGold} gold and ${chests} crystal${chests > 1 ? "s" : ""}.`, "loot", true);
+      addFeed(run, at, `${chests} chest${chests > 1 ? "s" : ""} from the march: ${chestGold} gold and ${chests} crystal${chests > 1 ? "s or shards" : " or shard"}.`, "loot", true);
     }
     run.pending = null;
     if (!victory) {
@@ -190,7 +190,7 @@ export function applyFightResult(state, region, { victory, party, xpGains, gold,
   if (pending.horde) {
     const bonus = Math.round((gold || 0) * (HORDE.gold - 1));
     const chestGold = Math.round(randomBetween(HORDE.chestGold, rng) * tierMult(region.tier));
-    const crystal = randomCrystal(1, rng);
+    const crystal = chestCrystal(1, rng);
     run.loot.gold += bonus + chestGold;
     run.loot.items.push(crystal);
     run.stats.hordes = (run.stats.hordes || 0) + 1;
