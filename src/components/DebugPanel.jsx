@@ -5,7 +5,7 @@ import { MAX_GEAR_TIER, RARITY_ORDER, RARITIES } from "../game/items";
 import { REGIONS } from "../game/regions";
 import {
   MAX_HERO_LEVEL, debugAddGold, debugAddRenown, debugCareer, debugGivePets, debugGiveCrate, debugClearRegions, debugEndExpedition, debugGiveGearSet, debugGiveSupplies,
-  debugGiveCasting, debugLearnSchool, debugSetBossRank, debugSetLevels, debugSetSchoolRank, debugSetSpellRank, debugSkipTimers, debugTestFight,
+  debugGiveCasting, debugLearnSchool, debugSetBossRank, debugSetLevels, debugSetSchoolRank, debugSetSpellRank, debugSkipTimers, debugTestFight, debugTestMarch,
 } from "../game/debug";
 import { readRealSave } from "../game/storage";
 import { NeonButton } from "./ui";
@@ -17,6 +17,7 @@ const FIGHT_REASONS = {
   level_required: "Heroes are below this region's level: raise them (All heroes to LV) first.",
   previous_region: "This region isn't open yet: tap Clear all regions first.",
   in_fight: "A fight is already under way.",
+  on_trip: "The party is on a trip: recall it first.",
   hero_unavailable: "A hero can't go (knocked out or injured).",
 };
 
@@ -38,6 +39,14 @@ export default function DebugPanel({ guild, apply, onTestFight }) {
   const [regionId, setRegionId] = useState(guild.expedition?.regionId || "ashen");
   const [depth, setDepth] = useState(0.8);
   const [fightNote, setFightNote] = useState(null);
+  const [marchWave, setMarchWave] = useState(1);
+  const startMarch = () => {
+    const result = debugTestMarch(guild, marchWave);
+    if (!result.ok) { setFightNote(FIGHT_REASONS[result.reason] || `Can't start: ${result.reason}`); return; }
+    setFightNote(null);
+    setOpen(false);
+    onTestFight?.(result.state);
+  };
   const startFight = (boss, horde = false) => {
     const result = debugTestFight(guild, regionId, { boss, horde, depth });
     if (!result.ok) { setFightNote(FIGHT_REASONS[result.reason] || `Can't start: ${result.reason}`); return; }
@@ -139,6 +148,13 @@ export default function DebugPanel({ guild, apply, onTestFight }) {
             <NeonButton color="#FF5A5A" onClick={() => startFight(false)} data-testid="debug-fight-wild">Wild fight now</NeonButton>
             <NeonButton color="#FF0055" onClick={() => startFight(true)} data-testid="debug-fight-boss">Boss fight now</NeonButton>
             <NeonButton color="#94C973" onClick={() => startFight(false, true)} data-testid="debug-fight-horde">Horde now</NeonButton>
+          </div>
+          <div className={row}>
+            <span>Dead March from wave</span>
+            <select className={selectClass} value={marchWave} onChange={(event) => setMarchWave(Number(event.target.value))} data-testid="debug-march-wave">
+              {[1, 3, 5, 8, 10, 15, 20].map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+            <NeonButton color="#94C973" onClick={startMarch} data-testid="debug-march">Start</NeonButton>
           </div>
           <p className="text-[10px] text-slate-500">
             {guild.expedition ? "On a trip: the fight is in its region. " : "The first four heroes set out, healed. "}

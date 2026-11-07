@@ -86,6 +86,8 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
         setResult(buildFightOutcome({ victory: false, reason: "error" }, sim));
       },
     });
+    // Test mode can start an endless run part-way (debugTestMarch).
+    if (endless && expedition.pending?.startWave > 1) engine.wavesCleared = expedition.pending.startWave - 1;
     engineRef.current = engine;
     engine.render();
 
