@@ -141,6 +141,17 @@ A deliberately small model (not Demonanic's 11 slots), defined in `src/combat/ge
   Departure restocks every loaded slot from the stash and gives an arrowless archer
   plain arrows in a free slot.
 
+## Staff shards (Nov 2026, `CRYSTALS` kind "staff" in gear.js)
+
+Sam's design: staff-only crystals for casters. Same tiers (Chipped / Flawless / Radiant), sockets, fusing (3 into 1) and extraction as crystals; named "... Shard". Weapon crystals still fit staves.
+
+- **Wellspring:** +15 / 25 / 40% max mana (`manaBonus`, in `maxMana`).
+- **Focus:** +10 / 18 / 28% damage-spell power (`spellDamage`, in `spellPower`; not support spells).
+- **Reach:** +10 / 18 / 28% spell area (`spellArea`, in `spellRadius`).
+- **Fury** (Sam's "rate of damage"): the staff attacks 8 / 14 / 20% faster, and its wielder's burns and poisons deal the same damage that much sooner (`fury`; attack rate in the hero's derived stats, `_applyDot`).
+- **Sources:** where crystals come from (Market 45g, kill drops, treasure, end bosses; random crystals now pick from all 16 kinds), and horde and Dead March chests give a shard half the time.
+- **Measured** (120 seeded fights; the tested caster has a rare staff with two Flawless shards; level 8, wild fights at depth 0.8; wins Frostfang / Ashen / Blightmire / Boneyard boss; damage taken): Fire V, no shards 119 / 113 / 74 / 120 (519 / 737 / 1014 / 273); Focus 119 / 114 / 81 / 120 (481 / 692 / 968 / 237); Fury 119 / 116 / 80 / 120 (481 / 699 / 955 / 255); two Flawless Ember crystals for comparison 118 / 115 / 80 / 120 (491 / 701 / 965 / 267); Reach 119 / 113 / 77 / 120 (unchanged damage taken); Wellspring 119 / 114 / 75 / 120. Conjuration V: Wellspring 90 → 94 Blightmire wins; Reach unchanged. Restoration V: neither changes anything. So Focus and Fury are about as strong as an Ember crystal; Reach and Wellspring are nearly neutral (Reach only touches area spells; mana is rarely what runs out).
+
 ## The Dead March (Nov 2026, `MARCH` and `buildMarchWave` in encounters.js, region `march`)
 
 Sam's design: a mode like the Rift, but horde after horde, every wave a little harder.
@@ -494,7 +505,7 @@ leave the party at 58% HP instead of 33%.
 
 ## Crystals (`CRYSTALS` in gear.js, items.js)
 
-Sockets: common 0, uncommon/rare 1, epic/legendary 2, +1 for weapons (max 2). Weapon
+Sockets: common 0, uncommon/rare 1, epic/legendary 2, +1 for weapons (max 2). Staff shards: see "Staff shards". Weapon
 crystals: Ember (burn), Frost (chill), Venom (poison 4s), Storm (shock: chance to arc 60%
 of the hit to a foe within 110 px), Swiftness (attack speed), Blood (lifesteal). Armor
 crystals: Hearth/Tide/Purity/Dawn (cold/heat/toxic/dark resistance), Vigor (max HP %),

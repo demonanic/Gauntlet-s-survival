@@ -2,7 +2,7 @@
 
 Read this first, then `docs/ROADMAP.md` (the living checklist and pass log) and `docs/DESIGN.md` (every approved design, with its measurements). `docs/LEGACY_MANIFEST.md` tracks the old Demonanic code.
 
-Last updated: 2026-11-07, with the Dead March open as draft PR #64.
+Last updated: 2026-11-07, with staff shards open as draft PR #65.
 
 ## The project
 
@@ -66,8 +66,8 @@ Last updated: 2026-11-07, with the Dead March open as draft PR #64.
   - #61: reliability (cloud save grants tightened and applied; HUD fresh at 8×; Phase 10 measured; test-mode FPS readout).
   - #62: combos (Shatter, Ignite, Steam, Wildfire, Nightmare), stronger but rarer.
   - #63: zombies and random hordes (medium difficulty), a "Horde now" test button.
-- **Open:** draft PR #64, the Dead March: an endless run of hordes beside the Rift (DESIGN.md "The Dead March"); a test button to start it at any wave. Same waves reached as the Rift; runs longer and pay about 25–30% more a minute.
-- **Approved next (Sam, Nov 7):** staff shards (staff-only crystals: Wellspring mana, Focus spell damage, Reach area size, Fury rate of damage; Chipped / Flawless / Radiant).
+  - #64: the Dead March (an endless run of hordes beside the Rift).
+- **Open:** draft PR #65, staff shards (Wellspring, Focus, Reach, Fury; DESIGN.md "Staff shards"). Focus and Fury measure like an Ember crystal; Reach and Wellspring nearly neutral (options for Sam in the PR).
 - **Waiting on Sam:** error boundary, auto-cast switches, the wolf's taunt, thinning glow, spreading unattended fights (proposals in #61), and his phone's fps.
 - **Next (Sam's choice):**
   - **Phases 9–11:** one definition per enemy, performance measurements, final review (ROADMAP).
