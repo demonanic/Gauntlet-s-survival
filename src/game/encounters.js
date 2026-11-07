@@ -66,7 +66,7 @@ function weightedPick(weights, rng) {
 // s, at most `onField` at once. Winning pays `gold` and `xp` times a wild
 // fight's, plus a chest (expedition.js).
 export const HORDE = Object.freeze({
-  enemy: "zombie", count: Object.freeze([40, 60]), onField: 20, spawnEvery: 0.3,
+  enemy: "zombie", count: Object.freeze([35, 50]), onField: 18, spawnEvery: 0.3,
   chance: 1 / 8, fromRegion: "frostfang", gold: 2, xp: 1.5, chestGold: Object.freeze([60, 120]),
 });
 

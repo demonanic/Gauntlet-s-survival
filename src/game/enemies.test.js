@@ -196,16 +196,16 @@ describe("zombies and hordes", () => {
     expect(C.ENEMIES.zombie.horde).toBe(true);
   });
 
-  test("a horde: 40-60 zombies scaled like the region's wild squads, 20 at a time, fast arrivals", async () => {
+  test("a horde: 35-50 zombies scaled like the region's wild squads, 18 at a time, fast arrivals", async () => {
     const { buildHordeEncounter } = await import("./encounters");
     const region = REGIONS.find((entry) => entry.id === "ashen");
     for (const roll of [0, 0.5, 0.999]) {
       const wave = buildHordeEncounter(region, 0.5, () => roll);
       expect(wave.horde).toBe(true);
-      expect(wave.enemies.length).toBeGreaterThanOrEqual(40);
-      expect(wave.enemies.length).toBeLessThanOrEqual(60);
+      expect(wave.enemies.length).toBeGreaterThanOrEqual(HORDE.count[0]);
+      expect(wave.enemies.length).toBeLessThanOrEqual(HORDE.count[1]);
       expect(wave.enemies.every((enemy) => enemy.type === "zombie")).toBe(true);
-      expect(wave.fieldCap).toBe(20);
+      expect(wave.fieldCap).toBe(HORDE.onField);
       expect(wave.spawnEvery).toBe(HORDE.spawnEvery);
       expect(wave.reinforcements).toBeUndefined();
     }
@@ -215,7 +215,7 @@ describe("zombies and hordes", () => {
     expect(zombie.maxHp / goblin.maxHp).toBeCloseTo(C.ENEMIES.zombie.hp / C.ENEMIES[goblin.type].hp, 1);
   });
 
-  test("in a fight, a horde keeps at most 20 on the field and comes from the top and both sides", async () => {
+  test("in a fight, a horde keeps at most HORDE.onField on the field and comes from the top and both sides", async () => {
     const { buildHordeEncounter } = await import("./encounters");
     const region = REGIONS.find((entry) => entry.id === "ashen");
     const state = createGuild();
@@ -229,7 +229,7 @@ describe("zombies and hordes", () => {
       for (const e of engine.active) if (!before.has(e) && !e._seen) { e._seen = true; entries.push({ x: e.x, y: e.y }); }
       most = Math.max(most, engine.active.length);
     }
-    expect(most).toBeLessThanOrEqual(20);
+    expect(most).toBeLessThanOrEqual(HORDE.onField);
     expect(most).toBeGreaterThan(10);
     expect(entries.some((p) => p.y < 40)).toBe(true);
     expect(entries.some((p) => p.x < 20 && p.y >= 40)).toBe(true);

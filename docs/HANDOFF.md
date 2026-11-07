@@ -65,7 +65,7 @@ Last updated: 2026-11-07, with hordes open as draft PR #63.
   - #60: test tools under `?debug` (own save, no cloud sync; magic tools; test fights; battle cheats).
   - #61: reliability (cloud save grants tightened and applied; HUD fresh at 8×; Phase 10 measured; test-mode FPS readout).
   - #62: combos (Shatter, Ignite, Steam, Wildfire, Nightmare), stronger but rarer.
-- **Open:** draft PR #63, zombies and random hordes (DESIGN.md "Zombies and hordes"); a "Horde now" test button. Measured hard as built (Fire V party 33 / 19 / 0 wins of 120 in Frostfang / Ashen / Blightmire); two easier versions measured for Sam to pick.
+- **Open:** draft PR #63, zombies and random hordes (DESIGN.md "Zombies and hordes"); a "Horde now" test button. Set to Sam's "medium" (35–50 zombies, 28 HP, 6 damage, 18 on the field): Fire V party 119 / 117 / 10 wins of 120 in Frostfang / Ashen / Blightmire.
 - **Approved next (Sam, Nov 7):** staff shards (staff-only crystals: Wellspring mana, Focus spell damage, Reach area size, Fury rate of damage; Chipped / Flawless / Radiant).
 - **Waiting on Sam:** error boundary, auto-cast switches, the wolf's taunt, thinning glow, spreading unattended fights (proposals in #61), and his phone's fps.
 - **Next (Sam's choice):**
