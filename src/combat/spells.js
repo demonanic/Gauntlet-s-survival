@@ -203,10 +203,11 @@ export const ELEMENT_EFFECTS = Object.freeze({
   conjuration: "spinning blades and an elemental fight beside the caster",
 });
 
-// Reactions (combos, Nov 2026, owner's design): a hit of one school on a foe
-// carrying another school's effect can set one off. The chance is
-// `chance.base` plus `chance.perRank` for each rank of the hitting school past
-// I (30% at I, 50% at V); one reaction per foe every `cooldown` s; on bosses a
+// Reactions (combos, Nov 2026, owner's design; then "stronger but less
+// frequent"): a hit of one school on a foe carrying another school's effect
+// can set one off. The chance is `chance.base` plus `chance.perRank` for each
+// rank of the hitting school past I (20% at I, 40% at V); one reaction per foe
+// every `cooldown` s; on bosses a
 // reaction's damage is halved and Nightmare doesn't frighten. Each uses up
 // the effect that set it off (heroes/reactions.js).
 //   Shatter: Lightning on a slowed foe: the hit again at `bonus` share.
@@ -219,14 +220,14 @@ export const ELEMENT_EFFECTS = Object.freeze({
 //   Nightmare: a Shadow spell on a stunned or confused foe: `burst` of the
 //     caster's attack, and it flees in fear for `seconds`.
 export const REACTIONS = Object.freeze({
-  chance: Object.freeze({ base: 0.3, perRank: 0.05 }),
-  cooldown: 4,
+  chance: Object.freeze({ base: 0.2, perRank: 0.05 }),
+  cooldown: 6,
   boss: 0.5,
-  shatter: Object.freeze({ name: "Shatter", by: "electric", bonus: 0.5 }),
-  ignite: Object.freeze({ name: "Ignite", by: "fire", burst: 1.5, splash: 0.5, radius: 60 }),
-  steam: Object.freeze({ name: "Steam", by: "ice", blind: 0.3, seconds: 2, radius: 70 }),
-  wildfire: Object.freeze({ name: "Wildfire", by: "fire", burn: 0.5, radius: 70, max: 4 }),
-  nightmare: Object.freeze({ name: "Nightmare", by: "shadow", burst: 0.6, seconds: 2 }),
+  shatter: Object.freeze({ name: "Shatter", by: "electric", bonus: 1 }),
+  ignite: Object.freeze({ name: "Ignite", by: "fire", burst: 2, splash: 1, radius: 80 }),
+  steam: Object.freeze({ name: "Steam", by: "ice", blind: 0.5, seconds: 3, radius: 80 }),
+  wildfire: Object.freeze({ name: "Wildfire", by: "fire", burn: 1, radius: 80, max: 6 }),
+  nightmare: Object.freeze({ name: "Nightmare", by: "shadow", burst: 1.2, seconds: 3 }),
 });
 
 // Summon Elemental: the kind comes from the caster's best other school (highest

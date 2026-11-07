@@ -64,7 +64,7 @@ Last updated: 2026-11-07, with combos open as draft PR #62.
   - #59: spells part 4, Conjuration (Spectral Blades 15%, Summon Elemental) and Mirror Self (60%, fools every non-boss foe on the caster).
   - #60: test tools under `?debug` (own save, no cloud sync; magic tools; test fights; battle cheats).
   - #61: reliability (cloud save grants tightened and applied; HUD fresh at 8×; Phase 10 measured; test-mode FPS readout).
-- **Open:** draft PR #62, combos: Shatter, Ignite, Steam, Wildfire, Nightmare, each with its own animation (DESIGN.md "Combos"). Measured about neutral for winning; a stronger version is in DESIGN.md for Sam to pick.
+- **Open:** draft PR #62, combos: Shatter, Ignite, Steam, Wildfire, Nightmare, each with its own animation (DESIGN.md "Combos"). Retuned on Sam's call: stronger but less frequent (20–40%, every 6 s). Measured: small gains (up to +8 wins in Ashen with Wildfire).
 - **Approved next (Sam, Nov 7):** zombies and horde fights (random, unavoidable, about 1 in 8 wild fights from Frostfang on; 40-60 zombies at 40% HP, 60% damage; a chest), then staff shards (staff-only crystals: Wellspring mana, Focus spell damage, Reach area size, Fury rate of damage; Chipped / Flawless / Radiant).
 - **Waiting on Sam:** error boundary, auto-cast switches, the wolf's taunt, thinning glow, spreading unattended fights (proposals in #61), and his phone's fps.
 - **Next (Sam's choice):**
