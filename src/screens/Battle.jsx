@@ -61,7 +61,8 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
     return () => cancelAnimationFrame(raf);
   }, [cheats]);
   const region = getRegion(expedition.regionId);
-  const endless = !!region.endless;
+  // Story battles are one fight each, even though their region is endless-kind.
+  const endless = !!region.endless && region.endlessKind !== "story";
 
   useEffect(() => {
     const wave = createWave();

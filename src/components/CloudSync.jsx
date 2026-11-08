@@ -28,7 +28,8 @@ function SaveSummary({ title, summary, updatedAt }) {
 // `onLoadSave(state)` replaces the local guild when the player picks the cloud copy.
 // `localReplaced`: this device's save was unreadable and a fresh guild started;
 // signing in then always asks before anything is written to the cloud.
-export default function CloudSync({ guild, onLoadSave, localReplaced = false }) {
+// `onUserChange(signedIn)`: once the account is known, and on every sign-in or out.
+export default function CloudSync({ guild, onLoadSave, localReplaced = false, onUserChange }) {
   const [user, setUser] = useState(null);
   const [open, setOpen] = useState(false);
   const [choice, setChoice] = useState(null);
@@ -61,10 +62,13 @@ export default function CloudSync({ guild, onLoadSave, localReplaced = false }) 
     }
   };
 
+  const userChange = useRef(onUserChange);
+  userChange.current = onUserChange;
   useEffect(() => {
-    currentUser().then(setUser).catch(() => setUser(null));
+    currentUser().then((found) => { setUser(found); userChange.current?.(!!found); }).catch(() => { setUser(null); userChange.current?.(false); });
     return onAuthChange((next, event) => {
       setUser(next);
+      userChange.current?.(!!next);
       if (event === "PASSWORD_RECOVERY") {
         setRecovering(true);
         setOpen(true);
