@@ -17,7 +17,7 @@ import { quickSlotMethods } from "./heroes/quickSlots";
 import { partyOrderMethods } from "./heroes/orders";
 import { heroSpellMethods } from "./heroes/spells";
 import { enemyTurn, tacticalTarget } from "./enemies/turn";
-import { BODY_PAD, BULWARK_COVER, BULWARK_GUARD, BULWARK_GUARD_RADIUS } from "./enemies/tuning";
+import { BODY_PAD, BULWARK_COVER, BULWARK_GUARD, BULWARK_GUARD_RADIUS, STORY_BOSS } from "./enemies/tuning";
 import { SpellVfx } from "./spellVfx";
 import { BONDS, memorialDamage } from "../game/bonds";
 import * as C from "./config";
@@ -126,8 +126,9 @@ function classlessHeroDerived(hero) {
 }
 
 // Haste (Enchanting) speeds a hero up for a while.
+// The Chronomancer's time field (story mode) slows a hero down.
 function heroMovementSpeed(hero, time) {
-  return hero.d.movementSpeed * (hero.hasteUntil > time ? 1 + hero.hasteAmount : 1);
+  return hero.d.movementSpeed * (hero.hasteUntil > time ? 1 + hero.hasteAmount : 1) * (hero.timeSlowUntil > time ? 1 - hero.timeSlow : 1);
 }
 
 const LANES = 5;
@@ -391,9 +392,47 @@ export class Engine {
 
   // Free Roam's Warded twist: a warded foe takes less damage while one of
   // its leaders (wardSource) is still standing. 1 for everyone else.
+  // Story mode: the Ancient Evil's presence shields its servants too.
   _foeWardCut(target) {
-    if (!target.warded) return 1;
-    return this.active.some((enemy) => enemy.wardSource && enemy.hp > 0) ? 1 - target.warded : 1;
+    const aura = target.evilAuraUntil > this.time ? 1 - STORY_BOSS.ancientEvil.auraCut : 1;
+    if (!target.warded) return aura;
+    return aura * (this.active.some((enemy) => enemy.wardSource && enemy.hp > 0) ? 1 - target.warded : 1);
+  }
+
+  // Story mode, the Ancient Evil: Confusion for `seconds`. Spellguard or
+  // Aegis wards it off (and breaks it, heroes loop).
+  _confuseHero(h, seconds, color) {
+    if (!h.alive) return;
+    if (h.spellguardUntil > this.time || h.aegisUntil > this.time) {
+      this._float(h.x, h.y - 24, "RESISTED", "#FFB547");
+      return;
+    }
+    h.confusedUntil = this.time + seconds;
+    h.spellQueue = [];
+    h.manualTarget = null;
+    this._float(h.x, h.y - 24, "CONFUSED", color);
+    this._log("control", `${this._name(h)} is confused`);
+  }
+
+  // A confused hero strikes at whoever is near, friend or foe, as their
+  // weapon allows; an ally takes half the blow.
+  _confusedTurn(h) {
+    if (h.cd > 0) return;
+    h.cd = h.d.rate;
+    const reach = Math.max(h.d.range || 0, 60);
+    const foes = this.active.filter((e) => e.hp > 0 && Math.hypot(e.x - h.x, e.y - h.y) <= reach);
+    const allies = this.heroes.filter((ally) => ally !== h && ally.alive && Math.hypot(ally.x - h.x, ally.y - h.y) <= reach);
+    const pool = [...foes, ...allies];
+    if (!pool.length) return;
+    const target = pool[Math.floor(this.rng() * pool.length)];
+    if (allies.includes(target)) {
+      const damage = this._classlessReducedDamage(target, h.d.damage * 0.5);
+      this._resolveClasslessHeroDamage(target, damage);
+      this._float(target.x, target.y - 20, "-" + Math.round(damage), "#E879F9");
+    } else {
+      this._bonusDamage(target, h.d.damage, "H" + h.i, h.d.color);
+    }
+    this.effects.push({ x: target.x, y: target.y, r: 10, life: 0.2, color: "#E879F9", ring: true });
   }
 
   // Free Roam's Thieves twist: a bandit still standing when its time is up
@@ -627,6 +666,13 @@ export class Engine {
       h.cd -= dt * (activeAttackSpeedBonus > 0 ? attackSpeedMultiplier : 1);
       // Haste stacks on top of the attack speed cap.
       if (h.hasteUntil > this.time) h.cd -= dt * h.hasteAmount * (activeAttackSpeedBonus > 0 ? attackSpeedMultiplier : 1);
+      // The Chronomancer's time field: swings come slower.
+      if (h.timeSlowUntil > this.time) h.cd += dt * h.timeSlow;
+      // The Ancient Evil's Confusion: the hero lashes out at anyone near.
+      if (h.confusedUntil > this.time) {
+        if (h.spellguardUntil > this.time || h.aegisUntil > this.time) h.confusedUntil = 0;
+        else { this._confusedTurn(h); continue; }
+      }
 
       if (h.retreating) {
         this._returnHome(h, dt);
@@ -1592,7 +1638,7 @@ export class Engine {
     // Gauntlet: a sapper's bomb goes off when it falls (at half strength), and
     // necromancers can raise anyone else who falls.
     if (e.bomber && !e.detonated) this._detonate(e, 0.5);
-    else if (!e.boss && !e.raised) this.fallen.push({ enemy: e, x: e.x, y: e.y });
+    else if (!e.boss && !e.raised && !e.portal) this.fallen.push({ enemy: e, x: e.x, y: e.y });
     if (e.raised) {
       // Raised dead come back once and carry nothing worth taking.
       this.killed += 1;
@@ -1757,7 +1803,9 @@ export class Engine {
       for (let i = 0; i < livingEnemies.length; i++) {
         for (let j = i + 1; j < livingEnemies.length; j++) {
           const a = livingEnemies[i], b = livingEnemies[j];
-          separate(a, b, enemyRadius(a) + enemyRadius(b), 0.5, 0.5);
+          // A Gatewarden's portal (story mode) stays where it opened.
+          if (a.portal || b.portal) separate(a, b, enemyRadius(a) + enemyRadius(b), a.portal ? 0 : 1, b.portal ? 0 : 1);
+          else separate(a, b, enemyRadius(a) + enemyRadius(b), 0.5, 0.5);
         }
       }
 
@@ -1765,7 +1813,8 @@ export class Engine {
       // their bodies stop at a readable contact distance rather than merging.
       for (const h of livingHeroes) {
         for (const e of livingEnemies) {
-          separate(h, e, heroRadius + enemyRadius(e), 0.5, 0.5);
+          if (e.portal) separate(h, e, heroRadius + enemyRadius(e), 1, 0);
+          else separate(h, e, heroRadius + enemyRadius(e), 0.5, 0.5);
         }
       }
 

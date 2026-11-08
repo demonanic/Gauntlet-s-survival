@@ -24,5 +24,29 @@ export const BULWARK_GUARD = 0.1;
 export const BULWARK_GUARD_RADIUS = 60;
 // Seconds a foe counts as busy with whoever it last attacked (backstabs).
 export const BACKSTAB_WINDOW = 3;
+// Story mode bosses (storyBosses.js; owner's design, Nov 2026).
+// Gatewarden: a portal every `portalEvery` s (at most `maxPortals` open,
+// `portalHp` of her max HP each), each spawning one of `spawns` every
+// `spawnEvery` s until destroyed. Chronomancer: a time field every
+// `fieldEvery` s on heroes within `fieldRadius` of one: attack and move
+// `slow` slower for `slowSeconds`; once, below half HP, rewinds to `rewindTo`.
+// Ritualist: a `channel` s ritual every `channelEvery` s (the first after
+// `firstChannel`); `breakShare` of her max HP in damage meanwhile breaks it
+// (stunned `brokenStun` s); finished, it blasts every hero for `blast` of
+// their max HP. Ancient Evil: allies within `auraRadius` move and hit
+// `auraBoost` x and take `auraCut` less; Confusion on `confuseCount` heroes
+// every `confuseEvery` s for `confuseSeconds` (Spellguard or Aegis wards it
+// off and breaks it); the wormhole opens at `wormholeAt` of its HP.
+export const STORY_BOSS = Object.freeze({
+  gatewarden: Object.freeze({ portalEvery: 14, firstPortal: 4, maxPortals: 2, portalHp: 0.1, spawnEvery: 6, spawns: Object.freeze(["bandit", "orc", "warlock"]) }),
+  chronomancer: Object.freeze({ fieldEvery: 12, firstField: 5, fieldRadius: 110, slow: 0.4, slowSeconds: 5, rewindBelow: 0.5, rewindTo: 0.75 }),
+  ritualist: Object.freeze({ channelEvery: 20, firstChannel: 8, channel: 12, breakShare: 0.12, brokenStun: 3, blast: 0.45 }),
+  ancientEvil: Object.freeze({
+    auraRadius: 150, auraBoost: 1.25, auraCut: 0.25,
+    confuseEvery: 15, firstConfuse: 6, confuseCount: 2, confuseSeconds: 3.5,
+    wormholeAt: Object.freeze([0.66, 0.33]), wormholeFoes: Object.freeze(["warlock", "orc", "orc", "bandit"]), wormholeZombies: 10,
+  }),
+});
+
 // Heroes this close to a boss are in melee with it: it won't lob bombs at them.
 export const BOSS_MELEE_REACH = 90;

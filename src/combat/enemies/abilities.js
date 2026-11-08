@@ -2,12 +2,16 @@
 // Champion bosses and Warlocks do besides moving and attacking. The engine
 // calls these from its enemy turn; Silence stops all three.
 import { BOSS_MINIONS, CHAMPION_SWARM, CHAMPION_WARD, WARLORD_GANG } from "./tuning";
+import { STORY_BOSS_TYPES, storyBossTick } from "./storyBosses";
 
 // A boss's special (every few seconds): the Abomination's toxic slam and its
 // one-time enrage, the Bandit Warlord's call and charge, the Bog Lich's
 // mending, raising and bile, and the Demon's and Imperial Necromancer's
 // summons; bombs are lobbed at heroes keeping their distance.
 export function bossAbility(engine, e, dt) {
+  // Story mode's bosses have powers of their own (storyBosses.js), on top of
+  // their ordinary bolts.
+  if (STORY_BOSS_TYPES.has(e.type)) { storyBossTick(engine, e, dt); return; }
   e.abilityCd = (e.abilityCd == null ? 5 : e.abilityCd) - dt;
   // Gauntlet boss identities: the Abomination enrages once, below 35% HP.
   if (e.type === "nuclearBehemoth" && !e.enraged && e.hp < e.maxHp * 0.35) {
