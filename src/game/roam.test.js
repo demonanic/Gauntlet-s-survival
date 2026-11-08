@@ -33,7 +33,7 @@ describe("Free Roam scenarios", () => {
     expect(big.bigEvent).toBe(true);
     expect(big.scenario.layer).toBe("horde");
     expect(zombiesOf(big)).toHaveLength(ROAM.horde.first + ROAM.horde.step * 4);
-    expect(big.event).toMatch(/a horde close behind\.$/);
+    expect(big.event).toMatch(/a horde (close|gathering) behind/);
   });
 
   test("the horde layer comes in all three kinds at about the planned odds", () => {
@@ -239,5 +239,94 @@ describe("Free Roam swaps between waves", () => {
     const { state } = roamFight();
     const hurt = { ...state, injuries: { [state.heroes[4].identity.id]: 99999 } };
     expect(benchHeroes(hurt, 2000)).toEqual([]);
+  });
+});
+
+describe("Free Roam twists", () => {
+  // The first wave (n, seed) found with the twist.
+  const withTwist = (twist, n = 6) => {
+    for (let seed = 0; seed < 2000; seed += 1) {
+      const wave = buildRoamWave(n, seededRandom(seed));
+      if (wave.twist === twist) return wave;
+    }
+    throw new Error(`no ${twist}`);
+  };
+  const engineFor = (wave) => {
+    const hero = structuredClone(createGuild().heroes[0]);
+    hero.traits = [];
+    hero.equipment = { weapon: createGearItem({ slot: "weapon", variant: "sword", rarity: "common", tier: 1 }) };
+    hero.combat.hp = classlessMaxHp(hero);
+    const engine = new Engine({ getContext: () => null }, createEncounterSim([hero], 1, wave, { rng: seededRandom(5) }), wave, {});
+    engine.godMode = true;
+    return engine;
+  };
+
+  test("about 30% of waves from wave 4 have one; never before, never a boss wave", () => {
+    let twists = 0;
+    const rng = seededRandom(21);
+    for (let i = 0; i < 3000; i += 1) {
+      expect(buildRoamWave(3, rng).twist).toBeUndefined();
+      expect(buildRoamWave(10, rng).twist).toBeUndefined();
+      if (buildRoamWave(6, rng).twist) twists += 1;
+    }
+    expect(twists / 3000).toBeCloseTo(ROAM.twistChance, 1);
+  });
+
+  test("Warded: grunts take half damage until their leaders fall", () => {
+    const wave = withTwist("warded");
+    expect(wave.event).toMatch(/ward the rest/);
+    const engine = engineFor(wave);
+    const leader = wave.enemies.find((enemy) => enemy.wardSource);
+    const grunt = wave.enemies.find((enemy) => enemy.warded);
+    engine.active = [leader, grunt];
+    for (const enemy of engine.active) enemy.dmgBy = {};
+    expect(engine._foeWardCut(grunt)).toBe(1 - ROAM.twists.warded.wardCut);
+    expect(engine._foeWardCut(leader)).toBe(1);
+    const before = grunt.hp;
+    engine._bonusDamage(grunt, 10, "H0", "#fff");
+    expect(before - grunt.hp).toBeCloseTo(5, 5);
+    leader.hp = 0;
+    expect(engine._foeWardCut(grunt)).toBe(1);
+  });
+
+  test("Late horde: the zombies wait until about 20 s", () => {
+    const wave = withTwist("lateHorde");
+    expect(wave.event).toMatch(/gathering behind them/);
+    const engine = engineFor(wave);
+    let firstZombie = null;
+    for (let frame = 0; frame < 30 * 40 && firstZombie == null; frame += 1) {
+      engine.update(1 / 30);
+      if (engine.active.some((enemy) => enemy.type === HORDE.enemy)) firstZombie = engine.time;
+    }
+    expect(firstZombie).toBeGreaterThanOrEqual(ROAM.twists.lateHorde.lateAt - 1);
+  });
+
+  test("Thieves: a bandit left standing runs off with gold", () => {
+    const wave = withTwist("thieves");
+    expect(wave.event).toMatch(/after your gold/);
+    const engine = engineFor(wave);
+    engine.sim.gold = 500;
+    const bandit = wave.enemies.find((enemy) => enemy.thief);
+    engine.spawnQueue = [bandit];
+    engine.update(1 / 30);
+    expect(engine.active).toContain(bandit);
+    bandit.speed = 0;
+    bandit.hp = bandit.maxHp = 1e9;
+    for (let frame = 0; frame < 30 * (ROAM.twists.thieves.after + 1) && engine.active.includes(bandit); frame += 1) engine.update(1 / 30);
+    expect(engine.active).not.toContain(bandit);
+    expect(bandit.escaped).toBe(true);
+    expect(engine.sim.gold).toBe(500 - bandit.thief.steal);
+    expect(engine.stolen).toBe(bandit.thief.steal);
+  });
+
+  test("Flanked: the squad comes in down both edges", () => {
+    const wave = withTwist("flanked");
+    const engine = engineFor(wave);
+    const squad = wave.enemies.filter((enemy) => enemy.flank);
+    expect(squad.length).toBeGreaterThan(1);
+    engine.spawnQueue = [...squad];
+    for (let frame = 0; frame < 30 * 20 && engine.spawnQueue.length; frame += 1) engine.update(1 / 30);
+    const xs = new Set(squad.map((enemy) => (enemy.x < 210 ? "left" : "right")));
+    expect(xs).toEqual(new Set(["left", "right"]));
   });
 });

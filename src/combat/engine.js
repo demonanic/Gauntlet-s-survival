@@ -382,6 +382,32 @@ export class Engine {
   // Gauntlet endless mode: the player ends the fight and keeps what was earned.
   // A horde comes from every side: half at the top, a quarter down each edge
   // (in the upper half of the field, away from the heroes).
+  // Free Roam's Flanked twist: the squad comes in down both edges, in turn.
+  _flankEntry(e) {
+    this.flankSide = !this.flankSide;
+    e.x = this.flankSide ? 12 : W - 12;
+    e.y = 40 + this.rng() * (H * 0.45 - 40);
+  }
+
+  // Free Roam's Warded twist: a warded foe takes less damage while one of
+  // its leaders (wardSource) is still standing. 1 for everyone else.
+  _foeWardCut(target) {
+    if (!target.warded) return 1;
+    return this.active.some((enemy) => enemy.wardSource && enemy.hp > 0) ? 1 - target.warded : 1;
+  }
+
+  // Free Roam's Thieves twist: a bandit still standing when its time is up
+  // runs off with some of the fight's gold. It leaves the field, not dead.
+  _thiefEscapes(e) {
+    const stolen = Math.min(Math.max(0, Math.floor(this.sim.gold)), e.thief.steal);
+    this.sim.gold -= stolen;
+    this.stolen = (this.stolen || 0) + stolen;
+    e.escaped = true;
+    this._float(e.x, e.y - 20, stolen ? `ESCAPED -${stolen}g` : "ESCAPED", "#FBBF24");
+    this._log("death", `${this._foeName(e)} escapes${stolen ? ` with ${stolen} gold` : ""}`);
+    this.effects.push({ x: e.x, y: e.y, r: 20, life: 0.4, color: e.color, ring: true });
+  }
+
   _hordeEntry(e) {
     const roll = this.rng();
     if (roll < 0.5) { e.x = 20 + this.rng() * (W - 40); e.y = 10 + this.rng() * 20; return; }
@@ -539,7 +565,9 @@ export class Engine {
         // A horde wave comes from every side; so does a horde that follows a
         // squad in a mixed wave (Free Roam: `hordeEntry` on each zombie).
         if (this.wave.horde || e.hordeEntry) this._hordeEntry(e);
+        else if (e.flank) this._flankEntry(e);
         else { e.x = laneX(pickLane(this, e)); e.y = 10 + this.rng() * 20; }
+        if (e.thief) e.thief.at = this.time + e.thief.after;
         e.lane = Math.max(0, Math.min(LANES - 1, Math.round(e.x / (W / LANES) - 0.5)));
         e.dmgBy = {}; e.atkCd = 0; e.state = "advance";
         this.active.push(e);
@@ -562,11 +590,12 @@ export class Engine {
       }
     }
     for (const e of this.active) {
+      if (e.thief && e.hp > 0 && this.time >= e.thief.at) { this._thiefEscapes(e); continue; }
       this._tickDots(e, dt);
       this._landMeteors(e);
       if (e.hp > 0) enemyTurn(this, e, dt);
     }
-    this.active = this.active.filter((e) => e.hp > 0);
+    this.active = this.active.filter((e) => e.hp > 0 && !e.escaped);
 
     // heroes: in an encounter the party is engaged as soon as any enemy is on
     // the field. Melee heroes advance to attack; ranged fire in place.
@@ -1086,7 +1115,7 @@ export class Engine {
     let source = null;
     let color = null;
     for (const dot of e.dots) {
-      const amount = dot.dps * Math.min(dt, Math.max(0, dot.until - (this.time - dt)));
+      const amount = dot.dps * Math.min(dt, Math.max(0, dot.until - (this.time - dt))) * this._foeWardCut(e);
       if (amount <= 0) continue;
       e.hp = Math.max(0, e.hp - amount);
       e.dmgBy[dot.sourceId] = (e.dmgBy[dot.sourceId] || 0) + amount;
@@ -1107,6 +1136,7 @@ export class Engine {
   // Extra damage from splash, cleave and thorns: no crits or on-hit effects.
   _bonusDamage(target, amount, sourceId, color) {
     if (!target || target.hp <= 0 || !(amount > 0)) return;
+    amount *= this._foeWardCut(target);
     target.hp = Math.max(0, target.hp - amount);
     target.dmgBy[sourceId] = (target.dmgBy[sourceId] || 0) + amount;
     target.hitUntil = this.time + 0.18;
@@ -1301,6 +1331,7 @@ export class Engine {
         damage *= 1 - BULWARK_GUARD;
       }
     }
+    damage *= this._foeWardCut(target);
     target.hp = Math.max(0, target.hp - damage);
     if (p.damageCategory === "weapon") {
       this._tally(hero, hero.d.rangeMode === "melee" ? "meleeHits" : "rangedHits", 1);

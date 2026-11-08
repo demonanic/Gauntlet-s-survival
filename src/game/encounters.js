@@ -121,6 +121,18 @@ export const ROAM = Object.freeze({
   bigEvery: 5, bossEvery: 10,
   hpBase: 0.8, dmgBase: 0.8,
   bounty: 12, chestEvery: 5, chestGold: Object.freeze([40, 80]),
+  // Twists: `chance` of a wave from `twistFrom` on (never a boss wave).
+  // Warded: grunts take `wardCut` less damage from the party's hits while a
+  // leader stands. Late horde: the zombies wait until `lateAt` s. Thieves:
+  // a bandit still standing `after` s in runs off with `steal` gold × loot
+  // tier. Flanked: the squad comes in from both edges.
+  twistFrom: 4, twistChance: 0.3,
+  twists: Object.freeze({
+    warded: Object.freeze({ wardCut: 0.5 }),
+    lateHorde: Object.freeze({ lateAt: 20 }),
+    thieves: Object.freeze({ after: 25, steal: 20 }),
+    flanked: Object.freeze({}),
+  }),
 });
 
 // Free Roam factions: who leads (`leaders`, at most `maxLeaders`) and who follows.
@@ -142,10 +154,18 @@ const listNames = (keys) => {
 
 // The event card for a Free Roam wave: "A Chaos warband of 3 Warlocks and their
 // grunts (2 Orcs and a Bandit) attacks, a horde close behind."
-export function describeRoamEvent({ faction, boss, leaders, grunts, layer }) {
+const TWIST_LINES = Object.freeze({
+  warded: " Their leaders ward the rest: bring them down first.",
+  thieves: " Their bandits are after your gold.",
+  flanked: " They come at you from both sides.",
+});
+
+export function describeRoamEvent({ faction, boss, leaders, grunts, layer, twist }) {
   const f = FACTIONS.find((entry) => entry.id === faction);
   const an = (word) => (/^[AEIOU]/i.test(word) ? "an" : "a");
-  const tail = layer === "horde" ? ", a horde close behind." : layer === "trickle" ? ", the dead trickling in after them." : ".";
+  const tail = (layer === "horde" ? (twist === "lateHorde" ? ", a horde gathering behind them." : ", a horde close behind.")
+    : layer === "trickle" ? (twist === "lateHorde" ? ", the dead gathering behind them." : ", the dead trickling in after them.") : ".")
+    + (TWIST_LINES[twist] || "");
   if (boss) {
     const guards = [...leaders, ...grunts];
     const name = C.ENEMIES[boss].name;
@@ -175,6 +195,17 @@ export function buildRoamWave(n, rng = Math.random, threat = { hp: 1, dmg: 1 }) 
     const roll = rng();
     layer = roll < ROAM.layer.horde ? "horde" : roll < ROAM.layer.horde + ROAM.layer.trickle ? "trickle" : "none";
   }
+  // A twist on some waves, from those that fit this one.
+  let twist = null;
+  if (!bossWave && n >= ROAM.twistFrom && rng() < ROAM.twistChance) {
+    const fits = [
+      ...(grunts.length ? ["warded"] : []),
+      ...(layer !== "none" ? ["lateHorde"] : []),
+      ...([...leaders, ...grunts].includes("bandit") ? ["thieves"] : []),
+      "flanked",
+    ];
+    twist = fits[Math.floor(rng() * fits.length)];
+  }
   const zombies = layer === "horde" ? Math.min(ROAM.horde.max, ROAM.horde.first + ROAM.horde.step * (n - 1))
     : layer === "trickle" ? ROAM.trickle.count : 0;
   const scale = {
@@ -190,12 +221,26 @@ export function buildRoamWave(n, rng = Math.random, threat = { hp: 1, dmg: 1 }) 
     if (index < squad.length) enemy.spawnGap = ROAM.squadGap;
     else { enemy.hordeEntry = true; enemy.spawnGap = gap; }
   });
-  const scenario = { faction: faction.id, boss, leaders, grunts, layer, zombies };
+  const squadFoes = wave.enemies.slice(0, squad.length);
+  if (twist === "warded") {
+    squadFoes.forEach((enemy, index) => { if (index < leaders.length) enemy.wardSource = true; else enemy.warded = ROAM.twists.warded.wardCut; });
+  } else if (twist === "lateHorde") {
+    // The last of the squad holds the gap until the zombies come.
+    squadFoes.at(-1).spawnGap = Math.max(ROAM.squadGap, ROAM.twists.lateHorde.lateAt - ROAM.squadGap * (squad.length - 1));
+  } else if (twist === "thieves") {
+    for (const enemy of squadFoes) {
+      if (enemy.type === "bandit") enemy.thief = { after: ROAM.twists.thieves.after, steal: ROAM.twists.thieves.steal * wave.lootTier };
+    }
+  } else if (twist === "flanked") {
+    for (const enemy of squadFoes) enemy.flank = true;
+  }
+  const scenario = { faction: faction.id, boss, leaders, grunts, layer, zombies, twist };
   return {
     ...wave,
     fieldCap: squad.length + (zombies ? ROAM.zombiesOnField : 0),
     waveNumber: n, threat, scenario, event: describeRoamEvent(scenario),
     ...(bigEvent ? { bigEvent: true } : {}),
+    ...(twist ? { twist } : {}),
   };
 }
 

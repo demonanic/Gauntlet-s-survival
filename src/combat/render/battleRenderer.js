@@ -38,6 +38,13 @@ export function renderBattle(engine) {
     const r = e.boss ? 25 : e.tier === "elite" ? 16 : 11;
     drawEnemySprite(engine, e);
     bar(engine, e.x - r, e.y - r - 7, r * 2, 3, e.hp / e.maxHp, e.color);
+    // Free Roam's Warded twist: a pale ring while its leaders' ward holds (no glow: cheap).
+    if (e.warded && engine._foeWardCut(e) < 1) {
+      ctx.save();
+      ctx.strokeStyle = "rgba(56,189,248,0.7)"; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(e.x, e.y, r + 4, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
     if (e.nemesisId && e.hp > 0) {
       ctx.save();
       ctx.textAlign = "center"; ctx.font = "bold 10px JetBrains Mono, monospace";
