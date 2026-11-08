@@ -5,7 +5,7 @@ import { heroStatus, MAX_PARTY_SIZE } from "../game/guild";
 import * as C from "../combat/config";
 import { GEAR_SETS, PROVISIONS, heroArrowCount, heroUsesArrows } from "../combat/gear";
 import { getEnvironment, heroResistance } from "../game/environment";
-import { REGIONS, bossForRank } from "../game/regions";
+import { REGIONS, bossForRank, endlessRecordKey } from "../game/regions";
 import { previousRegion, regionOpen } from "../game/expedition";
 
 // Before sending a party: who will lack arrows, and how protected each hero is
@@ -69,7 +69,7 @@ export default function ExpeditionBoard({ guild, now, onLaunch }) {
                 <span className="font-display text-sm font-bold" style={{ color: entry.color }}>{entry.name}</span>
                 <span className="font-mono-g text-[10px] text-slate-400">
                   {entry.endless
-                    ? `Endless waves · LV ${entry.minLevel}+ · best wave ${guild.records?.[entry.endlessKind === "march" ? "marchBest" : "riftBest"] || 0}`
+                    ? `Endless waves · LV ${entry.minLevel}+ · best wave ${guild.records?.[endlessRecordKey(entry.endlessKind)] || 0}`
                     : `${entry.durationMinutes} min · LV ${entry.minLevel}+ · ${entry.completionGold}g bounty`}
                 </span>
               </div>

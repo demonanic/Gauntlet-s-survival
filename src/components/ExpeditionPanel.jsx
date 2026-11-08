@@ -58,6 +58,12 @@ function PendingPrompt({ pending, now, gold, onAttack, onChoose }) {
       button(`Push deeper · leg ${pending.depth}`, "#F59E0B", () => onChoose("push"), "prompt-push"),
       button("Head home", "#39FF14", () => onChoose("home"), "prompt-home"),
     ];
+  } else if (pending.kind === "rift" && pending.roam) {
+    title = "Trouble on the road";
+    actions = [
+      button("Fight", "#F472B6", onAttack, "prompt-attack"),
+      button("Head home", "#94A3B8", () => onChoose("leave"), "prompt-leave"),
+    ];
   } else if (pending.kind === "rift" && pending.march) {
     title = "The dead are marching";
     actions = [
@@ -86,6 +92,9 @@ function PendingPrompt({ pending, now, gold, onAttack, onChoose }) {
   return (
     <div className="mt-2 rounded border border-yellow-300/50 bg-yellow-300/5 p-2" data-testid="expedition-prompt">
       <p className="font-mono-g text-[11px] font-bold text-yellow-200">{title}</p>
+      {pending.wave?.event && (
+        <p className="font-mono-g text-[11px] text-pink-200" data-testid="prompt-event">{pending.wave.event}</p>
+      )}
       {threats.length > 0 && (
         <p className="font-mono-g text-[10px] text-slate-400" data-testid="prompt-threats">Threats: {threats.join(", ")}</p>
       )}

@@ -362,3 +362,5 @@ Decisions (Sam, 2026-11-01, reviewing Phase 5):
 | 2026-11-07 | Zombies and hordes (feature) | #63 | Zombie enemy (hordes only), random unavoidable hordes from Frostfang on with a chest, a Horde now test button; measured hard, two easier versions measured for Sam; new "zombie" enemy fingerprint, "unattended trip, frostfang" re-recorded |
 | 2026-11-07 | The Dead March (feature) | #64 | An endless run of hordes beside the Rift; record, chests, test button; measured against the Rift; fingerprints unchanged |
 | 2026-11-07 | Staff shards (feature) | #65 | Four staff-only crystals; in drops, Market and chests; measured (Focus, Fury like Ember; Reach, Wellspring near neutral); two fingerprints re-recorded (random crystals pick from 16 kinds) |
+| 2026-11-08 | Expeditions tab fix | #66 | The board crashed while the Dead March was locked (no previous region for it); a render test of the board |
+| 2026-11-08 | Free Roam (feature) | #67 | Every wave a faction squad with a horde layer and an event card; record, chests, test button; measured against the Rift and the March; fingerprints unchanged |

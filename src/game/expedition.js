@@ -206,11 +206,12 @@ export function startExpedition(state, regionId, heroIds, now, rng = Math.random
     addFeed(run, now, `${run.night ? "Night has fallen. Ambushes are likelier, but so is treasure. " : ""}${WEATHER[run.weather].intro}`, "flavor");
   }
   if (region.endless) {
-    const march = region.endlessKind === "march";
-    addFeed(run, now, march
-      ? "The road ahead is choked with the dead, and more keep coming. The party draws steel."
-      : "The Rift tears open before them. Something stirs on the other side.", "danger");
-    openPending(run, now, { kind: "rift", wave: buildFirstEndlessWave(region, rng, run.threat), ...(march ? { march: true } : {}) });
+    const kind = region.endlessKind || "rift";
+    addFeed(run, now, {
+      march: "The road ahead is choked with the dead, and more keep coming. The party draws steel.",
+      roam: "The party sets out with no road in mind. Trouble finds them soon enough.",
+    }[kind] || "The Rift tears open before them. Something stirs on the other side.", "danger");
+    openPending(run, now, { kind: "rift", wave: buildFirstEndlessWave(region, rng, run.threat), ...(kind !== "rift" ? { [kind]: true } : {}) });
   }
   return { ok: true, state: next };
 }
@@ -827,7 +828,8 @@ function attemptSneak(state, at, rng) {
 function leaveFight(state, region, at) {
   const run = state.expedition;
   addFeed(run, at, run.pending.kind === "rift"
-    ? (run.pending.march ? "The party decides the dead can wait and heads home." : "The party decides the Rift can wait and heads home.")
+    ? (run.pending.march ? "The party decides the dead can wait and heads home."
+      : run.pending.roam ? "The party decides the road can wait and heads home." : "The party decides the Rift can wait and heads home.")
     : `The party slips away before ${run.pending.label} notices them. No bounty this time.`, "flavor");
   run.pending = null;
   completeExpedition(state, "recalled", at);

@@ -197,7 +197,34 @@ export const REGIONS = Object.freeze([
     environment: null,
     set: null,
   },
+  // Owner's design (Nov 2026): every wave its own scenario, a faction's squad
+  // with a horde behind it (ROAM in encounters.js). Opens with the Dead March.
+  {
+    id: "roam",
+    name: "Free Roam",
+    blurb: "No road, no plan. Every fight is a new story: warbands, raiders, and the dead close behind.",
+    color: "#F472B6",
+    tier: 2,
+    endless: true,
+    endlessKind: "roam",
+    opensAfter: "frostfang",
+    minLevel: 4,
+    durationMinutes: null,
+    hpScale: 1,
+    dmgScale: 1,
+    completionGold: 0,
+    recoverySeconds: 180,
+    wildlife: null,
+    boss: null,
+    environment: null,
+    set: null,
+  },
 ]);
+
+// The record an endless run of `kind` ("rift", "march" or "roam") sets.
+export function endlessRecordKey(kind) {
+  return kind === "march" ? "marchBest" : kind === "roam" ? "roamBest" : "riftBest";
+}
 
 export function getRegion(regionId) {
   return REGIONS.find((region) => region.id === regionId) || null;
