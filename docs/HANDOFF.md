@@ -2,7 +2,7 @@
 
 Read this first, then `docs/ROADMAP.md` (the living checklist and pass log) and `docs/DESIGN.md` (every approved design, with its measurements). `docs/LEGACY_MANIFEST.md` tracks the old Demonanic code.
 
-Last updated: 2026-11-08, with Free Roam open as draft PR #67.
+Last updated: 2026-11-08, with Free Roam batch 2 open as draft PR #68.
 
 ## The project
 
@@ -69,8 +69,9 @@ Last updated: 2026-11-08, with Free Roam open as draft PR #67.
   - #64: the Dead March (an endless run of hordes beside the Rift).
   - #65: staff shards (Wellspring, Focus, Reach, Fury); Sam kept Reach and Wellspring as niche shards.
   - #66: fix: the Expeditions tab was blank for a guild that had not cleared Frostfang (the Dead March's lock text).
-- **Open:** draft PR #67, Free Roam: an endless run where every wave is a faction's squad with a horde behind it, with an event card (DESIGN.md "Free Roam"). Ends 2–3 waves before the Rift; pays like the March a minute.
-- **Planned with Sam:** Free Roam batch 2 (hero swaps between waves, twists); then Story mode (DESIGN.md "Story mode"): Claude writes two campaigns, Sam two.
+  - #67: Free Roam (every wave a faction squad with a horde layer and an event card); Sam kept its difficulty.
+- **Open:** draft PR #68, Free Roam batch 2: Camp (swap heroes between waves) and twists (Warded, Late horde, Thieves, Flanked); DESIGN.md "Free Roam".
+- **Planned with Sam:** Story mode (DESIGN.md "Story mode"): Claude writes two campaigns, Sam two.
 - **Waiting on Sam:** error boundary, auto-cast switches, the wolf's taunt, thinning glow, spreading unattended fights (proposals in #61), and his phone's fps.
 - **Next (Sam's choice):**
   - **Phases 9–11:** one definition per enemy, performance measurements, final review (ROADMAP).

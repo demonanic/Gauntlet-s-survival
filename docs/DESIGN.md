@@ -176,7 +176,13 @@ Sam's design: an endless run that mixes the Rift and hordes. Every wave is its o
   - LV8, common tier-1 gear, 40 runs: Free Roam 7 (7–8), Rift 9 (9–9), Dead March 8 (8–8). Run length 216 s, 195 s, 452 s. Kill gold a minute: 152, 93, 152.
   - LV20, rare tier-4 gear, 30 runs: Free Roam 13 (12–14), Rift 16 (15–16), Dead March 14 (14–14). Run length 345 s, 326 s, 783 s. Kill gold a minute: 206, 147, 195.
   - So Free Roam ends 2–3 waves before the Rift (its squads are tougher foes from wave 1), runs as long as a Rift run, and pays like the March a minute before bounty and chests.
-- **Next (planned with Sam):** swapping heroes between waves (a swapped-out hero leaves at once, so the next fight is one short; the replacement joins the fight after), and twists (Warded, Late horde, Thieves, Flanked; 30% from wave 4).
+- **Camp (hero swaps, `requestSwap` in engine.js, `benchHeroes` in expedition.js):** in a Free Roam battle, Camp picks a hero to send back and a hero ready at the guild (not on the trip, not injured) to call. The hero sent back leaves when the next wave starts, so that wave is fought one short; the one called joins at the start of the wave after, where the other stood. Someone has to stay on the field. A hero gone to camp keeps their engine slot (`away`, not drawn, familiar gone); a newcomer takes the next slot. The fight result lists who left and joined (`swaps`); the trip's party follows it ("Back to camp", "Joined on the road"), and the newcomer earns XP, ranks and mastery as usual. Unattended runs never swap.
+- **Twists (`ROAM.twists`):** 30% of waves from wave 4, never a boss wave, one that fits the wave, named on its event card.
+  - Warded: the leaders ward the rest; grunts take half damage from every hit, spell and burn while a leader stands (a pale ring shows it).
+  - Late horde (waves with zombies): the zombies come at about 20 s.
+  - Thieves (squads with bandits): a bandit still standing 25 s after it comes in runs off with 20 gold × loot tier.
+  - Flanked: the squad comes in down both edges.
+  - Measured with the same party: waves reached about the same with twists (median 8 at LV8, 13 at LV20).
 
 ### Story mode (planned, not built)
 
