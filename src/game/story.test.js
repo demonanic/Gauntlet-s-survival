@@ -30,13 +30,14 @@ const fight = (state, victory, at = T0 + 1000) => {
 };
 
 describe("story mode: the Time Warp Breach", () => {
-  test("five chapters of four battles; battles 1-16 are scripted scenarios, chapter 5 waits for its bosses", () => {
+  test("five chapters of four battles; battles 1-16 are scripted scenarios, chapter 5 the four bosses", () => {
     const battles = campaignBattles(TIME_WARP);
     expect(TIME_WARP.chapters).toHaveLength(5);
     expect(battles).toHaveLength(20);
     expect(battles.map((battle) => battle.number)).toEqual(Array.from({ length: 20 }, (_, i) => i + 1));
     for (const battle of battles.slice(0, 16)) expect(battle.wave.faction).toBeTruthy();
-    expect(battles.slice(16).every((battle) => battle.comingSoon && battle.boss)).toBe(true);
+    expect(battles.slice(16).map((battle) => battle.wave.boss)).toEqual(["gatewarden", "chronomancer", "ritualist", "ancientEvil"]);
+    expect(battles.some((battle) => battle.comingSoon)).toBe(false);
     // Difficulty climbs, battle by battle.
     const levels = battles.slice(0, 16).map((battle) => battle.level);
     expect([...levels].sort((a, b) => a - b)).toEqual(levels);
@@ -162,6 +163,16 @@ describe("story mode: the Time Warp Breach", () => {
     expect(later.expedition).toBeNull();
     expect(later.lastReport.outcome).toBe("recalled");
     expect(later.story.run.battle).toBe(0);
+  });
+
+  test("chapter 5: each boss leads its battle", () => {
+    for (const [index, boss] of [[16, "gatewarden"], [17, "chronomancer"], [18, "ritualist"], [19, "ancientEvil"]]) {
+      const state = started();
+      state.story.run.battle = index;
+      const wave = beginStoryBattle(state, T0, seededRandom(3)).state.expedition.pending.wave;
+      expect(wave.enemies[0].type).toBe(boss);
+      expect(wave.hasBoss).toBe(true);
+    }
   });
 
   test("story waves carry their twists and zombies", () => {

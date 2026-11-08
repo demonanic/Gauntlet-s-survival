@@ -38,6 +38,11 @@ export function renderBattle(engine) {
     const r = e.boss ? 25 : e.tier === "elite" ? 16 : 11;
     drawEnemySprite(engine, e);
     bar(engine, e.x - r, e.y - r - 7, r * 2, 3, e.hp / e.maxHp, e.color);
+    // The Ritualist's ritual: how close it is to done.
+    if (e.channelUntil != null && e.channelStart != null) {
+      const done = Math.min(1, (engine.time - e.channelStart) / (e.channelUntil - e.channelStart));
+      bar(engine, e.x - r, e.y + r + 6, r * 2, 4, done, "#FDE68A");
+    }
     // Free Roam's Warded twist: a pale ring while its leaders' ward holds (no glow: cheap).
     if (e.warded && engine._foeWardCut(e) < 1) {
       ctx.save();
@@ -142,6 +147,14 @@ export function renderBattle(engine) {
     }
     drawHeroSprite(engine, h);
     bar(engine, h.x - 18, h.y + 20, 36, 4, Math.max(0, h.ref.hp) / h.d.maxHp, h.d.color);
+    // Story bosses: a hero caught in the Chronomancer's field, or confused by the Ancient Evil.
+    if (h.alive && (h.timeSlowUntil > engine.time || h.confusedUntil > engine.time)) {
+      ctx.save();
+      ctx.textAlign = "center"; ctx.font = "bold 11px JetBrains Mono, monospace";
+      ctx.fillStyle = h.confusedUntil > engine.time ? "#E879F9" : "#38BDF8";
+      ctx.fillText(h.confusedUntil > engine.time ? "?" : "⧗", h.x, h.y - 26);
+      ctx.restore();
+    }
   }
   for (const pet of engine.pets) drawPet(engine, pet);
 

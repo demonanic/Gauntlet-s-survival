@@ -47,7 +47,7 @@ function spawnSources() {
   // Story mode: the campaigns' scripted battles, and the Gatewarden's portals.
   for (const campaign of Object.values(CAMPAIGNS)) {
     sources[`${campaign.id} battles`] = campaignBattles(campaign)
-      .flatMap((battle) => [battle.boss, ...(battle.wave?.leaders || []), ...(battle.wave?.grunts || [])]).filter(Boolean);
+      .flatMap((battle) => [battle.wave?.boss, ...(battle.wave?.leaders || []), ...(battle.wave?.grunts || [])]).filter(Boolean);
   }
   sources["Gatewarden portals"] = ["portal"];
   return sources;
