@@ -5,7 +5,7 @@ import { MAX_GEAR_TIER, RARITY_ORDER, RARITIES } from "../game/items";
 import { REGIONS } from "../game/regions";
 import {
   MAX_HERO_LEVEL, debugAddGold, debugAddRenown, debugCareer, debugGivePets, debugGiveCrate, debugClearRegions, debugEndExpedition, debugGiveGearSet, debugGiveSupplies,
-  debugGiveCasting, debugLearnSchool, debugSetBossRank, debugSetLevels, debugSetSchoolRank, debugSetSpellRank, debugSkipTimers, debugTestFight, debugTestMarch,
+  debugGiveCasting, debugLearnSchool, debugSetBossRank, debugSetLevels, debugSetSchoolRank, debugSetSpellRank, debugSkipTimers, debugTestEndless, debugTestFight,
 } from "../game/debug";
 import { readRealSave } from "../game/storage";
 import { NeonButton } from "./ui";
@@ -40,8 +40,9 @@ export default function DebugPanel({ guild, apply, onTestFight }) {
   const [depth, setDepth] = useState(0.8);
   const [fightNote, setFightNote] = useState(null);
   const [marchWave, setMarchWave] = useState(1);
-  const startMarch = () => {
-    const result = debugTestMarch(guild, marchWave);
+  const [roamWave, setRoamWave] = useState(1);
+  const startEndless = (regionId, wave) => {
+    const result = debugTestEndless(guild, regionId, wave);
     if (!result.ok) { setFightNote(FIGHT_REASONS[result.reason] || `Can't start: ${result.reason}`); return; }
     setFightNote(null);
     setOpen(false);
@@ -154,7 +155,14 @@ export default function DebugPanel({ guild, apply, onTestFight }) {
             <select className={selectClass} value={marchWave} onChange={(event) => setMarchWave(Number(event.target.value))} data-testid="debug-march-wave">
               {[1, 3, 5, 8, 10, 15, 20].map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
-            <NeonButton color="#94C973" onClick={startMarch} data-testid="debug-march">Start</NeonButton>
+            <NeonButton color="#94C973" onClick={() => startEndless("march", marchWave)} data-testid="debug-march">Start</NeonButton>
+          </div>
+          <div className={row}>
+            <span>Free Roam from wave</span>
+            <select className={selectClass} value={roamWave} onChange={(event) => setRoamWave(Number(event.target.value))} data-testid="debug-roam-wave">
+              {[1, 3, 5, 8, 10, 15, 20].map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+            <NeonButton color="#F472B6" onClick={() => startEndless("roam", roamWave)} data-testid="debug-roam">Start</NeonButton>
           </div>
           <p className="text-[10px] text-slate-500">
             {guild.expedition ? "On a trip: the fight is in its region. " : "The first four heroes set out, healed. "}

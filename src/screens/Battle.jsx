@@ -11,6 +11,7 @@ import { getRegion } from "../game/regions";
 
 const COUNTDOWN_SECONDS = 3;
 const HUD_THROTTLE_MS = 90;
+const EVENT_CARD_MS = 5000;
 
 // One live encounter: the trimmed Demonanic engine on a canvas, plus a light
 // tactical HUD (abilities, move orders, speed). Hands the result back up.
@@ -38,6 +39,8 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
   const [clutch, setClutch] = useState(null);
   const [clutchLeft, setClutchLeft] = useState(0);
   const [god, setGod] = useState(false);
+  // Free Roam: each wave's event card, shown over the field for a few seconds.
+  const [eventCard, setEventCard] = useState(null);
   // Test mode: frames drawn per second, to check performance on a real phone.
   const [fps, setFps] = useState(null);
   useEffect(() => {
@@ -86,8 +89,9 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
         setResult(buildFightOutcome({ victory: false, reason: "error" }, sim));
       },
     });
-    // Test mode can start an endless run part-way (debugTestMarch).
+    // Test mode can start an endless run part-way (debugTestEndless).
     if (endless && expedition.pending?.startWave > 1) engine.wavesCleared = expedition.pending.startWave - 1;
+    if (wave.event) setEventCard({ wave: engine.wavesCleared + 1, text: wave.event });
     engineRef.current = engine;
     engine.render();
 
@@ -110,6 +114,16 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
     const interval = setInterval(tick, 100);
     return () => clearInterval(interval);
   }, [clutch]);
+
+  // A new wave with an event card brings its card up.
+  useEffect(() => {
+    if (hud?.event && hud.wave !== eventCard?.wave) setEventCard({ wave: hud.wave, text: hud.event });
+  }, [hud?.wave, hud?.event, eventCard?.wave]);
+  useEffect(() => {
+    if (!eventCard || countdown > 0) return undefined;
+    const timer = setTimeout(() => setEventCard((card) => (card === eventCard ? { ...card, text: null } : card)), EVENT_CARD_MS);
+    return () => clearTimeout(timer);
+  }, [eventCard, countdown]);
 
   const engine = engineRef.current;
   const toggleSpeed = () => {
@@ -194,6 +208,12 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
         {countdown > 0 && !result && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <span className="font-display text-6xl font-black text-glow-cyan">{countdown}</span>
+          </div>
+        )}
+        {eventCard?.text && !result && (
+          <div className="pointer-events-none absolute inset-x-3 top-3 rounded-lg border border-pink-300/60 bg-black/80 px-3 py-2 text-center" data-testid="event-card">
+            <p className="font-display text-[11px] font-bold text-pink-300">WAVE {eventCard.wave}</p>
+            <p className="font-mono-g text-[11px] text-slate-100">{eventCard.text}</p>
           </div>
         )}
         {clutch && !result && (

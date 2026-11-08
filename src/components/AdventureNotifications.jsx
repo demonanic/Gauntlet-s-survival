@@ -50,7 +50,8 @@ export function useAdventureNotifications(guild) {
 
     const report = guild.lastReport;
     if (report && report !== lastReport.current && report.endedAt !== lastReport.current?.endedAt && active) {
-      notify(`${getRegion(report.regionId)?.name}: ${report.outcome === "returned" && report.regionId === "march" ? "back from the march" : OUTCOME_TEXT[report.outcome] || "done"}. +${report.loot.gold}g, ${report.loot.items.length} items.`);
+      notify(`${getRegion(report.regionId)?.name}: ${report.outcome === "returned" && report.regionId === "march" ? "back from the march"
+        : report.outcome === "returned" && report.regionId === "roam" ? "back from the road" : OUTCOME_TEXT[report.outcome] || "done"}. +${report.loot.gold}g, ${report.loot.items.length} items.`);
     }
     lastReport.current = report;
   }, [guild, enabled]);

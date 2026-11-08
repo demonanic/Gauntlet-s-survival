@@ -1714,6 +1714,8 @@ export class Engine {
       gold: this.sim.gold,
       wave: this.wavesCleared + 1,
       waveCount: this.cb.nextWave ? null : this.waveCount,
+      // Free Roam: the current wave's event card text.
+      event: this.wave.event || null,
       heroes: this.heroes.map((h) => ({ name: h.ref.name, hp: h.ref.hp, maxHp: h.d.maxHp, alive: h.alive, shield: h.ref.shield || 0 })),
       heroAbilities: this.heroes.map((h) => this.getHeroAbilityStatus(h.i)),
       heroSpells: this.heroes.map((h) => this.getHeroSpellStatus(h.i)),

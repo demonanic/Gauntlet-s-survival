@@ -1,7 +1,11 @@
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import { Engine } from "../combat/engine";
+import { debugSetLevels, debugTestEndless } from "./debug";
 import { FACTIONS, HORDE, ROAM, buildRoamWave, createEncounterSim, endlessWave } from "./encounters";
-import { createGuild } from "./guild";
+import { regionOpen } from "./expedition";
+import { createGuild, currentEncounterParty, recruitHero, resolveEncounter, startExpedition } from "./guild";
+import { endlessRecordKey, getRegion } from "./regions";
+import { simulateEncounter } from "./simulate";
 import { createGearItem } from "./items";
 import { seededRandom } from "./random";
 
@@ -87,5 +91,66 @@ describe("Free Roam scenarios", () => {
     // Lanes start at the top (y at most 30); only a horde comes in down the edges.
     expect(spots.filter((spot) => !spot.zombie).every((spot) => spot.y <= 30)).toBe(true);
     expect(spots.some((spot) => spot.zombie && spot.y > 30)).toBe(true);
+  });
+});
+
+const ready = () => {
+  let state = createGuild();
+  state = recruitHero(state).state;
+  return { ...debugSetLevels(state, 12).state, clears: { frostfang: 1 } };
+};
+
+describe("Free Roam, the mode", () => {
+  test("an endless region that opens with the Dead March, once Frostfang is cleared", () => {
+    const roam = getRegion("roam");
+    expect(roam.endless).toBe(true);
+    expect(roam.endlessKind).toBe("roam");
+    expect(regionOpen({ ...ready(), clears: {} }, roam)).toBe(false);
+    expect(regionOpen(ready(), roam)).toBe(true);
+    expect(endlessRecordKey("roam")).toBe("roamBest");
+  });
+
+  test("a trip opens a road prompt with the first event; the fight rolls on from scenario to scenario", () => {
+    const state = ready();
+    const ids = state.heroes.map((hero) => hero.identity.id);
+    const started = startExpedition(state, "roam", ids, 1000, seededRandom(4));
+    expect(started.ok).toBe(true);
+    const run = started.state.expedition;
+    expect(run.pending.kind).toBe("rift");
+    expect(run.pending.roam).toBe(true);
+    expect(run.pending.wave.event).toMatch(/attacks\.$/);
+    expect(run.feed.some((line) => /no road in mind/.test(line.text))).toBe(true);
+    const party = currentEncounterParty(started.state);
+    for (const hero of party) hero.combat.hp = 1e7;
+    const { result, engine } = simulateEncounter(party, run.pending.wave, {
+      regionTier: 2, endless: true, endlessKind: "roam", rng: seededRandom(5), shouldReturn: (e) => e.wavesCleared >= 5,
+    });
+    expect(result.victory).toBe(true);
+    expect(engine.wavesCleared).toBeGreaterThanOrEqual(5);
+    expect(engine.wave.scenario).toBeTruthy();
+  });
+
+  test("results: 12 gold a fight, a chest every 5, and its own best on record", () => {
+    const state = ready();
+    const ids = state.heroes.map((hero) => hero.identity.id);
+    const started = startExpedition(state, "roam", ids, 1000, () => 0.5).state;
+    const party = currentEncounterParty(started);
+    const next = resolveEncounter(started, { victory: true, party, xpGains: {}, gold: 0, items: [], wavesCleared: 10 }, 2000, { rng: () => 0.5 }).state;
+    expect(next.records.roamBest).toBe(10);
+    expect(next.records.marchBest || 0).toBe(0);
+    expect(next.records.riftBest || 0).toBe(0);
+    expect(next.lastReport.loot.gold).toBeGreaterThanOrEqual(ROAM.bounty * 10 + 2 * ROAM.chestGold[0]);
+    expect(next.lastReport.loot.items).toHaveLength(2);
+    expect(next.lastReport.log.some((line) => /Back from the road after 10 fights/.test(line))).toBe(true);
+  });
+
+  test("test mode starts Free Roam at any wave", () => {
+    const result = debugTestEndless(ready(), "roam", 5, { now: 1000, rng: seededRandom(2) });
+    expect(result.ok).toBe(true);
+    const pending = result.state.expedition.pending;
+    expect(pending.roam).toBe(true);
+    expect(pending.startWave).toBe(5);
+    expect(pending.wave.bigEvent).toBe(true);
+    expect(debugTestEndless({ ...ready(), clears: {} }, "roam", 1).reason).toBe("previous_region");
   });
 });

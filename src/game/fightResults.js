@@ -14,7 +14,8 @@ import { getUnlockedClasslessAbilities } from "../combat/classlessAbilities";
 import { HERO_BASELINE } from "../combat/heroModel";
 import { heroTraitEffects, roadEffect } from "../combat/traits";
 import { LEGENDARY } from "./adventure";
-import { HORDE, MARCH } from "./encounters";
+import { HORDE, MARCH, ROAM } from "./encounters";
+import { endlessRecordKey } from "./regions";
 import { BOND_NAMES, recordSharedWin } from "./bonds";
 import {
   addFeed, changeMorale, closePending, completeExpedition, findHero, firstName, halveLoot, heal, heroId, livingParty, offerDeeper, pick,
@@ -53,6 +54,11 @@ export function riftBounty(wavesCleared) {
 // The Dead March pays MARCH.bounty gold a wave cleared.
 export function marchBounty(wavesCleared) {
   return MARCH.bounty * wavesCleared;
+}
+
+// Free Roam pays ROAM.bounty gold a wave cleared.
+export function roamBounty(wavesCleared) {
+  return ROAM.bounty * wavesCleared;
 }
 
 export function applyFightResult(state, region, { victory, party, xpGains, gold, items, wavesCleared = 0, ...outcome }, at, rng) {
@@ -125,22 +131,23 @@ export function applyFightResult(state, region, { victory, party, xpGains, gold,
   }
 
   if (pending.kind === "rift") {
-    const march = !!pending.march;
-    const bounty = march ? marchBounty(wavesCleared) : riftBounty(wavesCleared);
+    const kind = pending.march ? "march" : pending.roam ? "roam" : "rift";
+    const bounty = kind === "march" ? marchBounty(wavesCleared) : kind === "roam" ? roamBounty(wavesCleared) : riftBounty(wavesCleared);
     run.loot.gold += bounty;
     run.wavesCleared = wavesCleared;
-    const record = march ? "marchBest" : "riftBest";
+    const record = endlessRecordKey(kind);
     state.records = { ...(state.records || {}), [record]: Math.max(state.records?.[record] || 0, wavesCleared) };
-    // The Dead March: a chest every MARCH.chestEvery waves cleared.
-    const chests = march ? Math.floor(wavesCleared / MARCH.chestEvery) : 0;
+    // The Dead March and Free Roam: a chest every `chestEvery` waves cleared.
+    const pay = kind === "march" ? MARCH : kind === "roam" ? ROAM : null;
+    const chests = pay ? Math.floor(wavesCleared / pay.chestEvery) : 0;
     if (chests > 0) {
       let chestGold = 0;
       for (let i = 0; i < chests; i += 1) {
-        chestGold += Math.round(randomBetween(MARCH.chestGold, rng) * tierMult(region.tier + Math.floor(i / 2)));
+        chestGold += Math.round(randomBetween(pay.chestGold, rng) * tierMult(region.tier + Math.floor(i / 2)));
         run.loot.items.push(chestCrystal(1 + Math.min(2, Math.floor(i / 2)), rng));
       }
       run.loot.gold += chestGold;
-      addFeed(run, at, `${chests} chest${chests > 1 ? "s" : ""} from the march: ${chestGold} gold and ${chests} crystal${chests > 1 ? "s or shards" : " or shard"}.`, "loot", true);
+      addFeed(run, at, `${chests} chest${chests > 1 ? "s" : ""} from the ${kind === "roam" ? "road" : "march"}: ${chestGold} gold and ${chests} crystal${chests > 1 ? "s or shards" : " or shard"}.`, "loot", true);
     }
     run.pending = null;
     if (!victory) {
@@ -148,9 +155,10 @@ export function applyFightResult(state, region, { victory, party, xpGains, gold,
       addFeed(run, at, `Overrun on wave ${wavesCleared + 1}. Retreating with half the loot.`, "danger");
       completeExpedition(state, "retreat", at);
     } else {
-      addFeed(run, at, march
-        ? `Held the line for ${wavesCleared} waves of the dead. +${bounty} gold bounty.`
-        : `Returned from the Rift after ${wavesCleared} waves. +${bounty} gold bounty.`, "good");
+      addFeed(run, at, {
+        march: `Held the line for ${wavesCleared} waves of the dead. +${bounty} gold bounty.`,
+        roam: `Back from the road after ${wavesCleared} fights. +${bounty} gold bounty.`,
+      }[kind] || `Returned from the Rift after ${wavesCleared} waves. +${bounty} gold bounty.`, "good");
       completeExpedition(state, "returned", at);
     }
     return;
