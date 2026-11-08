@@ -15,8 +15,11 @@ const staff = (shard, tier = 1) => {
   item.stats = composeStats(item);
   return item;
 };
+// A starter hero with no qualities: some starters roll one that changes attack
+// speed or mana, which would blur what the shard alone does.
 const caster = (weapon) => {
   const hero = structuredClone(createGuild().heroes[0]);
+  hero.traits = [];
   hero.equipment = { weapon };
   hero.progression.ownedNodeIds = ["A1", "A2"];
   hero.magic = { elements: ["fire"], casts: { ember_bolt: RANK_CASTS[2], cinder_field: RANK_CASTS[2] } };
