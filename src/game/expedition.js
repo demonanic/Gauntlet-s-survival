@@ -51,7 +51,7 @@ const EXPLORE_HEAL_FRACTION_PER_SECOND = 1 / 450;
 const RECENT_FLAVOR = 6;
 // Events can't shorten an expedition to less than this from now.
 const MIN_REMAINING_MS = 30_000;
-const FIGHT_KINDS = new Set(["sighting", "ambush", "boss", "rift"]);
+const FIGHT_KINDS = new Set(["sighting", "ambush", "boss", "rift", "campaign"]);
 // Weight of environment events in regions with an environment (see ADVENTURE.eventWeights).
 const ENVIRONMENT_EVENT_WEIGHT = 12;
 // Stalkers: in regions of this tier or higher, this share of encounters is
@@ -205,7 +205,7 @@ export function startExpedition(state, regionId, heroIds, now, rng = Math.random
   if (!region.endless) {
     addFeed(run, now, `${run.night ? "Night has fallen. Ambushes are likelier, but so is treasure. " : ""}${WEATHER[run.weather].intro}`, "flavor");
   }
-  if (region.endless) {
+  if (region.endless && region.endlessKind !== "story") {
     const kind = region.endlessKind || "rift";
     addFeed(run, now, {
       march: "The road ahead is choked with the dead, and more keep coming. The party draws steel.",
@@ -980,6 +980,14 @@ function decideAlone(state, region, { rng, onStep }) {
   const run = state.expedition;
   const pending = run.pending;
   const at = pending.engagedAt ?? pending.promptAt;
+  // A story battle left unfought: never fought for the player (story mode is
+  // hands-on). The party comes home; the battle waits to be fought again.
+  if (pending.kind === "campaign") {
+    addFeed(run, at, "The party falls back before the battle. It can be fought again.", "flavor");
+    run.pending = null;
+    completeExpedition(state, "recalled", at);
+    return;
+  }
   if (pending.kind === "deeper") {
     decideDeeper(state, at, rng);
     return;
