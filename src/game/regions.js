@@ -226,6 +226,29 @@ export function endlessRecordKey(kind) {
   return kind === "march" ? "marchBest" : kind === "roam" ? "roamBest" : "riftBest";
 }
 
+// Story mode battles (story.js) are one-fight trips here. Not on the trip
+// board: the story screen starts them. Its kind keeps the trip from making
+// events or prompts of its own.
+export const STORY_REGION = Object.freeze({
+  id: "story",
+  name: "Story mode",
+  blurb: "",
+  color: "#FBBF24",
+  tier: 2,
+  endless: true,
+  endlessKind: "story",
+  minLevel: 1,
+  durationMinutes: null,
+  hpScale: 1,
+  dmgScale: 1,
+  completionGold: 0,
+  recoverySeconds: 180,
+  wildlife: null,
+  boss: null,
+  environment: null,
+  set: null,
+});
+
 export function getRegion(regionId) {
-  return REGIONS.find((region) => region.id === regionId) || null;
+  return REGIONS.find((region) => region.id === regionId) || (regionId === STORY_REGION.id ? STORY_REGION : null);
 }

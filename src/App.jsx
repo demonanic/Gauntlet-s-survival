@@ -28,6 +28,10 @@ import { guildHints } from "./game/hints";
 import { clearGear, equipBest, equipBestParty, setAutoClear } from "./game/armory";
 import { assignPet, choosePetMod, openPetCrate, unassignPet } from "./game/pets";
 import { getRegion } from "./game/regions";
+import { answerStoryLoss, beginStoryBattle, checkStoryTimer, pauseStory, resumeStory, startCampaign, swapStoryHero } from "./game/story";
+import { serverClockOffset } from "./cloud/cloudSave";
+import { gameNow, setClockOffset } from "./cloud/gameClock";
+import Story from "./screens/Story";
 import {
   advanceTutorial, currentStep, nextTutorialStep, restartTutorial, skipTutorial, tutorialActive,
 } from "./game/tutorial";
@@ -44,7 +48,9 @@ const DEBUG = isDebugMode();
 const OUTCOME_TITLE = {
   victory: "Expedition conquered", retreat: "Party routed", recalled: "Party recalled", returned: "Back from the Rift",
 };
-const TABS = [["hall", "Guild Hall"], ["market", "Market"], ["board", "Expeditions"]];
+// Story mode shows only in test mode until its chapter 5 bosses are in.
+const TABS = [["hall", "Guild Hall"], ["market", "Market"], ["board", "Expeditions"], ...(DEBUG ? [["story", "Story"]] : [])];
+const STORY_TITLE = { returned: "Battle won", retreat: "Battle lost", recalled: "Battle called off" };
 
 // What to tell the player when this browser's save could not be used.
 function saveNoticeText(boot) {
@@ -72,6 +78,18 @@ export default function App() {
   const [recruiting, setRecruiting] = useState(false);
   const [hintsHidden, setHintsHidden] = useState(false);
   const notifications = useAdventureNotifications(guild);
+  // Signed in to a cloud account: null until known. Test mode counts as signed in.
+  const [signedIn, setSignedIn] = useState(DEBUG ? true : null);
+  // Story mode's countdown follows the server's clock and freezes while signed out.
+  useEffect(() => {
+    if (DEBUG || signedIn == null) return;
+    if (!signedIn) { setGuild((current) => pauseStory(current, gameNow())); return; }
+    let cancelled = false;
+    serverClockOffset().then(setClockOffset).catch(() => {}).finally(() => {
+      if (!cancelled) setGuild((current) => resumeStory(current, gameNow()));
+    });
+    return () => { cancelled = true; };
+  }, [signedIn]);
 
   // The tutorial moves on as soon as the player has done what a step asks.
   const tutorialStep = currentStep(guild);
@@ -87,7 +105,7 @@ export default function App() {
     const interval = setInterval(() => {
       const t = Date.now();
       setNow(t);
-      setGuild((current) => tick(current, t, { interactive: document.visibilityState === "visible" }));
+      setGuild((current) => checkStoryTimer(tick(current, t, { interactive: document.visibilityState === "visible" }), gameNow()));
     }, TICK_MS);
     return () => clearInterval(interval);
   }, []);
@@ -101,6 +119,13 @@ export default function App() {
     const result = mutate(current);
     return result.ok ? result.state : current;
   });
+
+  // Story actions report why they failed, so they run on the guild as shown.
+  const storyStep = (mutate) => {
+    const result = mutate(guild);
+    if (result.ok) setGuild(result.state);
+    return result;
+  };
 
   const perkHero = perkHeroId ? findHero(guild, perkHeroId) : null;
   const gearHero = gearHeroId ? findHero(guild, gearHeroId) : null;
@@ -119,7 +144,7 @@ export default function App() {
           {/* Test mode plays on its own save, never synced (storage.js TEST_SAVE_KEY). */}
           {DEBUG
             ? <span className="rounded border border-orange-400/70 px-1.5 py-0.5 font-mono-g text-[10px] font-bold text-orange-300" data-testid="test-save-tag">TEST SAVE</span>
-            : <CloudSync guild={guild} localReplaced={boot.replaced} onLoadSave={(state) => setGuild(tick(state, Date.now()))} />}
+            : <CloudSync guild={guild} localReplaced={boot.replaced} onLoadSave={(state) => setGuild(tick(state, Date.now()))} onUserChange={setSignedIn} />}
           <span className="font-mono-g text-sm font-bold text-yellow-300" data-testid="gold">{guild.gold}g</span>
         </div>
       </header>
@@ -148,7 +173,7 @@ export default function App() {
         </div>
       )}
 
-      <nav className="mb-3 grid grid-cols-3 gap-2">
+      <nav className={`mb-3 grid gap-2 ${TABS.length > 3 ? "grid-cols-4" : "grid-cols-3"}`}>
         {TABS.map(([id, label]) => (
           <NeonButton key={id} color={tab === id ? "#00F3FF" : "#475569"} onClick={() => setTab(id)} data-testid={`tab-${id}`}>
             {label}
@@ -213,6 +238,22 @@ export default function App() {
           now={now}
           onLaunch={(regionId, heroIds) => apply((current) =>
             startExpedition(current, regionId, heroIds, Date.now(), Math.random, { tutorial: tutorialActive(current) }))}
+        />
+      )}
+
+      {tab === "story" && (
+        <Story
+          guild={guild}
+          now={gameNow()}
+          signedIn={!!signedIn}
+          onStart={(heroIds) => storyStep((current) => startCampaign(current, heroIds, gameNow(), { signedIn: !!signedIn }))}
+          onFight={() => {
+            const result = storyStep((current) => beginStoryBattle(current, gameNow()));
+            if (result.ok) setInBattle(true);
+            return result;
+          }}
+          onSwap={(outId, inId) => storyStep((current) => swapStoryHero(current, outId, inId))}
+          onLoss={(choice) => storyStep((current) => answerStoryLoss(current, choice))}
         />
       )}
 
@@ -290,7 +331,8 @@ export default function App() {
       {report && !inBattle && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/75 p-4">
           <Panel className="w-full max-w-sm">
-            <h2 className="font-display text-lg font-bold text-cyan-200">{report.outcome === "returned" && report.regionId === "march" ? "Back from the Dead March"
+            <h2 className="font-display text-lg font-bold text-cyan-200">{report.regionId === "story" ? STORY_TITLE[report.outcome] || "Story battle"
+              : report.outcome === "returned" && report.regionId === "march" ? "Back from the Dead March"
               : report.outcome === "returned" && report.regionId === "roam" ? "Back from Free Roam" : OUTCOME_TITLE[report.outcome]}</h2>
             <p className="font-mono-g text-[11px] text-slate-400">
               {getRegion(report.regionId)?.name}{report.depth > 0 && ` · pushed ${report.depth} leg${report.depth > 1 ? "s" : ""} deeper`}

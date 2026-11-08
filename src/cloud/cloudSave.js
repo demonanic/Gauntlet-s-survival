@@ -62,6 +62,19 @@ export async function deleteAccount() {
   await cloud().auth.signOut({ scope: "local" }).catch(() => {});
 }
 
+// How far the server's clock is ahead of this device's, in ms (signed in only:
+// public.server_now). Halfway through the round trip is when the server read it.
+export async function serverClockOffset(now = Date.now) {
+  const sent = now();
+  const serverTime = Date.parse(unwrap(await cloud().rpc("server_now")));
+  const received = now();
+  return clockOffset(serverTime, sent, received);
+}
+
+export function clockOffset(serverTime, sent, received) {
+  return serverTime - (sent + received) / 2;
+}
+
 export async function currentUser() {
   return unwrap(await cloud().auth.getSession()).session?.user || null;
 }

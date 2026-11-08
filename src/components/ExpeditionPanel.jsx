@@ -58,6 +58,9 @@ function PendingPrompt({ pending, now, gold, onAttack, onChoose }) {
       button(`Push deeper · leg ${pending.depth}`, "#F59E0B", () => onChoose("push"), "prompt-push"),
       button("Head home", "#39FF14", () => onChoose("home"), "prompt-home"),
     ];
+  } else if (pending.kind === "campaign") {
+    title = `Story battle: ${pending.label}`;
+    actions = [button("Fight!", "#FBBF24", onAttack, "prompt-attack")];
   } else if (pending.kind === "rift" && pending.roam) {
     title = "Trouble on the road";
     actions = [

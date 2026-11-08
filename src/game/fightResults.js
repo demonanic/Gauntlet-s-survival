@@ -16,6 +16,7 @@ import { heroTraitEffects, roadEffect } from "../combat/traits";
 import { LEGENDARY } from "./adventure";
 import { HORDE, MARCH, ROAM } from "./encounters";
 import { endlessRecordKey } from "./regions";
+import { recordStoryBattle } from "./story";
 import { BOND_NAMES, recordSharedWin } from "./bonds";
 import {
   addFeed, changeMorale, closePending, completeExpedition, findHero, firstName, halveLoot, heal, heroId, livingParty, offerDeeper, pick,
@@ -129,7 +130,7 @@ export function applyFightResult(state, region, { victory, party, xpGains, gold,
   }
   const { pending } = run;
   run.stats.fights += 1;
-  if (pending.kind !== "rift") settleNemeses(state, region, party, { victory, ...outcome }, at, rng);
+  if (pending.kind !== "rift" && pending.kind !== "campaign") settleNemeses(state, region, party, { victory, ...outcome }, at, rng);
   for (const { hero, choice, landed } of outcome.clutches || []) {
     const name = party[hero]?.identity?.name;
     if (!name) continue;
@@ -138,6 +139,14 @@ export function applyFightResult(state, region, { victory, party, xpGains, gold,
       : `One hit from falling, ${name} grits their teeth and drinks.`, choice === "crit" && landed ? "good" : "flavor", choice === "crit" && landed);
   }
 
+  // Story mode: one battle a trip. The campaign moves on (or marks the loss)
+  // and the party comes home; a loss keeps the loot (the setback is the cost).
+  if (pending.kind === "campaign") {
+    run.pending = null;
+    recordStoryBattle(state, victory, at, rng);
+    completeExpedition(state, victory ? "returned" : "retreat", at);
+    return;
+  }
   if (pending.kind === "rift") {
     const kind = pending.march ? "march" : pending.roam ? "roam" : "rift";
     const bounty = kind === "march" ? marchBounty(wavesCleared) : kind === "roam" ? roamBounty(wavesCleared) : riftBounty(wavesCleared);

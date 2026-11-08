@@ -206,8 +206,21 @@ export function buildRoamWave(n, rng = Math.random, threat = { hp: 1, dmg: 1 }) 
     ];
     twist = fits[Math.floor(rng() * fits.length)];
   }
-  const zombies = layer === "horde" ? Math.min(ROAM.horde.max, ROAM.horde.first + ROAM.horde.step * (n - 1))
+  const zombies = roamZombies(layer, n);
+  return buildScenarioWave({ faction: faction.id, boss, leaders, grunts, layer, zombies, twist }, n, threat, { bigEvent });
+}
+
+// Zombies in a Free Roam horde layer at wave `n`.
+export function roamZombies(layer, n) {
+  return layer === "horde" ? Math.min(ROAM.horde.max, ROAM.horde.first + ROAM.horde.step * (n - 1))
     : layer === "trickle" ? ROAM.trickle.count : 0;
+}
+
+// A scenario as a wave the engine can fight, at Free Roam wave `n`'s strength:
+// the squad (boss first) down the lanes, then `zombies` from every side, with
+// the scenario's twist. Used by Free Roam and by story battles.
+export function buildScenarioWave(scenario, n, threat = { hp: 1, dmg: 1 }, { bigEvent = false } = {}) {
+  const { boss = null, leaders = [], grunts = [], layer = "none", zombies = 0, twist = null } = scenario;
   const scale = {
     hp: ROAM.hpBase * ENDLESS.hpGrowth ** (n - 1) * threat.hp,
     dmg: ROAM.dmgBase * ENDLESS.dmgGrowth ** (n - 1) * threat.dmg,
@@ -222,8 +235,12 @@ export function buildRoamWave(n, rng = Math.random, threat = { hp: 1, dmg: 1 }) 
     else { enemy.hordeEntry = true; enemy.spawnGap = gap; }
   });
   const squadFoes = wave.enemies.slice(0, squad.length);
+  const leaderFoes = squadFoes.slice(boss ? 1 : 0, (boss ? 1 : 0) + leaders.length);
   if (twist === "warded") {
-    squadFoes.forEach((enemy, index) => { if (index < leaders.length) enemy.wardSource = true; else enemy.warded = ROAM.twists.warded.wardCut; });
+    for (const enemy of squadFoes) {
+      if (leaderFoes.includes(enemy)) enemy.wardSource = true;
+      else if (!enemy.boss) enemy.warded = ROAM.twists.warded.wardCut;
+    }
   } else if (twist === "lateHorde") {
     // The last of the squad holds the gap until the zombies come.
     squadFoes.at(-1).spawnGap = Math.max(ROAM.squadGap, ROAM.twists.lateHorde.lateAt - ROAM.squadGap * (squad.length - 1));
@@ -234,11 +251,11 @@ export function buildRoamWave(n, rng = Math.random, threat = { hp: 1, dmg: 1 }) 
   } else if (twist === "flanked") {
     for (const enemy of squadFoes) enemy.flank = true;
   }
-  const scenario = { faction: faction.id, boss, leaders, grunts, layer, zombies, twist };
+  const described = { faction: scenario.faction, boss, leaders, grunts, layer, zombies, twist };
   return {
     ...wave,
     fieldCap: squad.length + (zombies ? ROAM.zombiesOnField : 0),
-    waveNumber: n, threat, scenario, event: describeRoamEvent(scenario),
+    waveNumber: n, threat, scenario: described, event: describeRoamEvent(described),
     ...(bigEvent ? { bigEvent: true } : {}),
     ...(twist ? { twist } : {}),
   };
