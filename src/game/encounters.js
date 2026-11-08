@@ -101,9 +101,114 @@ export function buildMarchWave(n, rng = Math.random, threat = { hp: 1, dmg: 1 })
   };
 }
 
-// The first wave of an endless region (`region.endlessKind`: "rift" or "march").
+// Free Roam (owner's design, Nov 2026): an endless run where every wave is its
+// own scenario, a faction's squad with (from wave `hordeFrom`) a horde layer
+// behind it. Squads are `squad.first` foes plus one every `squad.every` waves
+// (at most `squad.max`), about a third of them the faction's leaders. Horde
+// layer odds are `layer`: a trickle of `trickle.count` zombies spread out, or a
+// horde of `horde.first` plus `horde.step` a wave (at most `horde.max`). Every
+// `bigEvery`th wave is a big event (squad and a full horde); every `bossEvery`th
+// a boss leads the squad. HP and damage grow like the Rift's.
+export const ROAM = Object.freeze({
+  squad: Object.freeze({ first: 3, every: 3, max: 10 }),
+  leaderShare: 1 / 3,
+  hordeFrom: 3,
+  layer: Object.freeze({ none: 0.4, trickle: 0.35, horde: 0.25 }),
+  trickle: Object.freeze({ count: 10, gap: 2.5 }),
+  horde: Object.freeze({ first: 20, step: 2, max: 40, gap: 0.3 }),
+  squadGap: 0.75,
+  zombiesOnField: 12,
+  bigEvery: 5, bossEvery: 10,
+  hpBase: 0.8, dmgBase: 0.8,
+  bounty: 12, chestEvery: 5, chestGold: Object.freeze([40, 80]),
+});
+
+// Free Roam factions: who leads (`leaders`, at most `maxLeaders`) and who follows.
+export const FACTIONS = Object.freeze([
+  { id: "chaos", name: "Chaos", band: "warband", leaders: ["warlock"], grunts: ["orc", "bandit"] },
+  { id: "outlaws", name: "Outlaw", band: "gang", leaders: ["bandit"], grunts: ["gnome", "goblin"] },
+  { id: "undead", name: "Undead", band: "procession", leaders: ["lesserNecromancer", "carrionPriest"], grunts: ["skeleton", "reaper"] },
+  { id: "darkElves", name: "Dark Elf", band: "raiding party", leaders: ["darkElf"], grunts: ["harrier", "watcher"] },
+  { id: "iron", name: "Iron Legion", band: "column", leaders: ["lieutenant"], maxLeaders: 1, grunts: ["bulwark", "orc"] },
+]);
+
+const plural = (name, count) => (count > 1 ? `${count} ${name}s` : `${/^[AEIOU]/i.test(name) ? "an" : "a"} ${name}`);
+const listNames = (keys) => {
+  const counts = new Map();
+  for (const key of keys) counts.set(C.ENEMIES[key].name, (counts.get(C.ENEMIES[key].name) || 0) + 1);
+  const parts = [...counts].map(([name, count]) => plural(name, count));
+  return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0];
+};
+
+// The event card for a Free Roam wave: "A Chaos warband of 3 Warlocks and their
+// grunts (2 Orcs and a Bandit) attacks, a horde close behind."
+export function describeRoamEvent({ faction, boss, leaders, grunts, layer }) {
+  const f = FACTIONS.find((entry) => entry.id === faction);
+  const an = (word) => (/^[AEIOU]/i.test(word) ? "an" : "a");
+  const tail = layer === "horde" ? ", a horde close behind." : layer === "trickle" ? ", the dead trickling in after them." : ".";
+  if (boss) {
+    const guards = [...leaders, ...grunts];
+    const name = C.ENEMIES[boss].name;
+    return `${/^The /.test(name) ? name : `The ${name}`} leads ${an(f.name)} ${f.name} ${f.band}${guards.length ? ` (${listNames(guards)})` : ""} into battle${tail}`;
+  }
+  const followers = grunts.length ? ` and their grunts (${listNames(grunts)})` : "";
+  return `${an(f.name) === "an" ? "An" : "A"} ${f.name} ${f.band} of ${listNames(leaders)}${followers} attacks${tail}`;
+}
+
+// Free Roam wave `n` (1 is the first).
+export function buildRoamWave(n, rng = Math.random, threat = { hp: 1, dmg: 1 }) {
+  const faction = FACTIONS[Math.floor(rng() * FACTIONS.length)];
+  const size = Math.min(ROAM.squad.max, ROAM.squad.first + Math.floor((n - 1) / ROAM.squad.every));
+  const leaderCount = Math.min(faction.maxLeaders ?? size, Math.max(1, Math.round(size * ROAM.leaderShare)));
+  const pick = (keys) => keys[Math.floor(rng() * keys.length)];
+  const bossWave = n % ROAM.bossEvery === 0;
+  const bigEvent = !bossWave && n % ROAM.bigEvery === 0;
+  const boss = bossWave ? BOSS_ROTATION[(n / ROAM.bossEvery - 1) % BOSS_ROTATION.length] : null;
+  // A boss takes the place of three of its squad, as in the Rift.
+  const squadSize = bossWave ? Math.max(1, size - 3) : size;
+  const leaders = Array.from({ length: Math.min(leaderCount, squadSize) }, () => pick(faction.leaders));
+  const grunts = Array.from({ length: squadSize - leaders.length }, () => pick(faction.grunts));
+  let layer = "none";
+  if (bossWave) layer = "none";
+  else if (bigEvent) layer = "horde";
+  else if (n >= ROAM.hordeFrom) {
+    const roll = rng();
+    layer = roll < ROAM.layer.horde ? "horde" : roll < ROAM.layer.horde + ROAM.layer.trickle ? "trickle" : "none";
+  }
+  const zombies = layer === "horde" ? Math.min(ROAM.horde.max, ROAM.horde.first + ROAM.horde.step * (n - 1))
+    : layer === "trickle" ? ROAM.trickle.count : 0;
+  const scale = {
+    hp: ROAM.hpBase * ENDLESS.hpGrowth ** (n - 1) * threat.hp,
+    dmg: ROAM.dmgBase * ENDLESS.dmgGrowth ** (n - 1) * threat.dmg,
+  };
+  const squad = [...(boss ? [boss] : []), ...leaders, ...grunts];
+  const wave = assembleWave([...squad, ...Array.from({ length: zombies }, () => HORDE.enemy)],
+    scale, 1 + Math.floor((n - 1) / ENDLESS.wavesPerLootTier));
+  // The squad walks in down the lanes; the zombies come from every side behind it.
+  const gap = layer === "trickle" ? ROAM.trickle.gap : ROAM.horde.gap;
+  wave.enemies.forEach((enemy, index) => {
+    if (index < squad.length) enemy.spawnGap = ROAM.squadGap;
+    else { enemy.hordeEntry = true; enemy.spawnGap = gap; }
+  });
+  const scenario = { faction: faction.id, boss, leaders, grunts, layer, zombies };
+  return {
+    ...wave,
+    fieldCap: squad.length + (zombies ? ROAM.zombiesOnField : 0),
+    waveNumber: n, threat, scenario, event: describeRoamEvent(scenario),
+    ...(bigEvent ? { bigEvent: true } : {}),
+  };
+}
+
+// The first wave of an endless region (`region.endlessKind`: "rift", "march" or "roam").
 export function buildFirstEndlessWave(region, rng = Math.random, threat = { hp: 1, dmg: 1 }) {
-  return region?.endlessKind === "march" ? buildMarchWave(1, rng, threat) : buildEndlessWave(1, rng, threat);
+  return endlessWave(region?.endlessKind, 1, rng, threat);
+}
+
+// Wave `n` of an endless run of `kind` ("rift", "march" or "roam").
+export function endlessWave(kind, n, rng = Math.random, threat = { hp: 1, dmg: 1 }) {
+  if (kind === "march") return buildMarchWave(n, rng, threat);
+  if (kind === "roam") return buildRoamWave(n, rng, threat);
+  return buildEndlessWave(n, rng, threat);
 }
 
 // A horde for `region`, scaled like its wild squads at `progress` (0-1).
@@ -305,7 +410,7 @@ export function createEncounterSim(party, regionTier, wave = null, { rng = defau
 // `kind`: the endless region's `endlessKind` ("rift", the default, or "march").
 export function endlessWaveSource(sim, rng = sim.rng, kind = "rift") {
   return (wavesCleared) => {
-    const wave = kind === "march" ? buildMarchWave(wavesCleared + 1, rng, sim.threat) : buildEndlessWave(wavesCleared + 1, rng, sim.threat);
+    const wave = endlessWave(kind, wavesCleared + 1, rng, sim.threat);
     sim.lootTier = wave.lootTier;
     sim.minionScale = wave.scale;
     return wave;

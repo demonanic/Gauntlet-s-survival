@@ -459,16 +459,21 @@ export class Engine {
       // Keep the battlefield readable: limit concurrent enemies to roughly half
       // a wave (a horde sets its own cap).
       const capInZone = this.wave.fieldCap || Math.max(4, this.wave.total * 0.5);
+      // In a mixed wave a foe can set the gap before the next one (`spawnGap`).
+      let gap = this.wave.spawnEvery || 0.75;
       if (this.active.length < capInZone) {
         const e = this.spawnQueue.shift();
-        if (this.wave.horde) this._hordeEntry(e);
+        if (e.spawnGap != null) gap = e.spawnGap;
+        // A horde wave comes from every side; so does a horde that follows a
+        // squad in a mixed wave (Free Roam: `hordeEntry` on each zombie).
+        if (this.wave.horde || e.hordeEntry) this._hordeEntry(e);
         else { e.x = laneX(pickLane(this, e)); e.y = 10 + this.rng() * 20; }
         e.lane = Math.max(0, Math.min(LANES - 1, Math.round(e.x / (W / LANES) - 0.5)));
         e.dmgBy = {}; e.atkCd = 0; e.state = "advance";
         this.active.push(e);
       }
       // Wider spacing prevents large clumps while preserving steady wave pressure.
-      this.spawnTimer = this.wave.hasBoss && this.spawnQueue.length === 0 ? 0 : (this.wave.spawnEvery || 0.75);
+      this.spawnTimer = this.wave.hasBoss && this.spawnQueue.length === 0 ? 0 : gap;
     }
 
     // enemies
