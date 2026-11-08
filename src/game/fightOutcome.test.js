@@ -211,8 +211,11 @@ describe("buildFightOutcome: the canonical fight result", () => {
     expect(buildFightOutcome(FULL_RESULT, FULL_SIM)).toEqual({
       victory: true, reason: "cleared", party: FULL_SIM.heroes, xpGains: { 0: 30, 1: 12 }, gold: 42, items: [{ kind: "gear", id: "x" }],
       wavesCleared: 2, killed: 5, downed: FULL_RESULT.downed, nemesisSlain: "n1", nemesisFled: "n2",
-      clutches: FULL_RESULT.clutches, spellCasts: { 0: { firebolt: 2 } },
+      clutches: FULL_RESULT.clutches, spellCasts: { 0: { firebolt: 2 } }, swaps: null,
     });
+    // Free Roam swaps pass straight through.
+    const swaps = { left: ["h2"], joined: ["h3"] };
+    expect(buildFightOutcome({ ...FULL_RESULT, swaps }, FULL_SIM).swaps).toEqual(swaps);
   });
 
   test("copies the item list instead of sharing the sim's", () => {
