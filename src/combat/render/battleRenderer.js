@@ -38,6 +38,13 @@ export function renderBattle(engine) {
     const r = e.boss ? 25 : e.tier === "elite" ? 16 : 11;
     drawEnemySprite(engine, e);
     bar(engine, e.x - r, e.y - r - 7, r * 2, 3, e.hp / e.maxHp, e.color);
+    // Free Roam's Warded twist: a pale ring while its leaders' ward holds (no glow: cheap).
+    if (e.warded && engine._foeWardCut(e) < 1) {
+      ctx.save();
+      ctx.strokeStyle = "rgba(56,189,248,0.7)"; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(e.x, e.y, r + 4, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
     if (e.nemesisId && e.hp > 0) {
       ctx.save();
       ctx.textAlign = "center"; ctx.font = "bold 10px JetBrains Mono, monospace";
@@ -121,6 +128,7 @@ export function renderBattle(engine) {
 
   // heroes — top-down sprites face UP toward incoming enemies.
   for (const h of engine.heroes) {
+    if (h.away) continue; // gone to camp (a Free Roam swap)
     if (h.i === engine.selectedHero && h.alive) {
       ctx.save();
       ctx.strokeStyle = h.manual ? "#F0ABFC" : h.d.color;
@@ -139,6 +147,7 @@ export function renderBattle(engine) {
 
   // Manual command markers make every battlefield command visually verifiable.
   for (const h of engine.heroes) {
+    if (h.away) continue; // gone to camp (a Free Roam swap)
     if (!h.manual || !h.alive) continue;
     if (h.manualPoint) {
       ctx.save();
@@ -168,6 +177,7 @@ export function renderBattle(engine) {
 
   // Spell marks: a reticle in the hero's colour on the foe they cast at.
   for (const h of engine.heroes) {
+    if (h.away) continue; // gone to camp (a Free Roam swap)
     const foe = h.alive && h.spellTarget;
     if (!foe || foe.hp <= 0) continue;
     const r = (foe.boss ? 30 : foe.tier === "elite" ? 21 : 16) + 1.5 * Math.sin(engine.time * 6 + h.i);

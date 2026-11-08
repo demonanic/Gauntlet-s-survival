@@ -192,7 +192,7 @@ describe("characterization: the old watched mapping and the unattended path", ()
 });
 
 const LEGACY_FIELDS = ["victory", "party", "xpGains", "gold", "items", "wavesCleared", "downed", "nemesisSlain", "nemesisFled", "clutches", "spellCasts"];
-const CANONICAL_FIELDS = [...LEGACY_FIELDS, "reason", "killed"].sort();
+const CANONICAL_FIELDS = [...LEGACY_FIELDS, "reason", "killed", "swaps"].sort();
 const legacyPart = (outcome) => Object.fromEntries(LEGACY_FIELDS.map((key) => [key, outcome[key]]));
 const FULL_RESULT = {
   victory: true, reason: "cleared", xpGains: { heroes: { 0: 30, 1: 12 } }, killed: 5, wavesCleared: 2,
@@ -211,8 +211,11 @@ describe("buildFightOutcome: the canonical fight result", () => {
     expect(buildFightOutcome(FULL_RESULT, FULL_SIM)).toEqual({
       victory: true, reason: "cleared", party: FULL_SIM.heroes, xpGains: { 0: 30, 1: 12 }, gold: 42, items: [{ kind: "gear", id: "x" }],
       wavesCleared: 2, killed: 5, downed: FULL_RESULT.downed, nemesisSlain: "n1", nemesisFled: "n2",
-      clutches: FULL_RESULT.clutches, spellCasts: { 0: { firebolt: 2 } },
+      clutches: FULL_RESULT.clutches, spellCasts: { 0: { firebolt: 2 } }, swaps: null,
     });
+    // Free Roam swaps pass straight through.
+    const swaps = { left: ["h2"], joined: ["h3"] };
+    expect(buildFightOutcome({ ...FULL_RESULT, swaps }, FULL_SIM).swaps).toEqual(swaps);
   });
 
   test("copies the item list instead of sharing the sim's", () => {

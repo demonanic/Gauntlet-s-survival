@@ -80,6 +80,14 @@ export function applyFightResult(state, region, { victory, party, xpGains, gold,
   const merged = mergeClasslessBattleResults(state, { heroIds: party.map(heroId), runtimeHeroes: party, xpGains: boostedXp });
   Object.assign(state, merged);
   const run = state.expedition;
+  // Free Roam swaps: who went back to camp and who joined, mid-fight.
+  if (outcome.swaps) {
+    const { left = [], joined = [] } = outcome.swaps;
+    run.heroIds = [...run.heroIds.filter((id) => !left.includes(id)), ...joined.filter((id) => !run.heroIds.includes(id))];
+    const names = (ids) => ids.map((id) => findHero(state, id)?.identity.name).filter(Boolean).join(", ");
+    if (left.length) addFeed(run, at, `Back to camp: ${names(left)}.`, "flavor");
+    if (joined.length) addFeed(run, at, `Joined on the road: ${names(joined)}.`, "flavor");
+  }
   // Quick-slot stacks spent in the fight come back on the runtime party. After
   // a win, the party picks up some of the plain arrows it fired.
   let recovered = 0;

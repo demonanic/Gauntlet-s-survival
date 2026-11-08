@@ -1,9 +1,10 @@
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import { Engine } from "../combat/engine";
 import { debugSetLevels, debugTestEndless } from "./debug";
-import { FACTIONS, HORDE, ROAM, buildRoamWave, createEncounterSim, endlessWave } from "./encounters";
+import { FACTIONS, HORDE, ROAM, buildRoamWave, createEncounterSim, endlessWave, endlessWaveSource } from "./encounters";
+import { buildFightOutcome } from "./fightOutcome";
 import { regionOpen } from "./expedition";
-import { createGuild, currentEncounterParty, recruitHero, resolveEncounter, startExpedition } from "./guild";
+import { benchHeroes, createGuild, currentEncounterParty, recruitHero, resolveEncounter, startExpedition } from "./guild";
 import { endlessRecordKey, getRegion } from "./regions";
 import { simulateEncounter } from "./simulate";
 import { createGearItem } from "./items";
@@ -32,7 +33,7 @@ describe("Free Roam scenarios", () => {
     expect(big.bigEvent).toBe(true);
     expect(big.scenario.layer).toBe("horde");
     expect(zombiesOf(big)).toHaveLength(ROAM.horde.first + ROAM.horde.step * 4);
-    expect(big.event).toMatch(/a horde close behind\.$/);
+    expect(big.event).toMatch(/a horde (close|gathering) behind/);
   });
 
   test("the horde layer comes in all three kinds at about the planned odds", () => {
@@ -152,5 +153,180 @@ describe("Free Roam, the mode", () => {
     expect(pending.startWave).toBe(5);
     expect(pending.wave.bigEvent).toBe(true);
     expect(debugTestEndless({ ...ready(), clears: {} }, "roam", 1).reason).toBe("previous_region");
+  });
+});
+
+describe("Free Roam swaps between waves", () => {
+  const roamFight = () => {
+    let state = { ...createGuild(), gold: 1e6 };
+    state = recruitHero(state).state;
+    state = recruitHero(state).state;
+    state = { ...debugSetLevels(state, 12).state, clears: { frostfang: 1 } };
+    const ids = state.heroes.slice(0, 4).map((hero) => hero.identity.id);
+    state = startExpedition(state, "roam", ids, 1000, seededRandom(4)).state;
+    const party = currentEncounterParty(state);
+    const wave = state.expedition.pending.wave;
+    const sim = createEncounterSim(party, 2, wave, { rng: seededRandom(6) });
+    let result = null;
+    const engine = new Engine({ getContext: () => null }, sim, structuredClone(wave), {
+      onEnd: (outcome) => { result = outcome; }, nextWave: endlessWaveSource(sim, sim.rng, "roam"),
+    });
+    engine.godMode = true;
+    return { state, engine, sim, result: () => result };
+  };
+  // Clear the field and step until the next wave has begun.
+  const nextWave = (engine) => {
+    const wave = engine.wavesCleared;
+    for (let frame = 0; frame < 30 * 60 && engine.wavesCleared === wave; frame += 1) {
+      engine.debugCheat("kill");
+      engine.spawnQueue = [];
+      engine.update(1 / 30);
+    }
+  };
+
+  test("the hero sent back leaves when the next wave starts; the one called joins the wave after", () => {
+    const { state, engine, sim } = roamFight();
+    const bench = benchHeroes(state, 2000);
+    expect(bench.map((hero) => hero.identity.id)).toEqual([state.heroes[4].identity.id]);
+    const out = engine.heroes[1];
+    expect(engine.requestSwap(1, bench[0]).ok).toBe(true);
+    expect(engine.requestSwap(1, bench[0]).ok).toBe(false);
+    expect(out.away).toBeFalsy();
+    nextWave(engine);
+    expect(out.away).toBe(true);
+    expect(out.alive).toBe(false);
+    expect(engine.heroes).toHaveLength(4);
+    expect(engine.pets.some((pet) => pet.owner === out)).toBe(false);
+    nextWave(engine);
+    expect(engine.heroes).toHaveLength(5);
+    const joined = engine.heroes[4];
+    expect(joined.model.identity.id).toBe(bench[0].identity.id);
+    expect(joined.alive).toBe(true);
+    expect(joined.x).toBe(out.home.x);
+    expect(sim.heroes).toHaveLength(5);
+    engine.returnHome();
+  });
+
+  test("someone has to stay on the field", () => {
+    const { state, engine } = roamFight();
+    const bench = benchHeroes(state, 2000);
+    for (const index of [0, 2, 3]) engine.heroes[index].alive = false;
+    expect(engine.requestSwap(1, bench[0])).toEqual({ ok: false, reason: "last_hero" });
+  });
+
+  test("after the fight the trip's party is who was there at the end", () => {
+    const { state, engine, result } = roamFight();
+    const bench = benchHeroes(state, 2000);
+    const leaving = engine.heroes[1].model.identity.id;
+    engine.requestSwap(1, bench[0]);
+    nextWave(engine);
+    nextWave(engine);
+    // A wave fought with the newcomer on the field.
+    for (let frame = 0; frame < 30 * 60 && !(engine.xpGains.heroes[4] > 0); frame += 1) engine.update(1 / 30);
+    engine.returnHome();
+    const outcome = buildFightOutcome(result(), engine.sim);
+    expect(outcome.swaps).toEqual({ left: [leaving], joined: [bench[0].identity.id] });
+    const fighting = { ...state, expedition: { ...state.expedition, pending: { ...state.expedition.pending, engagedAt: 1500 } } };
+    const next = resolveEncounter(fighting, outcome, 3000, { rng: () => 0.5 }).state;
+    expect(next.lastReport.log.some((line) => /Back to camp: /.test(line))).toBe(true);
+    expect(next.lastReport.log.some((line) => /Joined on the road: /.test(line))).toBe(true);
+    // The hero who joined learned from the fight.
+    const before = state.heroes.find((hero) => hero.identity.id === bench[0].identity.id).progression.xp;
+    expect(next.heroes.find((hero) => hero.identity.id === bench[0].identity.id).progression.xp).toBeGreaterThan(before);
+  });
+
+  test("an injured hero can't be called", () => {
+    const { state } = roamFight();
+    const hurt = { ...state, injuries: { [state.heroes[4].identity.id]: 99999 } };
+    expect(benchHeroes(hurt, 2000)).toEqual([]);
+  });
+});
+
+describe("Free Roam twists", () => {
+  // The first wave (n, seed) found with the twist.
+  const withTwist = (twist, n = 6) => {
+    for (let seed = 0; seed < 2000; seed += 1) {
+      const wave = buildRoamWave(n, seededRandom(seed));
+      if (wave.twist === twist) return wave;
+    }
+    throw new Error(`no ${twist}`);
+  };
+  const engineFor = (wave) => {
+    const hero = structuredClone(createGuild().heroes[0]);
+    hero.traits = [];
+    hero.equipment = { weapon: createGearItem({ slot: "weapon", variant: "sword", rarity: "common", tier: 1 }) };
+    hero.combat.hp = classlessMaxHp(hero);
+    const engine = new Engine({ getContext: () => null }, createEncounterSim([hero], 1, wave, { rng: seededRandom(5) }), wave, {});
+    engine.godMode = true;
+    return engine;
+  };
+
+  test("about 30% of waves from wave 4 have one; never before, never a boss wave", () => {
+    let twists = 0;
+    const rng = seededRandom(21);
+    for (let i = 0; i < 3000; i += 1) {
+      expect(buildRoamWave(3, rng).twist).toBeUndefined();
+      expect(buildRoamWave(10, rng).twist).toBeUndefined();
+      if (buildRoamWave(6, rng).twist) twists += 1;
+    }
+    expect(twists / 3000).toBeCloseTo(ROAM.twistChance, 1);
+  });
+
+  test("Warded: grunts take half damage until their leaders fall", () => {
+    const wave = withTwist("warded");
+    expect(wave.event).toMatch(/ward the rest/);
+    const engine = engineFor(wave);
+    const leader = wave.enemies.find((enemy) => enemy.wardSource);
+    const grunt = wave.enemies.find((enemy) => enemy.warded);
+    engine.active = [leader, grunt];
+    for (const enemy of engine.active) enemy.dmgBy = {};
+    expect(engine._foeWardCut(grunt)).toBe(1 - ROAM.twists.warded.wardCut);
+    expect(engine._foeWardCut(leader)).toBe(1);
+    const before = grunt.hp;
+    engine._bonusDamage(grunt, 10, "H0", "#fff");
+    expect(before - grunt.hp).toBeCloseTo(5, 5);
+    leader.hp = 0;
+    expect(engine._foeWardCut(grunt)).toBe(1);
+  });
+
+  test("Late horde: the zombies wait until about 20 s", () => {
+    const wave = withTwist("lateHorde");
+    expect(wave.event).toMatch(/gathering behind them/);
+    const engine = engineFor(wave);
+    let firstZombie = null;
+    for (let frame = 0; frame < 30 * 40 && firstZombie == null; frame += 1) {
+      engine.update(1 / 30);
+      if (engine.active.some((enemy) => enemy.type === HORDE.enemy)) firstZombie = engine.time;
+    }
+    expect(firstZombie).toBeGreaterThanOrEqual(ROAM.twists.lateHorde.lateAt - 1);
+  });
+
+  test("Thieves: a bandit left standing runs off with gold", () => {
+    const wave = withTwist("thieves");
+    expect(wave.event).toMatch(/after your gold/);
+    const engine = engineFor(wave);
+    engine.sim.gold = 500;
+    const bandit = wave.enemies.find((enemy) => enemy.thief);
+    engine.spawnQueue = [bandit];
+    engine.update(1 / 30);
+    expect(engine.active).toContain(bandit);
+    bandit.speed = 0;
+    bandit.hp = bandit.maxHp = 1e9;
+    for (let frame = 0; frame < 30 * (ROAM.twists.thieves.after + 1) && engine.active.includes(bandit); frame += 1) engine.update(1 / 30);
+    expect(engine.active).not.toContain(bandit);
+    expect(bandit.escaped).toBe(true);
+    expect(engine.sim.gold).toBe(500 - bandit.thief.steal);
+    expect(engine.stolen).toBe(bandit.thief.steal);
+  });
+
+  test("Flanked: the squad comes in down both edges", () => {
+    const wave = withTwist("flanked");
+    const engine = engineFor(wave);
+    const squad = wave.enemies.filter((enemy) => enemy.flank);
+    expect(squad.length).toBeGreaterThan(1);
+    engine.spawnQueue = [...squad];
+    for (let frame = 0; frame < 30 * 20 && engine.spawnQueue.length; frame += 1) engine.update(1 / 30);
+    const xs = new Set(squad.map((enemy) => (enemy.x < 210 ? "left" : "right")));
+    expect(xs).toEqual(new Set(["left", "right"]));
   });
 });

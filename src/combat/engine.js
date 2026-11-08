@@ -217,72 +217,82 @@ export class Engine {
     for (const h of sim.heroes) {
       if (!h?.combat?.basicAttack) throw new TypeError("Engine heroes must use the hero model (createHeroModel)");
     }
-    this.heroes = sim.heroes.map((h, i) => {
-      const ref = classlessHeroRef(h);
-      const d = classlessHeroDerived(h);
-      const x = W * ((i + 0.5) / n);
-      return {
-        i,
-        ref,
-        model: h,
-        x,
-        y: HERO_Y,
-        home: { x, y: HERO_Y },
-        d,
-        cd: 0,
-        alive: ref.hp > 0,
-        protect: 0,
-        manual: !!h.manual,
-        manualTarget: null,
-        manualPoint: null,
-        rallyPoint: null,
-        rallyHold: false,
-        retreating: false,
-        reactiveUntil: 0,
-        reactiveAlly: null,
-        reactiveReason: null,
-        abilityCooldowns: {},
-        spellCooldowns: {},
-        visualActionKind: null,
-        visualActionStartedAt: 0,
-        visualActionUntil: 0,
-        hitUntil: 0,
-        warCryUntil: 0,
-        warCryAttackSpeedBonus: 0,
-        interposeUntil: 0,
-        interposeReduction: 0,
-        interposeTarget: null,
-        untargetableUntil: 0,
-        quickCd: 0,
-        ammoShots: 0,
-        ammoBonus: 0,
-        maxMana: spellMaxMana(h),
-        mana: spellMaxMana(h),
-        castCd: 0,
-        lastCastAt: -Infinity,
-        strain: 0,
-        spellQueue: [],
-        currentTarget: null,
-        speedRushUntil: 0,
-        classlessCombatState: { lastDamageAt: 0, sustainSecond: -1, sustainRestored: 0,
-          nextRegenAt: 5, lastStandUntil: 0, lastStandReadyAt: 0, survivalUntil: 0,
-          survivalReadyAt: 0, covenantUntil: 0, decoy: false, mirrorReadyAt: 0,
-          nextDisruptAt: 0, nextRootAt: 0, lastDealtAt: 0, momentumTarget: null,
-          momentumStacks: 0, ambushTargets: new Set(), vanishDamagePending: 0,
-          echoReadyAt: 0 },
-      };
-    });
+    this.heroes = sim.heroes.map((h, i) => this._makeHero(h, i, W * ((i + 0.5) / n)));
+    // Free Roam swaps between waves (requestSwap): queued, then on the road.
+    this.swaps = [];
+    this.startingParty = this.heroes.length;
 
     // Gauntlet familiars: one per hero that has a pet, each a unit of its own
     // (pets.js PET_BODIES): HP, enemies can hit it, downed for the rest of the fight.
-    this.pets = this.heroes.filter((h) => h.model.pet).map((h) => {
-      const stats = petStats(h.model.pet, h.model.progression?.level || 1);
-      h.petGuard = stats?.guard || 0;
-      const maxHp = petMaxHp(h.model.pet, h.d.maxHp);
-      return stats && { owner: h, name: h.model.pet.name, stats, body: PET_BODIES[stats.species] || { hp: 0.2, weight: 0.5 },
-        level: h.model.pet.level || 1, hp: maxHp, maxHp, down: false, hurtAt: -99, strikeAt: -99, face: 1, moving: false,
-        x: h.x + 18, y: h.y + 14, cd: 1, supportCd: stats.support?.interval || 0, tauntCd: 2, target: null };
-    }).filter(Boolean);
+    this.pets = this.heroes.map((h) => this._makePet(h)).filter(Boolean);
+  }
+
+  // One hero's runtime state at slot `i`, standing at `x`.
+  _makeHero(h, i, x) {
+    const ref = classlessHeroRef(h);
+    const d = classlessHeroDerived(h);
+    return {
+      i,
+      ref,
+      model: h,
+      x,
+      y: HERO_Y,
+      home: { x, y: HERO_Y },
+      d,
+      cd: 0,
+      alive: ref.hp > 0,
+      protect: 0,
+      manual: !!h.manual,
+      manualTarget: null,
+      manualPoint: null,
+      rallyPoint: null,
+      rallyHold: false,
+      retreating: false,
+      reactiveUntil: 0,
+      reactiveAlly: null,
+      reactiveReason: null,
+      abilityCooldowns: {},
+      spellCooldowns: {},
+      visualActionKind: null,
+      visualActionStartedAt: 0,
+      visualActionUntil: 0,
+      hitUntil: 0,
+      warCryUntil: 0,
+      warCryAttackSpeedBonus: 0,
+      interposeUntil: 0,
+      interposeReduction: 0,
+      interposeTarget: null,
+      untargetableUntil: 0,
+      quickCd: 0,
+      ammoShots: 0,
+      ammoBonus: 0,
+      maxMana: spellMaxMana(h),
+      mana: spellMaxMana(h),
+      castCd: 0,
+      lastCastAt: -Infinity,
+      strain: 0,
+      spellQueue: [],
+      currentTarget: null,
+      speedRushUntil: 0,
+      classlessCombatState: { lastDamageAt: 0, sustainSecond: -1, sustainRestored: 0,
+        nextRegenAt: 5, lastStandUntil: 0, lastStandReadyAt: 0, survivalUntil: 0,
+        survivalReadyAt: 0, covenantUntil: 0, decoy: false, mirrorReadyAt: 0,
+        nextDisruptAt: 0, nextRootAt: 0, lastDealtAt: 0, momentumTarget: null,
+        momentumStacks: 0, ambushTargets: new Set(), vanishDamagePending: 0,
+        echoReadyAt: 0 },
+    };
+  }
+
+  // The hero's familiar, if they have one (pets.js PET_BODIES): HP, enemies
+  // can hit it, downed for the rest of the fight.
+  _makePet(h) {
+    if (!h.model.pet) return null;
+    const stats = petStats(h.model.pet, h.model.progression?.level || 1);
+    h.petGuard = stats?.guard || 0;
+    const maxHp = petMaxHp(h.model.pet, h.d.maxHp);
+    return stats ? { owner: h, name: h.model.pet.name, stats, body: PET_BODIES[stats.species] || { hp: 0.2, weight: 0.5 },
+      level: h.model.pet.level || 1, hp: maxHp, maxHp, down: false, hurtAt: -99, strikeAt: -99, face: 1, moving: false,
+      x: h.x + 18, y: h.y + 14, cd: 1, supportCd: stats.support?.interval || 0, tauntCd: 2, target: null } : null;
   }
 
   start() {
@@ -372,6 +382,32 @@ export class Engine {
   // Gauntlet endless mode: the player ends the fight and keeps what was earned.
   // A horde comes from every side: half at the top, a quarter down each edge
   // (in the upper half of the field, away from the heroes).
+  // Free Roam's Flanked twist: the squad comes in down both edges, in turn.
+  _flankEntry(e) {
+    this.flankSide = !this.flankSide;
+    e.x = this.flankSide ? 12 : W - 12;
+    e.y = 40 + this.rng() * (H * 0.45 - 40);
+  }
+
+  // Free Roam's Warded twist: a warded foe takes less damage while one of
+  // its leaders (wardSource) is still standing. 1 for everyone else.
+  _foeWardCut(target) {
+    if (!target.warded) return 1;
+    return this.active.some((enemy) => enemy.wardSource && enemy.hp > 0) ? 1 - target.warded : 1;
+  }
+
+  // Free Roam's Thieves twist: a bandit still standing when its time is up
+  // runs off with some of the fight's gold. It leaves the field, not dead.
+  _thiefEscapes(e) {
+    const stolen = Math.min(Math.max(0, Math.floor(this.sim.gold)), e.thief.steal);
+    this.sim.gold -= stolen;
+    this.stolen = (this.stolen || 0) + stolen;
+    e.escaped = true;
+    this._float(e.x, e.y - 20, stolen ? `ESCAPED -${stolen}g` : "ESCAPED", "#FBBF24");
+    this._log("death", `${this._foeName(e)} escapes${stolen ? ` with ${stolen} gold` : ""}`);
+    this.effects.push({ x: e.x, y: e.y, r: 20, life: 0.4, color: e.color, ring: true });
+  }
+
   _hordeEntry(e) {
     const roll = this.rng();
     if (roll < 0.5) { e.x = 20 + this.rng() * (W - 40); e.y = 10 + this.rng() * 20; return; }
@@ -420,6 +456,68 @@ export class Engine {
   }
   forceWin() { this.spawnQueue = []; this.active = []; }
 
+  // Free Roam (owner's design): change the party between waves. The hero at
+  // `index` heads to camp when the next wave starts, so that wave is fought
+  // one short; `model` (a hero ready at the guild, shaped like the party)
+  // joins at the start of the wave after. Someone must stay on the field.
+  requestSwap(index, model) {
+    const out = this.heroes[index];
+    const id = model?.identity?.id;
+    if (this.ended) return { ok: false, reason: "ended" };
+    if (!out || out.away || this.swaps.some((swap) => swap.out === out)) return { ok: false, reason: "not_available" };
+    if (!model?.combat?.basicAttack || this.heroes.some((h) => h.model.identity?.id === id) || this.swaps.some((swap) => swap.model.identity.id === id)) {
+      return { ok: false, reason: "not_available" };
+    }
+    const staying = this.heroes.filter((h) => h.alive && !h.away && h !== out && !this.swaps.some((swap) => swap.out === h));
+    if (!staying.length) return { ok: false, reason: "last_hero" };
+    this.swaps.push({ out, model: structuredClone(model), stage: "queued" });
+    this._log("swap", `${this._name(out)} will head to camp when this wave ends; ${model.identity.name} sets out to join.`);
+    return { ok: true };
+  }
+
+  // The swaps waiting on each hero slot, for the battle screen.
+  swapStatus() {
+    return this.swaps.map((swap) => ({ out: swap.out.i, outName: this._name(swap.out), inId: swap.model.identity.id, inName: swap.model.identity.name, stage: swap.stage }));
+  }
+
+  // A new wave starts: heroes on the road arrive, then queued ones leave.
+  _advanceSwaps() {
+    for (const swap of this.swaps) {
+      if (swap.stage !== "travelling") continue;
+      const h = this._makeHero(swap.model, this.heroes.length, swap.out.home.x);
+      this.heroes.push(h);
+      this.sim.heroes.push(swap.model);
+      const pet = this._makePet(h);
+      if (pet) this.pets.push(pet);
+      this._logbook().addHero(this._name(h));
+      this._float(h.x, h.y - 30, "JOINS", "#F472B6");
+      this._log("swap", `${this._name(h)} joins the fight.`);
+      swap.stage = "done";
+    }
+    for (const swap of this.swaps) {
+      if (swap.stage !== "queued") continue;
+      const h = swap.out;
+      this._float(h.x, h.y - 30, "TO CAMP", "#F472B6");
+      this._log("swap", `${this._name(h)} heads to camp.`);
+      h.away = true;
+      h.alive = false;
+      h.x = h.home.x; h.y = H + 200;
+      h.spellQueue = [];
+      this.pets = this.pets.filter((pet) => pet.owner !== h);
+      if (this.selectedHero === h.i) this.selectedHero = null;
+      swap.stage = "travelling";
+    }
+    this.swaps = this.swaps.filter((swap) => swap.stage !== "done");
+  }
+
+  // Which heroes left mid-fight and who joined, by hero id (for the trip's party).
+  swapResult() {
+    return {
+      left: this.heroes.filter((h) => h.away).map((h) => h.model.identity?.id).filter(Boolean),
+      joined: this.heroes.slice(this.startingParty).map((h) => h.model.identity?.id).filter(Boolean),
+    };
+  }
+
   _loop(now) {
     if (!this.running) return;
     try {
@@ -467,7 +565,9 @@ export class Engine {
         // A horde wave comes from every side; so does a horde that follows a
         // squad in a mixed wave (Free Roam: `hordeEntry` on each zombie).
         if (this.wave.horde || e.hordeEntry) this._hordeEntry(e);
+        else if (e.flank) this._flankEntry(e);
         else { e.x = laneX(pickLane(this, e)); e.y = 10 + this.rng() * 20; }
+        if (e.thief) e.thief.at = this.time + e.thief.after;
         e.lane = Math.max(0, Math.min(LANES - 1, Math.round(e.x / (W / LANES) - 0.5)));
         e.dmgBy = {}; e.atkCd = 0; e.state = "advance";
         this.active.push(e);
@@ -490,11 +590,12 @@ export class Engine {
       }
     }
     for (const e of this.active) {
+      if (e.thief && e.hp > 0 && this.time >= e.thief.at) { this._thiefEscapes(e); continue; }
       this._tickDots(e, dt);
       this._landMeteors(e);
       if (e.hp > 0) enemyTurn(this, e, dt);
     }
-    this.active = this.active.filter((e) => e.hp > 0);
+    this.active = this.active.filter((e) => e.hp > 0 && !e.escaped);
 
     // heroes: in an encounter the party is engaged as soon as any enemy is on
     // the field. Melee heroes advance to attack; ranged fire in place.
@@ -1014,7 +1115,7 @@ export class Engine {
     let source = null;
     let color = null;
     for (const dot of e.dots) {
-      const amount = dot.dps * Math.min(dt, Math.max(0, dot.until - (this.time - dt)));
+      const amount = dot.dps * Math.min(dt, Math.max(0, dot.until - (this.time - dt))) * this._foeWardCut(e);
       if (amount <= 0) continue;
       e.hp = Math.max(0, e.hp - amount);
       e.dmgBy[dot.sourceId] = (e.dmgBy[dot.sourceId] || 0) + amount;
@@ -1035,6 +1136,7 @@ export class Engine {
   // Extra damage from splash, cleave and thorns: no crits or on-hit effects.
   _bonusDamage(target, amount, sourceId, color) {
     if (!target || target.hp <= 0 || !(amount > 0)) return;
+    amount *= this._foeWardCut(target);
     target.hp = Math.max(0, target.hp - amount);
     target.dmgBy[sourceId] = (target.dmgBy[sourceId] || 0) + amount;
     target.hitUntil = this.time + 0.18;
@@ -1229,6 +1331,7 @@ export class Engine {
         damage *= 1 - BULWARK_GUARD;
       }
     }
+    damage *= this._foeWardCut(target);
     target.hp = Math.max(0, target.hp - damage);
     if (p.damageCategory === "weapon") {
       this._tally(hero, hero.d.rangeMode === "melee" ? "meleeHits" : "rangedHits", 1);
@@ -1400,7 +1503,8 @@ export class Engine {
   // casts. game/fightOutcome.js turns it into the canonical fight result.
   _fightSummary() {
     return { downed: this.downed, nemesisSlain: this.nemesisSlain, nemesisFled: this.nemesisFled, clutches: this.clutches,
-      spellCasts: this.spellSuccesses };
+      spellCasts: this.spellSuccesses,
+      ...(this.heroes.length > this.startingParty || this.heroes.some((h) => h.away) ? { swaps: this.swapResult() } : {}) };
   }
 
 
@@ -1716,7 +1820,8 @@ export class Engine {
       waveCount: this.cb.nextWave ? null : this.waveCount,
       // Free Roam: the current wave's event card text.
       event: this.wave.event || null,
-      heroes: this.heroes.map((h) => ({ name: h.ref.name, hp: h.ref.hp, maxHp: h.d.maxHp, alive: h.alive, shield: h.ref.shield || 0 })),
+      heroes: this.heroes.map((h) => ({ name: h.ref.name, hp: h.ref.hp, maxHp: h.d.maxHp, alive: h.alive, shield: h.ref.shield || 0, ...(h.away ? { away: true } : {}) })),
+      swaps: this.swaps.length ? this.swapStatus() : null,
       heroAbilities: this.heroes.map((h) => this.getHeroAbilityStatus(h.i)),
       heroSpells: this.heroes.map((h) => this.getHeroSpellStatus(h.i)),
       heroQuickSlots: this.heroes.map((h) => this.getHeroQuickSlots(h.i)),
@@ -1755,6 +1860,7 @@ export class Engine {
         this.wave = { ...this.wave, ...next, total: next.enemies.length };
         this.spawnQueue = [...next.enemies];
         this.spawnTimer = WAVE_BREAK_SECONDS;
+        if (this.swaps.length) this._advanceSwaps();
         this._float(W / 2, H * 0.4, `WAVE ${this.wavesCleared + 1}/${this.waveCount}`, "#00F3FF");
         return;
       }
@@ -1765,6 +1871,7 @@ export class Engine {
           this.wave = { ...next, total: next.enemies.length };
           this.spawnQueue = [...next.enemies];
           this.spawnTimer = ENDLESS_WAVE_BREAK_SECONDS;
+          if (this.swaps.length) this._advanceSwaps();
           this._float(W / 2, H * 0.4, `WAVE ${this.wavesCleared + 1}`, "#00F3FF");
           return;
         }

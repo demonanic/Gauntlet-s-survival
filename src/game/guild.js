@@ -14,7 +14,7 @@ import { newTutorial } from "./tutorial";
 
 // Expeditions live in expedition.js; re-exported so the guild stays the one entry point.
 export {
-  MAX_PARTY_SIZE, choosePending, currentEncounterParty, currentEncounterWave, dismissReport, engagePending,
+  MAX_PARTY_SIZE, benchHeroes, choosePending, currentEncounterParty, currentEncounterWave, dismissReport, engagePending,
   expeditionDurationMs, recallExpedition, resolveEncounter, riftBounty, startExpedition, tick,
 } from "./expedition";
 
