@@ -2,7 +2,7 @@
 
 Read this first, then `docs/ROADMAP.md` (the living checklist and pass log) and `docs/DESIGN.md` (every approved design, with its measurements). `docs/LEGACY_MANIFEST.md` tracks the old Demonanic code.
 
-Last updated: 2026-11-08, with Free Roam batch 2 open as draft PR #68.
+Last updated: 2026-11-08, with Story mode batch 1 open as draft PR #69.
 
 ## The project
 
@@ -70,8 +70,9 @@ Last updated: 2026-11-08, with Free Roam batch 2 open as draft PR #68.
   - #65: staff shards (Wellspring, Focus, Reach, Fury); Sam kept Reach and Wellspring as niche shards.
   - #66: fix: the Expeditions tab was blank for a guild that had not cleared Frostfang (the Dead March's lock text).
   - #67: Free Roam (every wave a faction squad with a horde layer and an event card); Sam kept its difficulty.
-- **Open:** draft PR #68, Free Roam batch 2: Camp (swap heroes between waves) and twists (Warded, Late horde, Thieves, Flanked); DESIGN.md "Free Roam".
-- **Planned with Sam:** Story mode (DESIGN.md "Story mode"): Claude writes two campaigns, Sam two.
+  - #68: Free Roam batch 2: Camp swaps between waves and four twists.
+- **Open:** draft PR #69, Story mode batch 1 with Sam's The Time Warp Breach, chapters 1–4 (DESIGN.md "Story mode"); test mode only until the bosses are in. The `public.server_now` function is applied to the project.
+- **Planned with Sam:** Story mode batch 2 (the four bosses and Confusion); then Claude's two campaigns. Sam asked ChatGPT about one sign-in across his apps (Demonanic, LC wallet) so signing out anywhere freezes the countdown.
 - **Waiting on Sam:** error boundary, auto-cast switches, the wolf's taunt, thinning glow, spreading unattended fights (proposals in #61), and his phone's fps.
 - **Next (Sam's choice):**
   - **Phases 9–11:** one definition per enemy, performance measurements, final review (ROADMAP).

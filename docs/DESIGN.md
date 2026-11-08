@@ -184,9 +184,21 @@ Sam's design: an endless run that mixes the Rift and hordes. Every wave is its o
   - Flanked: the squad comes in down both edges.
   - Measured with the same party: waves reached about the same with twists (median 8 at LV8, 13 at LV20).
 
-### Story mode (planned, not built)
+## Story mode (Nov 2026, `game/story.js`, campaigns in `game/campaigns/`, `screens/Story.jsx`)
 
-Sam's design, decided Nov 2026: four campaigns, two written by Claude and two by Sam. Scripted Free Roam-style battles in chapters, with story text between fights; the party can be changed between battles with the same swap rule. Failing a battle sends the party back one chapter (chapter 1 restarts). A "Redo" button lets the player retry the battle instead; it stands in for a rewarded ad (none exists yet, as the game is a web app) and will call one when Sam adds ads.
+Sam's design: hand-written campaigns fought hands-on against a real countdown. Four planned: two by Sam, two by Claude. The first is Sam's **The Time Warp Breach** (`campaigns/timeWarp.js`; story text drafted by Claude from Sam's synopsis, for Sam to edit).
+
+- **Shown only in test mode** (`?debug`, the Story tab) until chapter 5's bosses are in (batch 2).
+- **Shape:** 5 chapters × 4 battles. Battles 1–16 are scripted scenarios (`buildScenarioWave`, shared with Free Roam: a faction's leaders and grunts, a horde layer, a twist) at a Free Roam wave's strength (`level`). Chapter 5 is the three rebel warlocks and the Ancient One (`comingSoon` for now).
+- **Difficulty:** fixed (no threat scaling). Low (battles 1–5, levels 1–5), harder (6–10, levels 7–11), critical (11–16, levels 12–16). Measured (seeded, 20 runs a battle; party: sword with a wolf, bow, Fire V and Fire III casters): LV20 in rare tier-4 gear wins every battle (battle 15: 19/20); LV16 in uncommon tier-3 gear wins through battle 14 and meets a wall at 15–16; LV12 in uncommon tier-2 wins chapters 1–2 and about half of chapter 3. Battle lengths 5–95 s; the 16 battles take about 9 minutes of fighting at LV20.
+- **Hands-on:** every battle is fought live. A battle is a one-fight trip to the hidden story region (`STORY_REGION`, pending kind `campaign`), so XP, loot, injuries and the battle screen work as everywhere else. One left unfought is called off (never auto-fought).
+- **Start:** signed in, a hero of LV 6+, a line-up of up to four.
+- **Countdown:** 45 minutes (about 1.4× a fast clear; re-measured once the bosses exist). Runs on real time, the server's clock (`public.server_now`, `cloud/gameClock.js`), even with the game closed. Signing out freezes it for at most 24 hours. Out of time (checked every tick, never mid-battle): the campaign is lost and another is queued (never the one just lost, once there are two).
+- **Losing a battle:** Redo it (once a chapter; a stand-in for a rewarded ad) or fall back to the start of the chapter before (chapter 1 restarts).
+- **Swaps between battles:** the hero sent back leaves now (the next battle is fought one short); the one called joins for the battle after. Someone has to stay. Injured heroes sit battles out.
+- **Legendary bounty:** 15–25k gold, one random legendary (tier 5; never the same as last time) and two Radiant crystals or shards. Earned again on every win.
+- **Planned (batch 2):** the Gatewarden (portals that spawn foes until destroyed), the Chronomancer (a time field: −40% attack and move speed for 5 s; rewinds to 75% once at half HP), the Ritualist (a 12 s channel that blasts the party unless enough damage breaks it), the Ancient One (a tank with a haste-and-shield aura; Confusion on 1–2 heroes every 15 s: they attack random targets, allies too, for 3–4 s, broken by a cleanse or ward; the wormhole opens at 66% and 33%).
+- **Not built:** a shared sign-in across Sam's apps (Demonanic, the LC wallet). Only signing out of Gauntlet freezes the countdown.
 
 ## The Dead March (Nov 2026, `MARCH` and `buildMarchWave` in encounters.js, region `march`)
 
