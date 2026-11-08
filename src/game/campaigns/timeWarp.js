@@ -6,7 +6,7 @@
 // Free Roam wave whose strength it fights at. Difficulty, from Sam's plan:
 // battles 1-5 low, 6-10 harder, 11-16 critical, 17-20 bosses.
 //
-// Chapter 5's bosses (the three rebel warlocks and the Ancient One) arrive
+// Chapter 5's bosses (the three rebel warlocks and the Ancient Evil) arrive
 // with their own powers in the next batch; until then the chapter is marked
 // `comingSoon` and story mode only shows in test mode.
 
@@ -18,7 +18,7 @@ export const TIME_WARP = Object.freeze({
   title: "The Time Warp Breach",
   author: "Sam",
   synopsis: "The Chaos warlocks have found a ritual that tears a wormhole through time: a one-way, first-class passage for an ancient evil prophesied to enslave the world. Fight through their ranks and break the ritual before the breach opens for good.",
-  // About 1.4x a measured fast clear (DESIGN.md "Story mode"); re-measured once the bosses exist.
+  // About 1.4x a measured fast clear (DESIGN.md "Story mode"); Sam kept 45 minutes and will test it in a run.
   timerMinutes: 45,
   chapters: [
     {
@@ -56,7 +56,7 @@ export const TIME_WARP = Object.freeze({
     },
     {
       title: "The Edge of Time",
-      intro: "The chamber opens onto a bridge of frozen moments over nothing at all. On the far side the ritual's masters wait: three warlocks who broke from their own order to bring the Ancient One through. Everything they have stands between you and them.",
+      intro: "The chamber opens onto a bridge of frozen moments over nothing at all. On the far side the ritual's masters wait: three warlocks who broke from their own order to bring the Ancient Evil through. Everything they have stands between you and them.",
       outro: "The bridge is yours. Ahead, three rebel warlocks turn to face you, and above them the wormhole groans open another inch.",
       battles: [
         { title: "The bridge", text: "The Iron Legion holds the bridge, and the dead climb up both sides of it.", wave: { faction: "iron", leaders: ["lieutenant"], grunts: ["bulwark", "bulwark", ...times("orc", 4)], layer: "horde", twist: "flanked" }, level: 14 },
@@ -66,15 +66,15 @@ export const TIME_WARP = Object.freeze({
       ],
     },
     {
-      title: "The Ancient One",
+      title: "The Ancient Evil",
       intro: "Three rebel warlocks, each master of a piece of the breach, and beyond them the thing the prophecy warned of, already half through.",
-      outro: "The wormhole folds in on itself with a sound like a held breath let go. The Ancient One is dragged back to whatever age it came from, and the hum stops. For the first time in weeks, the night is quiet.",
+      outro: "The wormhole folds in on itself with a sound like a held breath let go. The Ancient Evil is dragged back to whatever age it came from, and the hum stops. For the first time in weeks, the night is quiet.",
       comingSoon: true,
       battles: [
         { title: "The Gatewarden", text: "She opens doors that should stay closed, and things come through them.", boss: "gatewarden", level: 18 },
         { title: "The Chronomancer", text: "He bends the seconds around you until every swing comes too late.", boss: "chronomancer", level: 19 },
         { title: "The Ritualist", text: "She is finishing the ritual as you arrive. Stop her before the last word.", boss: "ritualist", level: 20 },
-        { title: "The Ancient One", text: "It steps out of the breach, older than the stars it remembers. It does not need to win. It only needs you to turn on each other.", boss: "ancientOne", level: 20 },
+        { title: "The Ancient Evil", text: "It steps out of the breach, older than the stars it remembers. It does not need to win. It only needs you to turn on each other.", boss: "ancientEvil", level: 20 },
       ],
     },
   ],
