@@ -136,7 +136,8 @@ export function beginStoryBattle(state, now, rng = Math.random) {
   const started = startExpedition(state, "story", ready, now, rng);
   if (!started.ok) return started;
   const trip = started.state.expedition;
-  const wave = buildScenarioWave({ ...battle.wave, zombies: battle.wave.zombies ?? roamZombies(battle.wave.layer, battle.level) }, battle.level, trip.threat);
+  // A campaign's difficulty is fixed (no threat scaling): growing stronger helps.
+  const wave = buildScenarioWave({ ...battle.wave, zombies: battle.wave.zombies ?? roamZombies(battle.wave.layer, battle.level) }, battle.level);
   trip.pending = {
     kind: "campaign", wave, label: battle.title, campaignId: run.campaignId, battle: run.battle,
     at: now, promptAt: now, engagedAt: now,
