@@ -152,6 +152,36 @@ Sam's design: staff-only crystals for casters. Same tiers (Chipped / Flawless / 
 - **Sources:** where crystals come from (Market 45g, kill drops, treasure, end bosses; random crystals now pick from all 16 kinds), and horde and Dead March chests give a shard half the time.
 - **Measured** (120 seeded fights; the tested caster has a rare staff with two Flawless shards; level 8, wild fights at depth 0.8; wins Frostfang / Ashen / Blightmire / Boneyard boss; damage taken): Fire V, no shards 119 / 113 / 74 / 120 (519 / 737 / 1014 / 273); Focus 119 / 114 / 81 / 120 (481 / 692 / 968 / 237); Fury 119 / 116 / 80 / 120 (481 / 699 / 955 / 255); two Flawless Ember crystals for comparison 118 / 115 / 80 / 120 (491 / 701 / 965 / 267); Reach 119 / 113 / 77 / 120 (unchanged damage taken); Wellspring 119 / 114 / 75 / 120. Conjuration V: Wellspring 90 → 94 Blightmire wins; Reach unchanged. Restoration V: neither changes anything. So Focus and Fury are about as strong as an Ember crystal; Reach and Wellspring are nearly neutral (Reach only touches area spells; mana is rarely what runs out).
 
+## Free Roam (Nov 2026, `ROAM`, `FACTIONS` and `buildRoamWave` in encounters.js, region `roam`)
+
+Sam's design: an endless run that mixes the Rift and hordes. Every wave is its own scenario: a faction's squad of real enemies with (often) a horde of zombies behind it, announced by an event card. The first of three game modes he planned (Free Roam, Story mode, and the existing Rift and Dead March).
+
+- **Region:** "Free Roam", endless (`endlessKind: "roam"`), on the trip board with its best wave. Opens with the Dead March, once Frostfang is cleared; LV 4+.
+- **Squad:** one faction a wave. 3 foes at wave 1, +1 every 3 waves, at most 10; about a third are leaders.
+  - Chaos warband: warlocks; orcs, bandits.
+  - Outlaw gang: bandits; gnome sappers, goblins.
+  - Undead procession: lesser necromancers, carrion priests; skeletons, reapers.
+  - Dark Elf raiding party: dark elves; harriers, watchers.
+  - Iron Legion column: one lieutenant; bulwarks, orcs.
+- **Horde layer:** none on waves 1–2. Then 40% none, 35% a trickle (10 zombies, one every 2.5 s), 25% a horde (20 + 2 a wave, at most 40, one every 0.3 s). The squad walks in down the lanes first; the zombies come from the top and both sides behind it, at most 12 on the field beside the squad.
+- **Every 5th wave:** a big event, squad and a full horde. **Every 10th:** a boss from the rotation leads the squad (in place of three of it), no horde.
+- **Growth:** HP ×1.1 and damage ×1.07 a wave from 0.8 (the Rift's). Loot tier 1, +1 every 5 waves.
+- **Event card:** "A Chaos warband of 2 Warlocks and their grunts (3 Orcs and a Bandit) attacks, a horde close behind." / "…the dead trickling in after them." / "The Three-Headed Demon leads an Outlaw gang (…) into battle." Shown in the trip prompt ("Trouble on the road": Fight / Head home) and over the field for 5 s at the start of each wave.
+- **Going home:** as in the Rift.
+- **Pay:** 12 gold a fight cleared and a chest every 5 (40–80 gold × tier and a crystal or shard). Record `records.roamBest`.
+- **Lines:** "The party sets out with no road in mind", "Back from the road after N fights", "Back from Free Roam".
+- **Test mode:** "Free Roam from wave N" (`debugTestEndless`).
+- **Engine:** a foe can carry `hordeEntry` (comes in from every side, as a horde) and `spawnGap` (seconds before the next foe). Waves without them spawn as before.
+- **Measured** (seeded runs, auto-return as in play; party: sword with a wolf, bow with 40 arrows, a Fire V caster, a Fire III caster). Waves cleared, median (25th–75th percentile):
+  - LV8, common tier-1 gear, 40 runs: Free Roam 7 (7–8), Rift 9 (9–9), Dead March 8 (8–8). Run length 216 s, 195 s, 452 s. Kill gold a minute: 152, 93, 152.
+  - LV20, rare tier-4 gear, 30 runs: Free Roam 13 (12–14), Rift 16 (15–16), Dead March 14 (14–14). Run length 345 s, 326 s, 783 s. Kill gold a minute: 206, 147, 195.
+  - So Free Roam ends 2–3 waves before the Rift (its squads are tougher foes from wave 1), runs as long as a Rift run, and pays like the March a minute before bounty and chests.
+- **Next (planned with Sam):** swapping heroes between waves (a swapped-out hero leaves at once, so the next fight is one short; the replacement joins the fight after), and twists (Warded, Late horde, Thieves, Flanked; 30% from wave 4).
+
+### Story mode (planned, not built)
+
+Sam's design, decided Nov 2026: four campaigns, two written by Claude and two by Sam. Scripted Free Roam-style battles in chapters, with story text between fights; the party can be changed between battles with the same swap rule. Failing a battle sends the party back one chapter (chapter 1 restarts). A "Redo" button lets the player retry the battle instead; it stands in for a rewarded ad (none exists yet, as the game is a web app) and will call one when Sam adds ads.
+
 ## The Dead March (Nov 2026, `MARCH` and `buildMarchWave` in encounters.js, region `march`)
 
 Sam's design: a mode like the Rift, but horde after horde, every wave a little harder.
