@@ -133,3 +133,19 @@ describe("test mode: the Dead March", () => {
     expect(debugTestMarch(from8.state, 1).reason).toBe("in_fight");
   });
 });
+
+describe("test mode: story battles", () => {
+  test("jumps a campaign under way to any battle, with a fresh countdown", async () => {
+    const { debugStoryBattle } = await import("./debug");
+    const { startCampaign } = await import("./story");
+    const { debugSetLevels } = await import("./debug");
+    const { createGuild } = await import("./guild");
+    const guild = debugSetLevels(createGuild(), 8).state;
+    expect(debugStoryBattle(guild, 17).reason).toBe("no_campaign");
+    const started = startCampaign(guild, [guild.heroes[0].identity.id], 1000, { signedIn: true }).state;
+    started.story.run.failed = { battle: 0 };
+    const moved = debugStoryBattle(started, 17).state.story.run;
+    expect(moved).toMatchObject({ battle: 16, failed: null, pausedMs: 0, pausedAt: null });
+    expect(debugStoryBattle(started, 99).state.story.run.battle).toBe(19);
+  });
+});

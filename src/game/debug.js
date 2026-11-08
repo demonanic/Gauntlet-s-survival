@@ -253,6 +253,20 @@ export function debugTestEndless(state, regionId, wave = 1, { now = Date.now(), 
   return { ok: true, state: started.state };
 }
 
+// Story mode (test mode): move the campaign under way to battle `number`
+// (1-20), clearing a lost battle and refilling the countdown.
+export function debugStoryBattle(state, number) {
+  const run = state.story?.run;
+  if (!run) return { ok: false, reason: "no_campaign" };
+  const next = serializeGameState(state);
+  next.story.run.battle = Math.max(0, Math.min(19, Math.floor(number) - 1));
+  next.story.run.failed = null;
+  next.story.run.startedAt = Date.now();
+  next.story.run.pausedMs = 0;
+  next.story.run.pausedAt = null;
+  return { ok: true, state: next };
+}
+
 // The Dead March from wave `wave` (test mode; see debugTestEndless).
 export function debugTestMarch(state, wave = 1, options = {}) {
   return debugTestEndless(state, "march", wave, options);

@@ -48,8 +48,7 @@ const DEBUG = isDebugMode();
 const OUTCOME_TITLE = {
   victory: "Expedition conquered", retreat: "Party routed", recalled: "Party recalled", returned: "Back from the Rift",
 };
-// Story mode shows only in test mode until its chapter 5 bosses are in.
-const TABS = [["hall", "Guild Hall"], ["market", "Market"], ["board", "Expeditions"], ...(DEBUG ? [["story", "Story"]] : [])];
+const TABS = [["hall", "Guild Hall"], ["market", "Market"], ["board", "Expeditions"], ["story", "Story"]];
 const STORY_TITLE = { returned: "Battle won", retreat: "Battle lost", recalled: "Battle called off" };
 
 // What to tell the player when this browser's save could not be used.
