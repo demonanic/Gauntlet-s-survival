@@ -23,6 +23,7 @@ export const LOG_COLORS = Object.freeze({
   boss: "#FB923C",
   summary: "#CBD5E1",
   end: "#39FF14",
+  swap: "#F472B6",
 });
 
 // Which kinds each filter chip shows.
@@ -31,7 +32,7 @@ export const LOG_FILTERS = Object.freeze({
   spells: ["spell", "fizzle", "control"],
   moves: ["move"],
   deaths: ["death", "boss"],
-  summary: ["summary", "end"],
+  summary: ["summary", "end", "swap"],
 });
 
 const blank = () => ({ hits: 0, misses: 0, crits: 0, dodges: 0, dealt: 0, taken: 0, spells: 0, fizzles: 0 });
@@ -63,6 +64,13 @@ export class BattleLog {
     this.totals = names.map(blank);
     this.nextSummary = SUMMARY_EVERY;
     this.finished = false;
+  }
+
+  // A hero who joins part-way (a Free Roam swap) gets their own tallies.
+  addHero(name) {
+    this.names.push(name);
+    this.window.push(blank());
+    this.totals.push(blank());
   }
 
   add(time, kind, text) {

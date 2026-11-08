@@ -770,6 +770,24 @@ export function currentEncounterParty(state) {
   }));
 }
 
+// Heroes at the guild who could join a Free Roam party mid-fight (a swap):
+// ready, unhurt and not on the trip, shaped like currentEncounterParty.
+export function benchHeroes(state, now) {
+  const run = state.expedition;
+  if (!run) return [];
+  const bonus = moraleDamageBonus(run.morale ?? ADVENTURE.startMorale);
+  const environment = getEnvironment(getRegion(run.regionId));
+  const ids = livingParty(state).map(heroId);
+  return state.heroes
+    .filter((hero) => !run.heroIds.includes(heroId(hero)) && hero.combat.hp > 0 && !((state.injuries?.[heroId(hero)] || 0) > now))
+    .map((hero) => ({
+      ...hero,
+      bonds: combatBonds(state, hero, [...ids, heroId(hero)]),
+      moraleBonus: { damage: bonus },
+      environment: combatEnvironment(hero, environment, false),
+    }));
+}
+
 // The wave waiting in the current fight prompt.
 export function currentEncounterWave(state) {
   return structuredClone(state.expedition.pending.wave);

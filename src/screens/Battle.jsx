@@ -16,7 +16,8 @@ const EVENT_CARD_MS = 5000;
 // One live encounter: the trimmed Demonanic engine on a canvas, plus a light
 // tactical HUD (abilities, move orders, speed). Hands the result back up.
 // `cheats`: test mode's buttons (fill mana, ready cooldowns, god mode, kill all).
-export default function Battle({ expedition, party, createWave, onComplete, speeds = [1, 2], cheats = false }) {
+// `bench`: Free Roam only, heroes at the guild who can be swapped in (Camp).
+export default function Battle({ expedition, party, createWave, onComplete, speeds = [1, 2], cheats = false, bench = null }) {
   const canvasRef = useRef(null);
   const engineRef = useRef(null);
   const hudThrottle = useRef(0);
@@ -41,6 +42,11 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
   const [god, setGod] = useState(false);
   // Free Roam: each wave's event card, shown over the field for a few seconds.
   const [eventCard, setEventCard] = useState(null);
+  // Free Roam's Camp: who goes back (slot index) and who comes (hero id).
+  const [campOpen, setCampOpen] = useState(false);
+  const [campOut, setCampOut] = useState(null);
+  const [campIn, setCampIn] = useState(null);
+  const [campNote, setCampNote] = useState(null);
   // Test mode: frames drawn per second, to check performance on a real phone.
   const [fps, setFps] = useState(null);
   useEffect(() => {
@@ -126,6 +132,24 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
   }, [eventCard, countdown]);
 
   const engine = engineRef.current;
+  // The heroes in the fight, in engine order: swaps add to the end, and a hero
+  // gone to camp keeps their slot but leaves the tabs.
+  const roster = engine?.sim?.heroes || party;
+  const onField = roster.map((hero, index) => index).filter((index) => !hud?.heroes?.[index]?.away);
+  useEffect(() => {
+    if (hud?.heroes?.[shown]?.away && onField.length) setShown(onField[0]);
+  }, [hud, shown, onField]);
+  const swaps = hud?.swaps || [];
+  const called = new Set([...roster.map((hero) => hero.identity.id), ...swaps.map((swap) => swap.inId)]);
+  const benchLeft = (bench || []).filter((hero) => !called.has(hero.identity.id));
+  const leavingSlots = new Set(swaps.map((swap) => swap.out));
+  const sendable = onField.filter((index) => !leavingSlots.has(index));
+  const confirmSwap = () => {
+    const model = benchLeft.find((hero) => hero.identity.id === campIn);
+    const done = engine?.requestSwap(campOut, model);
+    if (!done?.ok) { setCampNote(done?.reason === "last_hero" ? "Someone has to stay and fight." : "That swap isn't possible now."); return; }
+    setCampNote(null); setCampOut(null); setCampIn(null); setCampOpen(false);
+  };
   const toggleSpeed = () => {
     const next = speeds[(speeds.indexOf(speed) + 1) % speeds.length];
     setSpeed(next);
@@ -180,6 +204,21 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
         </div>
       </header>
 
+      {bench && (
+        <div className="flex flex-wrap items-center gap-1.5 px-3 pb-1 font-mono-g text-[10px]" data-testid="battle-camp">
+          <button type="button" disabled={!engine || !!result} onClick={() => setCampOpen((open) => !open)} aria-pressed={campOpen}
+            className="rounded border border-pink-400/60 px-2 py-1 text-pink-200 disabled:opacity-40" data-testid="camp-open">Camp</button>
+          {swaps.length === 0 && <span className="text-slate-500">Swap a hero between waves.</span>}
+          {swaps.map((swap) => (
+            <span key={swap.out} className="text-pink-200" data-testid="camp-status">
+              {swap.stage === "queued"
+                ? `${swap.outName} to camp after this wave · ${swap.inName} the wave after.`
+                : `${swap.inName} is on the road: joins next wave.`}
+            </span>
+          ))}
+        </div>
+      )}
+
       {cheats && (
         <div className="flex flex-wrap items-center gap-1.5 px-3 pb-1 font-mono-g text-[10px]" data-testid="battle-cheats">
           <span className="font-bold text-orange-300">TEST</span>
@@ -214,6 +253,34 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
           <div className="pointer-events-none absolute inset-x-3 top-3 rounded-lg border border-pink-300/60 bg-black/80 px-3 py-2 text-center" data-testid="event-card">
             <p className="font-display text-[11px] font-bold text-pink-300">WAVE {eventCard.wave}</p>
             <p className="font-mono-g text-[11px] text-slate-100">{eventCard.text}</p>
+          </div>
+        )}
+        {campOpen && !result && (
+          <div className="absolute inset-x-2 bottom-4 rounded-lg border border-pink-300/60 bg-black/90 p-3 font-mono-g text-[11px]" data-testid="camp-panel">
+            <h2 className="font-display text-base font-black text-pink-300">CAMP</h2>
+            <p className="text-slate-400">The hero you send back leaves when this wave ends; the one you call arrives the wave after.</p>
+            <p className="mt-2 text-slate-300">Send to camp</p>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {sendable.map((index) => (
+                <button key={index} type="button" onClick={() => setCampOut(index)} aria-pressed={campOut === index}
+                  className={`rounded border px-2 py-1 ${campOut === index ? "border-pink-300 bg-pink-300/15 text-pink-100" : "border-white/20 text-slate-200"}`}
+                  data-testid={`camp-out-${index}`}>{roster[index].identity.name}</button>
+              ))}
+            </div>
+            <p className="mt-2 text-slate-300">Call from the guild</p>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {benchLeft.length === 0 && <span className="text-slate-500">Nobody else is ready at the guild.</span>}
+              {benchLeft.map((hero) => (
+                <button key={hero.identity.id} type="button" onClick={() => setCampIn(hero.identity.id)} aria-pressed={campIn === hero.identity.id}
+                  className={`rounded border px-2 py-1 ${campIn === hero.identity.id ? "border-pink-300 bg-pink-300/15 text-pink-100" : "border-white/20 text-slate-200"}`}
+                  data-testid={`camp-in-${hero.identity.id}`}>{hero.identity.name} · LV {hero.progression.level}</button>
+              ))}
+            </div>
+            {campNote && <p className="mt-1 text-red-300" data-testid="camp-note">{campNote}</p>}
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <NeonButton color="#F472B6" disabled={campOut == null || !campIn} onClick={confirmSwap} data-testid="camp-swap">Swap</NeonButton>
+              <NeonButton color="#94A3B8" onClick={() => { setCampOpen(false); setCampNote(null); }} data-testid="camp-close">Close</NeonButton>
+            </div>
           </div>
         )}
         {clutch && !result && (
@@ -260,8 +327,9 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
       <LogTicker lines={(engine?.battleLog?.lines || []).slice(0, 2)} />
 
       <footer className="flex min-h-0 shrink flex-col gap-2 overflow-y-auto px-2 pb-2" data-testid="battle-dock">
-        <nav aria-label="Party" className="sticky top-0 z-10 grid gap-1.5 bg-[var(--bg)] pb-0.5" style={{ gridTemplateColumns: `repeat(${Math.max(1, party.length)}, minmax(0, 1fr)) 3.25rem` }}>
-          {party.map((hero, index) => {
+        <nav aria-label="Party" className="sticky top-0 z-10 grid gap-1.5 bg-[var(--bg)] pb-0.5" style={{ gridTemplateColumns: `repeat(${Math.max(1, onField.length)}, minmax(0, 1fr)) 3.25rem` }}>
+          {onField.map((index) => {
+            const hero = roster[index];
             const status = hud?.heroes?.[index];
             const ready = (hud?.heroAbilities?.[index] || []).filter((ability) => ability.available).length;
             const isShown = shown === index && !logOpen;
@@ -301,9 +369,9 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
           </button>
         </nav>
         {logOpen && <LogPanel log={engine?.battleLog} filter={logFilter} setFilter={setLogFilter} />}
-        {!logOpen && party[shown] && (
+        {!logOpen && roster[shown] && (
           <ActionPanel
-            hero={party[shown]}
+            hero={roster[shown]}
             index={shown}
             abilities={hud?.heroAbilities?.[shown] || []}
             spells={hud?.heroSpells?.[shown] || []}

@@ -192,7 +192,7 @@ describe("characterization: the old watched mapping and the unattended path", ()
 });
 
 const LEGACY_FIELDS = ["victory", "party", "xpGains", "gold", "items", "wavesCleared", "downed", "nemesisSlain", "nemesisFled", "clutches", "spellCasts"];
-const CANONICAL_FIELDS = [...LEGACY_FIELDS, "reason", "killed"].sort();
+const CANONICAL_FIELDS = [...LEGACY_FIELDS, "reason", "killed", "swaps"].sort();
 const legacyPart = (outcome) => Object.fromEntries(LEGACY_FIELDS.map((key) => [key, outcome[key]]));
 const FULL_RESULT = {
   victory: true, reason: "cleared", xpGains: { heroes: { 0: 30, 1: 12 } }, killed: 5, wavesCleared: 2,

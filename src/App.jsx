@@ -12,7 +12,7 @@ import HeroGear from "./components/HeroGear";
 import { NeonButton, Panel } from "./components/ui";
 import { allocateClasslessStat, purchaseClasslessNode } from "./combat/classlessProgression";
 import {
-  choosePending, currentEncounterParty, currentEncounterWave, dismissReport, engagePending, findHero, recallExpedition,
+  benchHeroes, choosePending, currentEncounterParty, currentEncounterWave, dismissReport, engagePending, findHero, recallExpedition,
   recruitHero, renameHero, rerollCandidate, resolveEncounter, startExpedition, tick, treatInjury, updateHero,
 } from "./game/guild";
 import { buyLegacyUpgrade, renownForRetiring, retireHero } from "./game/legacy";
@@ -322,6 +322,7 @@ export default function App() {
           createWave={() => currentEncounterWave(guild)}
           speeds={DEBUG ? [1, 2, 4, 8] : [1, 2]}
           cheats={DEBUG}
+          bench={guild.expedition.pending.roam ? benchHeroes(guild, Date.now()) : null}
           onComplete={(outcome) => {
             apply((current) => resolveEncounter(current, outcome, Date.now()));
             setInBattle(false);

@@ -23,6 +23,7 @@
 //   nemesisFled   id|null   nemesis that escaped this fight
 //   clutches      [{ hero, choice, landed }]  Clutch moments
 //   spellCasts    {index: {spellId: count}}  successful casts per hero
+//   swaps         { left: [id], joined: [id] }  Free Roam party changes (none: null)
 //
 // A fight the engine failed to finish pays nothing: its gold and items are
 // dropped, as the Battle screen always did.
@@ -42,5 +43,6 @@ export function buildFightOutcome(result, sim) {
     nemesisFled: result?.nemesisFled || null,
     clutches: result?.clutches || [],
     spellCasts: result?.spellCasts || {},
+    swaps: result?.swaps || null,
   };
 }

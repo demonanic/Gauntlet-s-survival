@@ -1,9 +1,10 @@
 import { classlessMaxHp } from "../combat/classlessCombatEffects";
 import { Engine } from "../combat/engine";
 import { debugSetLevels, debugTestEndless } from "./debug";
-import { FACTIONS, HORDE, ROAM, buildRoamWave, createEncounterSim, endlessWave } from "./encounters";
+import { FACTIONS, HORDE, ROAM, buildRoamWave, createEncounterSim, endlessWave, endlessWaveSource } from "./encounters";
+import { buildFightOutcome } from "./fightOutcome";
 import { regionOpen } from "./expedition";
-import { createGuild, currentEncounterParty, recruitHero, resolveEncounter, startExpedition } from "./guild";
+import { benchHeroes, createGuild, currentEncounterParty, recruitHero, resolveEncounter, startExpedition } from "./guild";
 import { endlessRecordKey, getRegion } from "./regions";
 import { simulateEncounter } from "./simulate";
 import { createGearItem } from "./items";
@@ -152,5 +153,91 @@ describe("Free Roam, the mode", () => {
     expect(pending.startWave).toBe(5);
     expect(pending.wave.bigEvent).toBe(true);
     expect(debugTestEndless({ ...ready(), clears: {} }, "roam", 1).reason).toBe("previous_region");
+  });
+});
+
+describe("Free Roam swaps between waves", () => {
+  const roamFight = () => {
+    let state = { ...createGuild(), gold: 1e6 };
+    state = recruitHero(state).state;
+    state = recruitHero(state).state;
+    state = { ...debugSetLevels(state, 12).state, clears: { frostfang: 1 } };
+    const ids = state.heroes.slice(0, 4).map((hero) => hero.identity.id);
+    state = startExpedition(state, "roam", ids, 1000, seededRandom(4)).state;
+    const party = currentEncounterParty(state);
+    const wave = state.expedition.pending.wave;
+    const sim = createEncounterSim(party, 2, wave, { rng: seededRandom(6) });
+    let result = null;
+    const engine = new Engine({ getContext: () => null }, sim, structuredClone(wave), {
+      onEnd: (outcome) => { result = outcome; }, nextWave: endlessWaveSource(sim, sim.rng, "roam"),
+    });
+    engine.godMode = true;
+    return { state, engine, sim, result: () => result };
+  };
+  // Clear the field and step until the next wave has begun.
+  const nextWave = (engine) => {
+    const wave = engine.wavesCleared;
+    for (let frame = 0; frame < 30 * 60 && engine.wavesCleared === wave; frame += 1) {
+      engine.debugCheat("kill");
+      engine.spawnQueue = [];
+      engine.update(1 / 30);
+    }
+  };
+
+  test("the hero sent back leaves when the next wave starts; the one called joins the wave after", () => {
+    const { state, engine, sim } = roamFight();
+    const bench = benchHeroes(state, 2000);
+    expect(bench.map((hero) => hero.identity.id)).toEqual([state.heroes[4].identity.id]);
+    const out = engine.heroes[1];
+    expect(engine.requestSwap(1, bench[0]).ok).toBe(true);
+    expect(engine.requestSwap(1, bench[0]).ok).toBe(false);
+    expect(out.away).toBeFalsy();
+    nextWave(engine);
+    expect(out.away).toBe(true);
+    expect(out.alive).toBe(false);
+    expect(engine.heroes).toHaveLength(4);
+    expect(engine.pets.some((pet) => pet.owner === out)).toBe(false);
+    nextWave(engine);
+    expect(engine.heroes).toHaveLength(5);
+    const joined = engine.heroes[4];
+    expect(joined.model.identity.id).toBe(bench[0].identity.id);
+    expect(joined.alive).toBe(true);
+    expect(joined.x).toBe(out.home.x);
+    expect(sim.heroes).toHaveLength(5);
+    engine.returnHome();
+  });
+
+  test("someone has to stay on the field", () => {
+    const { state, engine } = roamFight();
+    const bench = benchHeroes(state, 2000);
+    for (const index of [0, 2, 3]) engine.heroes[index].alive = false;
+    expect(engine.requestSwap(1, bench[0])).toEqual({ ok: false, reason: "last_hero" });
+  });
+
+  test("after the fight the trip's party is who was there at the end", () => {
+    const { state, engine, result } = roamFight();
+    const bench = benchHeroes(state, 2000);
+    const leaving = engine.heroes[1].model.identity.id;
+    engine.requestSwap(1, bench[0]);
+    nextWave(engine);
+    nextWave(engine);
+    // A wave fought with the newcomer on the field.
+    for (let frame = 0; frame < 30 * 60 && !(engine.xpGains.heroes[4] > 0); frame += 1) engine.update(1 / 30);
+    engine.returnHome();
+    const outcome = buildFightOutcome(result(), engine.sim);
+    expect(outcome.swaps).toEqual({ left: [leaving], joined: [bench[0].identity.id] });
+    const fighting = { ...state, expedition: { ...state.expedition, pending: { ...state.expedition.pending, engagedAt: 1500 } } };
+    const next = resolveEncounter(fighting, outcome, 3000, { rng: () => 0.5 }).state;
+    expect(next.lastReport.log.some((line) => /Back to camp: /.test(line))).toBe(true);
+    expect(next.lastReport.log.some((line) => /Joined on the road: /.test(line))).toBe(true);
+    // The hero who joined learned from the fight.
+    const before = state.heroes.find((hero) => hero.identity.id === bench[0].identity.id).progression.xp;
+    expect(next.heroes.find((hero) => hero.identity.id === bench[0].identity.id).progression.xp).toBeGreaterThan(before);
+  });
+
+  test("an injured hero can't be called", () => {
+    const { state } = roamFight();
+    const hurt = { ...state, injuries: { [state.heroes[4].identity.id]: 99999 } };
+    expect(benchHeroes(hurt, 2000)).toEqual([]);
   });
 });

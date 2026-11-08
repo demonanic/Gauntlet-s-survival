@@ -121,6 +121,7 @@ export function renderBattle(engine) {
 
   // heroes — top-down sprites face UP toward incoming enemies.
   for (const h of engine.heroes) {
+    if (h.away) continue; // gone to camp (a Free Roam swap)
     if (h.i === engine.selectedHero && h.alive) {
       ctx.save();
       ctx.strokeStyle = h.manual ? "#F0ABFC" : h.d.color;
@@ -139,6 +140,7 @@ export function renderBattle(engine) {
 
   // Manual command markers make every battlefield command visually verifiable.
   for (const h of engine.heroes) {
+    if (h.away) continue; // gone to camp (a Free Roam swap)
     if (!h.manual || !h.alive) continue;
     if (h.manualPoint) {
       ctx.save();
@@ -168,6 +170,7 @@ export function renderBattle(engine) {
 
   // Spell marks: a reticle in the hero's colour on the foe they cast at.
   for (const h of engine.heroes) {
+    if (h.away) continue; // gone to camp (a Free Roam swap)
     const foe = h.alive && h.spellTarget;
     if (!foe || foe.hp <= 0) continue;
     const r = (foe.boss ? 30 : foe.tier === "elite" ? 21 : 16) + 1.5 * Math.sin(engine.time * 6 + h.i);
