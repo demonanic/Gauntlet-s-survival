@@ -166,7 +166,7 @@ Sam's design: an endless run that mixes the Rift and hordes. Every wave is its o
 - **Horde layer:** none on waves 1–2. Then 40% none, 35% a trickle (10 zombies, one every 2.5 s), 25% a horde (20 + 2 a wave, at most 40, one every 0.3 s). The squad walks in down the lanes first; the zombies come from the top and both sides behind it, at most 12 on the field beside the squad.
 - **Every 5th wave:** a big event, squad and a full horde. **Every 10th:** a boss from the rotation leads the squad (in place of three of it), no horde.
 - **Growth:** HP ×1.1 and damage ×1.07 a wave from 0.8 (the Rift's). Loot tier 1, +1 every 5 waves.
-- **Event card:** "A Chaos warband of 2 Warlocks and their grunts (3 Orcs and a Bandit) attacks, a horde close behind." / "…the dead trickling in after them." / "The Three-Headed Demon leads an Outlaw gang (…) into battle." Shown in the trip prompt ("Trouble on the road": Fight / Head home) and over the field for 5 s at the start of each wave.
+- **Event card:** "A Chaos warband of 2 Warlocks and their grunts (3 Orcs and a Bandit) attacks, a horde close behind." / "…the dead trickling in after them." / "The Three-Headed Demon leads an Outlaw gang (…) into battle." Shown in the trip prompt ("Trouble on the road": Fight / Head home) and over the field at the start of each wave: it pops in (0.26 s, a flash on its border), stays 2.5 s and puffs away into smoke (0.5 s). Sam shortened it from 5 s. Reduced-motion players get a plain fade.
 - **Going home:** as in the Rift.
 - **Pay:** 12 gold a fight cleared and a chest every 5 (40–80 gold × tier and a crystal or shard). Record `records.roamBest`.
 - **Lines:** "The party sets out with no road in mind", "Back from the road after N fights", "Back from Free Roam".

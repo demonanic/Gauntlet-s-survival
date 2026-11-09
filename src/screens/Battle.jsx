@@ -11,7 +11,9 @@ import { getRegion } from "../game/regions";
 
 const COUNTDOWN_SECONDS = 3;
 const HUD_THROTTLE_MS = 90;
-const EVENT_CARD_MS = 5000;
+// A wave's event card: on screen this long, then it puffs away over EVENT_CARD_PUFF_MS.
+const EVENT_CARD_MS = 2500;
+const EVENT_CARD_PUFF_MS = 500;
 
 // One live encounter: the trimmed Demonanic engine on a canvas, plus a light
 // tactical HUD (abilities, move orders, speed). Hands the result back up.
@@ -126,9 +128,11 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
   useEffect(() => {
     if (hud?.event && hud.wave !== eventCard?.wave) setEventCard({ wave: hud.wave, text: hud.event });
   }, [hud?.wave, hud?.event, eventCard?.wave]);
+  // Shown for EVENT_CARD_MS (after the opening countdown), then it puffs away.
   useEffect(() => {
-    if (!eventCard || countdown > 0) return undefined;
-    const timer = setTimeout(() => setEventCard((card) => (card === eventCard ? { ...card, text: null } : card)), EVENT_CARD_MS);
+    if (!eventCard?.text || countdown > 0) return undefined;
+    const timer = setTimeout(() => setEventCard((card) => (card !== eventCard ? card
+      : card.leaving ? { ...card, text: null } : { ...card, leaving: true })), eventCard.leaving ? EVENT_CARD_PUFF_MS : EVENT_CARD_MS);
     return () => clearTimeout(timer);
   }, [eventCard, countdown]);
 
@@ -251,9 +255,14 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
           </div>
         )}
         {eventCard?.text && !result && (
-          <div className="pointer-events-none absolute inset-x-3 top-3 rounded-lg border border-pink-300/60 bg-black/80 px-3 py-2 text-center" data-testid="event-card">
-            <p className="font-display text-[11px] font-bold text-pink-300">WAVE {eventCard.wave}</p>
-            <p className="font-mono-g text-[11px] text-slate-100">{eventCard.text}</p>
+          <div key={eventCard.wave} className="pointer-events-none absolute inset-x-3 top-3" data-testid="event-card">
+            <div className={`rounded-lg border border-pink-300/60 bg-black/80 px-3 py-2 text-center ${eventCard.leaving ? "event-card-puff" : "event-card-pop"}`}>
+              <p className="font-display text-[11px] font-bold text-pink-300">WAVE {eventCard.wave}</p>
+              <p className="font-mono-g text-[11px] text-slate-100">{eventCard.text}</p>
+            </div>
+            {eventCard.leaving && [-18, 4, 22].map((dx, index) => (
+              <span key={dx} className="event-card-wisp" style={{ left: `${30 + index * 20}%`, "--dx": `${dx}px`, animationDelay: `${index * 60}ms` }} />
+            ))}
           </div>
         )}
         {campOpen && !result && (

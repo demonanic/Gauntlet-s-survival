@@ -32,3 +32,31 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .battle-move-ready { animation: none; box-shadow: 0 0 10px 1px var(--glow); }
 }
+
+/* A wave's event card (Battle.jsx): it pops in with a flash on its border, then
+   puffs away into smoke. */
+@keyframes event-card-pop {
+  0% { opacity: 0; transform: scale(0.6); box-shadow: 0 0 0 0 rgba(244, 114, 182, 0); }
+  60% { opacity: 1; transform: scale(1.06); box-shadow: 0 0 18px 3px rgba(244, 114, 182, 0.7); }
+  100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(244, 114, 182, 0); }
+}
+@keyframes event-card-puff {
+  0% { opacity: 1; transform: scale(1); filter: blur(0); }
+  100% { opacity: 0; transform: translateY(-6px) scale(1.12); filter: blur(6px); }
+}
+@keyframes event-card-wisp {
+  0% { opacity: 0.55; transform: translate(0, 0) scale(0.6); }
+  100% { opacity: 0; transform: translate(var(--dx), -28px) scale(1.7); }
+}
+.event-card-pop { animation: event-card-pop 0.26s ease-out both; }
+.event-card-puff { animation: event-card-puff 0.5s ease-in forwards; }
+.event-card-wisp {
+  position: absolute; top: 40%; width: 18px; height: 18px; border-radius: 9999px;
+  background: radial-gradient(circle, rgba(203, 213, 225, 0.55), rgba(203, 213, 225, 0) 70%);
+  animation: event-card-wisp 0.55s ease-out forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .event-card-pop { animation: none; }
+  .event-card-puff { animation: none; opacity: 0; transition: opacity 0.3s; }
+  .event-card-wisp { display: none; }
+}
