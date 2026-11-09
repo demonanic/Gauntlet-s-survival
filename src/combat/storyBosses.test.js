@@ -62,6 +62,12 @@ describe("story bosses", () => {
     h.cd = 1;
     engine.update(0.1);
     expect(h.cd).toBeGreaterThan(1 - 0.1); // a slowed swing timer runs at 60%
+    // So do special-move and spell cooldowns.
+    h.abilityCooldowns = { lunge: 10 };
+    h.spellCooldowns = { firebolt: 10 };
+    engine.update(1);
+    expect(h.abilityCooldowns.lunge).toBeCloseTo(10 - (1 - STORY_BOSS.chronomancer.slow), 5);
+    expect(h.spellCooldowns.firebolt).toBeCloseTo(10 - (1 - STORY_BOSS.chronomancer.slow), 5);
     boss.hp = boss.maxHp * 0.4;
     engine.update(1 / 30);
     expect(boss.hp).toBe(Math.round(boss.maxHp * STORY_BOSS.chronomancer.rewindTo));

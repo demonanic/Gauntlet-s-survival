@@ -28,8 +28,8 @@ export const BACKSTAB_WINDOW = 3;
 // Gatewarden: a portal every `portalEvery` s (at most `maxPortals` open,
 // `portalHp` of her max HP each), each spawning one of `spawns` every
 // `spawnEvery` s until destroyed. Chronomancer: a time field every
-// `fieldEvery` s on heroes within `fieldRadius` of one: attack and move
-// `slow` slower for `slowSeconds`; once, below half HP, rewinds to `rewindTo`.
+// `fieldEvery` s on heroes within `fieldRadius` of one: attack, move and
+// recover special-move and spell cooldowns `slow` slower for `slowSeconds`; once, below half HP, rewinds to `rewindTo`.
 // Ritualist: a `channel` s ritual every `channelEvery` s (the first after
 // `firstChannel`); `breakShare` of her max HP in damage meanwhile breaks it
 // (stunned `brokenStun` s); finished, it blasts every hero for `blast` of
