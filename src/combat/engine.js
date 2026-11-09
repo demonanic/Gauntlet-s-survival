@@ -646,7 +646,9 @@ export class Engine {
         continue;
       }
       if (h.protect > 0) { h.protect -= dt; continue; }
-      for (const id of Object.keys(h.abilityCooldowns)) h.abilityCooldowns[id] = Math.max(0, h.abilityCooldowns[id] - dt);
+      // The Chronomancer's time field (story mode) slows special-move and spell cooldowns too.
+      const cooldownDt = h.timeSlowUntil > this.time ? dt * (1 - h.timeSlow) : dt;
+      for (const id of Object.keys(h.abilityCooldowns)) h.abilityCooldowns[id] = Math.max(0, h.abilityCooldowns[id] - cooldownDt);
       this._tickClasslessSustain(h, dt);
       this._tickGearAndEnvironment(h, dt);
       if (!h.alive) continue;
@@ -655,7 +657,7 @@ export class Engine {
       h.castCd = Math.max(0, (h.castCd || 0) - dt);
       if (h.spellQueue.length) this._playSpellQueue(h);
       if (!h.manual && h.maxMana > 0) this._autoCast(h);
-      for (const id of Object.keys(h.spellCooldowns)) h.spellCooldowns[id] = Math.max(0, h.spellCooldowns[id] - dt);
+      for (const id of Object.keys(h.spellCooldowns)) h.spellCooldowns[id] = Math.max(0, h.spellCooldowns[id] - cooldownDt);
       h.mana = Math.min(h.maxMana, h.mana + (2 + Math.max(0, h.d.intelligence || 0) * 0.04) * dt);
       const melee = h.d.rangeMode !== "midline";
       const baseAttackSpeed = h.d.classlessEffects.attackSpeed;

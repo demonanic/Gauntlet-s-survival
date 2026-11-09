@@ -2,7 +2,7 @@
 
 Read this first, then `docs/ROADMAP.md` (the living checklist and pass log) and `docs/DESIGN.md` (every approved design, with its measurements). `docs/LEGACY_MANIFEST.md` tracks the old Demonanic code.
 
-Last updated: 2026-11-08, with Story mode batch 2 open as draft PR #70.
+Last updated: 2026-11-09, with the Chronomancer's cooldown slow open as draft PR #71.
 
 ## The project
 
@@ -72,7 +72,8 @@ Last updated: 2026-11-08, with Story mode batch 2 open as draft PR #70.
   - #67: Free Roam (every wave a faction squad with a horde layer and an event card); Sam kept its difficulty.
   - #68: Free Roam batch 2: Camp swaps between waves and four twists.
   - #69: Story mode batch 1, The Time Warp Breach chapters 1–4 (the `public.server_now` function is applied to the project); Sam named the entity the Ancient Evil and kept 45 minutes, to test in a run.
-- **Open:** draft PR #70, Story mode batch 2: chapter 5's bosses (the Gatewarden, the Chronomancer, the Ritualist, the Ancient Evil), Confusion, story mode for everyone, a test-panel jump to any battle; also a fix for the Fury shard test (random starter qualities).
+  - #70: Story mode batch 2: chapter 5's bosses, Confusion, story mode for everyone, a test-panel jump to any battle; the Fury shard test fix. Sam widened the Chronomancer's field (every 10 s, radius 160).
+- **Open:** draft PR #71: the Chronomancer's field also slows special-move and spell cooldowns (Sam's idea).
 - **Planned with Sam:** Claude's two campaigns; Sam's second. Sam asked ChatGPT about one sign-in across his apps (Demonanic, LC wallet) so signing out anywhere freezes the countdown.
 - **Waiting on Sam:** error boundary, auto-cast switches, the wolf's taunt, thinning glow, spreading unattended fights (proposals in #61), and his phone's fps.
 - **Next (Sam's choice):**
