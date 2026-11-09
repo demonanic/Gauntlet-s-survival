@@ -368,3 +368,4 @@ Decisions (Sam, 2026-11-01, reviewing Phase 5):
 | 2026-11-08 | Story mode batch 1 (feature) | #69 | Campaign rules (countdown on the server clock, 24 h pause cap, setbacks, Redo, swaps, bounty), Sam's campaign chapters 1–4 measured and tuned, the story screen (test mode); fingerprints unchanged |
 | 2026-11-08 | Story mode batch 2 (feature) | #70 | Chapter 5's four bosses with their powers and looks, Confusion, story mode for everyone; measured; five new enemy fingerprints recorded; the Fury shard test made independent of random starters |
 | 2026-11-09 | Chronomancer cooldowns | #71 | His time field also slows special-move and spell cooldowns 40%; measured neutral in seeded runs (no special moves there) |
+| 2026-11-09 | Event card | #72 | 2.5 s instead of 5 s; pops in and puffs away into smoke (CSS only) |
