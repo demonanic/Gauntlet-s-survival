@@ -163,7 +163,7 @@ const GOLDEN = {
   "zombie": "f8a83d6383e46905",
   // Story mode's bosses (Nov 2026), recorded in CI when they were added.
   "ancientEvil": "79b087514910d1e6",
-  "chronomancer": "0b2fdd5d2f80bf0c",
+  "chronomancer": "be9fe6bf985ce51e",
   "gatewarden": "efcd0811fb5a8477",
   "portal": "21eeec54b15a93dd",
   "ritualist": "a5aadbd91c6d8ec9",

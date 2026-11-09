@@ -39,7 +39,7 @@ export const BACKSTAB_WINDOW = 3;
 // off and breaks it); the wormhole opens at `wormholeAt` of its HP.
 export const STORY_BOSS = Object.freeze({
   gatewarden: Object.freeze({ portalEvery: 14, firstPortal: 4, maxPortals: 2, portalHp: 0.1, spawnEvery: 6, spawns: Object.freeze(["bandit", "orc", "warlock"]) }),
-  chronomancer: Object.freeze({ fieldEvery: 12, firstField: 5, fieldRadius: 110, slow: 0.4, slowSeconds: 5, rewindBelow: 0.5, rewindTo: 0.75 }),
+  chronomancer: Object.freeze({ fieldEvery: 10, firstField: 5, fieldRadius: 160, slow: 0.4, slowSeconds: 5, rewindBelow: 0.5, rewindTo: 0.75 }),
   ritualist: Object.freeze({ channelEvery: 20, firstChannel: 8, channel: 12, breakShare: 0.12, brokenStun: 3, blast: 0.45 }),
   ancientEvil: Object.freeze({
     auraRadius: 150, auraBoost: 1.25, auraCut: 0.25,
