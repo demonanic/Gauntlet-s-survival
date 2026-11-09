@@ -198,6 +198,15 @@ export function drawEnemySprite(engine, e) {
     ctx.fillStyle = color; ctx.beginPath(); ctx.arc(-3, -2, 1.8, 0, Math.PI * 2); ctx.arc(3, -2, 1.8, 0, Math.PI * 2); ctx.fill();
     neon(2.2); ctx.beginPath(); ctx.moveTo(8, 9); ctx.lineTo(14, -17); ctx.stroke();
     neon(1.6); ctx.beginPath(); ctx.arc(-12, 7, 6, 0, Math.PI * 2); ctx.stroke();
+  } else if (e.type === "portal") {
+    // The Gatewarden's portal (story mode): a slowly turning ring of light.
+    const turn = (engine.time || 0) * 2;
+    ctx.fillStyle = "#12051A";
+    ctx.beginPath(); ctx.ellipse(0, 0, 13, 17, 0, 0, Math.PI * 2); ctx.fill(); outline();
+    neon(1.6);
+    for (let k = 0; k < 3; k += 1) {
+      ctx.beginPath(); ctx.ellipse(0, 0, 9 - k * 2.5, 13 - k * 3.5, 0, turn + k, turn + k + Math.PI * 1.2); ctx.stroke();
+    }
   } else {
     // Boss silhouettes keep a common Demonanic frame but have unique crowns.
     ctx.fillStyle = "#170A14";
@@ -229,6 +238,31 @@ export function drawEnemySprite(engine, e) {
       ctx.beginPath(); ctx.arc(0, -6, 8, 0, Math.PI * 2);
       ctx.moveTo(-18, 14); ctx.quadraticCurveTo(-26, 22, -20, 28); ctx.moveTo(18, 14); ctx.quadraticCurveTo(26, 22, 20, 28); ctx.stroke();
       ctx.fillStyle = color; ctx.beginPath(); ctx.arc(-3, -6, 1.8, 0, Math.PI * 2); ctx.arc(3, -6, 1.8, 0, Math.PI * 2); ctx.fill();
+    } else if (e.type === "gatewarden") {
+      // A doorway for a crown.
+      neon(2);
+      ctx.beginPath(); ctx.moveTo(-9, -10); ctx.lineTo(-9, -26); ctx.lineTo(9, -26); ctx.lineTo(9, -10); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(0, -18, 4, 6, 0, 0, Math.PI * 2); ctx.stroke();
+    } else if (e.type === "chronomancer") {
+      // An hourglass crown.
+      neon(2);
+      ctx.beginPath(); ctx.moveTo(-8, -26); ctx.lineTo(8, -26); ctx.lineTo(-8, -12); ctx.lineTo(8, -12); ctx.closePath(); ctx.stroke();
+      ctx.fillStyle = color; ctx.beginPath(); ctx.arc(0, -19, 1.8, 0, Math.PI * 2); ctx.fill();
+    } else if (e.type === "ritualist") {
+      // A ring of ritual sparks, brighter while she channels.
+      neon(e.channelUntil != null ? 2.6 : 1.6);
+      ctx.beginPath(); ctx.arc(0, -16, 10, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = color;
+      for (let k = 0; k < 5; k += 1) {
+        const a = k * (Math.PI * 2 / 5) + (engine.time || 0);
+        ctx.beginPath(); ctx.arc(Math.cos(a) * 10, -16 + Math.sin(a) * 10, 1.8, 0, Math.PI * 2); ctx.fill();
+      }
+    } else if (e.type === "ancientEvil") {
+      // Great curled horns and a third eye.
+      neon(3);
+      ctx.beginPath(); ctx.moveTo(-12, -12); ctx.quadraticCurveTo(-34, -22, -24, -36);
+      ctx.moveTo(12, -12); ctx.quadraticCurveTo(34, -22, 24, -36); ctx.stroke();
+      eye(0, -6, 2.6);
     } else if (e.type === "nuclearBehemoth") {
       ctx.fillStyle = "#0A1710";
       ctx.beginPath(); ctx.arc(-11, 5, 6, 0, Math.PI * 2); ctx.arc(11, 5, 6, 0, Math.PI * 2); ctx.fill();

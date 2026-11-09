@@ -118,6 +118,15 @@ nuclearBehemoth: { key: "nuclearBehemoth", name: "The Abomination", tier: "boss"
   // great numbers. Kept last so the other enemies' test seeds
   // stay as they were.
   zombie: { key: "zombie", name: "Zombie", tier: "basic", hp: 28, speed: 17, damage: 6, color: "#94C973", horde: true },
+  // Story mode, The Time Warp Breach chapter 5 (owner's design, Nov 2026;
+  // enemies/storyBosses.js). After the zombie, so other enemies' test seeds
+  // stay as they were. A portal is the Gatewarden's: it never moves or
+  // attacks, and spawns foes until it is destroyed.
+  portal: { key: "portal", name: "Portal", tier: "elite", hp: 260, speed: 0, damage: 0, color: "#E879F9", portal: true },
+  gatewarden: { key: "gatewarden", name: "The Gatewarden", tier: "boss", hp: 2600, speed: 18, damage: 42, color: "#E879F9", boss: true, attackRange: 380, splashRadius: 50 },
+  chronomancer: { key: "chronomancer", name: "The Chronomancer", tier: "boss", hp: 2800, speed: 20, damage: 44, color: "#38BDF8", boss: true, attackRange: 380, splashRadius: 50 },
+  ritualist: { key: "ritualist", name: "The Ritualist", tier: "boss", hp: 3000, speed: 16, damage: 46, color: "#F97316", boss: true, attackRange: 380, splashRadius: 55 },
+  ancientEvil: { key: "ancientEvil", name: "The Ancient Evil", tier: "boss", hp: 6000, speed: 14, damage: 60, color: "#A21CAF", boss: true },
 };
 // Gauntlet behavior families. Squads are read by what they do, not just how
 // tough they are. Some families drive engine behavior directly: "hunter"
@@ -130,6 +139,8 @@ export const ENEMY_FAMILIES = Object.freeze({
   gnome: ["ambusher", "attrition"], bandit: ["hunter", "ambusher"], lesserNecromancer: ["protector"],
   harrier: ["hunter", "predator"], carrionPriest: ["protector"], watcher: ["watcher", "disruptor"],
   stalker: ["hunter", "predator", "ambusher"], bulwark: ["protector", "attrition"],
+  // The Gatewarden's portal (story mode): it does nothing but spawn.
+  portal: [],
 });
 
 // Encounter-composition roles, layered over the behavior families: what an
@@ -139,7 +150,7 @@ export const ENEMY_FAMILIES = Object.freeze({
 // the normal rules of a fight. Plain fighters are "frontline". Encounter
 // generation (game/ecology.js) builds squads from these.
 export const ENEMY_ROLES = Object.freeze({
-  ghost: ["frontline"], slime: ["frontline"], goblin: ["frontline"], skeleton: ["frontline"], orc: ["frontline"], zombie: ["frontline"],
+  ghost: ["frontline"], slime: ["frontline"], goblin: ["frontline"], skeleton: ["frontline"], orc: ["frontline"], zombie: ["frontline"], portal: ["frontline"],
   reaper: ["pressure"], lieutenant: ["frontline"],
   harrier: ["pressure"], bandit: ["pressure"], stalker: ["pressure"], gnome: ["pressure", "wildcard"],
   carrionPriest: ["support"], lesserNecromancer: ["support", "wildcard"],

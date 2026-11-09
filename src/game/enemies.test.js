@@ -1,3 +1,4 @@
+import { CAMPAIGNS, campaignBattles } from "./story";
 // Enemy-definition coverage. An enemy is described across several tables
 // (stats in C.ENEMIES, behavior families, squad roles, spawn sources, and the
 // engine's behavior and sprite code). These tests make a missing or misspelt
@@ -43,6 +44,12 @@ function spawnSources() {
   sources["plain frontline"] = [...FRONTLINE];
   sources.stalker = ["stalker"];
   sources.horde = [HORDE.enemy];
+  // Story mode: the campaigns' scripted battles, and the Gatewarden's portals.
+  for (const campaign of Object.values(CAMPAIGNS)) {
+    sources[`${campaign.id} battles`] = campaignBattles(campaign)
+      .flatMap((battle) => [battle.wave?.boss, ...(battle.wave?.leaders || []), ...(battle.wave?.grunts || [])]).filter(Boolean);
+  }
+  sources["Gatewarden portals"] = ["portal"];
   return sources;
 }
 
@@ -54,7 +61,8 @@ describe("enemy stats (C.ENEMIES)", () => {
     expect(enemy.name.length).toBeGreaterThan(0);
     expect(Object.keys(C.ENEMY_TIERS)).toContain(enemy.tier);
     expect(!!enemy.boss).toBe(enemy.tier === "boss");
-    for (const stat of ["hp", "speed", "damage"]) {
+    // A portal (story mode's Gatewarden) never moves or attacks.
+    for (const stat of enemy.portal ? ["hp"] : ["hp", "speed", "damage"]) {
       expect(Number.isFinite(enemy[stat]) && enemy[stat] > 0).toBe(true);
     }
     expect(enemy.color).toMatch(/^#[0-9A-Fa-f]{6}$/);

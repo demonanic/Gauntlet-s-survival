@@ -6,9 +6,8 @@
 // Free Roam wave whose strength it fights at. Difficulty, from Sam's plan:
 // battles 1-5 low, 6-10 harder, 11-16 critical, 17-20 bosses.
 //
-// Chapter 5's bosses (the three rebel warlocks and the Ancient Evil) arrive
-// with their own powers in the next batch; until then the chapter is marked
-// `comingSoon` and story mode only shows in test mode.
+// Chapter 5 is the three rebel warlocks and the Ancient Evil, each with
+// powers of their own (combat/enemies/storyBosses.js).
 
 const chaos = (leaders, grunts, extra = {}) => ({ faction: "chaos", leaders, grunts, ...extra });
 const times = (key, count) => Array.from({ length: count }, () => key);
@@ -69,12 +68,11 @@ export const TIME_WARP = Object.freeze({
       title: "The Ancient Evil",
       intro: "Three rebel warlocks, each master of a piece of the breach, and beyond them the thing the prophecy warned of, already half through.",
       outro: "The wormhole folds in on itself with a sound like a held breath let go. The Ancient Evil is dragged back to whatever age it came from, and the hum stops. For the first time in weeks, the night is quiet.",
-      comingSoon: true,
       battles: [
-        { title: "The Gatewarden", text: "She opens doors that should stay closed, and things come through them.", boss: "gatewarden", level: 18 },
-        { title: "The Chronomancer", text: "He bends the seconds around you until every swing comes too late.", boss: "chronomancer", level: 19 },
-        { title: "The Ritualist", text: "She is finishing the ritual as you arrive. Stop her before the last word.", boss: "ritualist", level: 20 },
-        { title: "The Ancient Evil", text: "It steps out of the breach, older than the stars it remembers. It does not need to win. It only needs you to turn on each other.", boss: "ancientEvil", level: 20 },
+        { title: "The Gatewarden", text: "She opens doors that should stay closed, and things come through them. Close the portals, or there will be no end to it.", wave: chaos([], ["bandit", "bandit"], { boss: "gatewarden" }), level: 13 },
+        { title: "The Chronomancer", text: "He bends the seconds around you until every swing comes too late. Spread out, and don't let him catch you together.", wave: chaos(["warlock"], ["orc", "orc"], { boss: "chronomancer" }), level: 17 },
+        { title: "The Ritualist", text: "She is finishing the ritual as you arrive. When she starts chanting, hit her with everything before the last word.", wave: chaos([], ["orc", "orc", "bandit"], { boss: "ritualist", layer: "trickle" }), level: 16 },
+        { title: "The Ancient Evil", text: "It steps out of the breach, older than the stars it remembers. It does not need to win. It only needs you to turn on each other.", wave: chaos([], [], { boss: "ancientEvil" }), level: 17 },
       ],
     },
   ],

@@ -12,6 +12,7 @@ const EXPECTED = {
   harrier: "hunter", carrionPriest: "carrionPriest", watcher: "watcher", stalker: "hunter", gnome: "sapper",
   bandit: "bandit", lesserNecromancer: "lesserNecromancer", bulwark: "bulwark",
   banditWarlord: null, bogLich: null, nuclearBehemoth: null,
+  portal: null, gatewarden: null, chronomancer: null, ritualist: null, ancientEvil: null,
 };
 
 describe("enemy roles", () => {

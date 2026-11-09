@@ -5,7 +5,7 @@ import { MAX_GEAR_TIER, RARITY_ORDER, RARITIES } from "../game/items";
 import { REGIONS } from "../game/regions";
 import {
   MAX_HERO_LEVEL, debugAddGold, debugAddRenown, debugCareer, debugGivePets, debugGiveCrate, debugClearRegions, debugEndExpedition, debugGiveGearSet, debugGiveSupplies,
-  debugGiveCasting, debugLearnSchool, debugSetBossRank, debugSetLevels, debugSetSchoolRank, debugSetSpellRank, debugSkipTimers, debugTestEndless, debugTestFight,
+  debugGiveCasting, debugLearnSchool, debugSetBossRank, debugSetLevels, debugSetSchoolRank, debugSetSpellRank, debugSkipTimers, debugStoryBattle, debugTestEndless, debugTestFight,
 } from "../game/debug";
 import { readRealSave } from "../game/storage";
 import { NeonButton } from "./ui";
@@ -41,6 +41,7 @@ export default function DebugPanel({ guild, apply, onTestFight }) {
   const [fightNote, setFightNote] = useState(null);
   const [marchWave, setMarchWave] = useState(1);
   const [roamWave, setRoamWave] = useState(1);
+  const [storyBattle, setStoryBattle] = useState(17);
   const startEndless = (regionId, wave) => {
     const result = debugTestEndless(guild, regionId, wave);
     if (!result.ok) { setFightNote(FIGHT_REASONS[result.reason] || `Can't start: ${result.reason}`); return; }
@@ -163,6 +164,13 @@ export default function DebugPanel({ guild, apply, onTestFight }) {
               {[1, 3, 5, 8, 10, 15, 20].map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
             <NeonButton color="#F472B6" onClick={() => startEndless("roam", roamWave)} data-testid="debug-roam">Start</NeonButton>
+          </div>
+          <div className={row}>
+            <span>Story: go to battle</span>
+            <select className={selectClass} value={storyBattle} onChange={(event) => setStoryBattle(Number(event.target.value))} data-testid="debug-story-battle">
+              {Array.from({ length: 20 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+            <NeonButton color="#FBBF24" disabled={!guild.story?.run} onClick={() => apply((state) => debugStoryBattle(state, storyBattle))} data-testid="debug-story-go">Go</NeonButton>
           </div>
           <p className="text-[10px] text-slate-500">
             {guild.expedition ? "On a trip: the fight is in its region. " : "The first four heroes set out, healed. "}

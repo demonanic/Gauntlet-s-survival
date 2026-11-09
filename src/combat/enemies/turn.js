@@ -5,11 +5,14 @@
 // reached, or close on the nearest hero. The nemesis tick and tactical
 // targeting live here too.
 import { bossAbility, championTick, warlockMageHunt } from "./abilities";
+import { portalTick } from "./storyBosses";
 import { enemyRole } from "./roles";
 import { BODY_PAD } from "./tuning";
 import { FLOOR_Y, W } from "../arena";
 
 export function enemyTurn(engine, e, dt) {
+  // A Gatewarden's portal never moves or attacks (storyBosses.js).
+  if (e.portal) { portalTick(engine, e, dt); return; }
   if (e.nemesisId && nemesisTick(engine, e, dt)) return;
   if (e.champion && !(e.silenceUntil > engine.time)) championTick(engine, e, dt);
   e.atkCd -= dt * (e.attackSlowUntil > engine.time ? (e.attackSlowMultiplier || 1) : 1) * (e.attackSpeed || 1);

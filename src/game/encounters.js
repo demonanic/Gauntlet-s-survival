@@ -435,6 +435,7 @@ function makeEnemy(base, hpScale, dmgScale) {
     ...(base.splashRadius ? { splashRadius: base.splashRadius } : {}),
     ...(base.bomber ? { bomber: true } : {}),
     ...(base.shield ? { shield: { ...base.shield } } : {}),
+    ...(base.portal ? { portal: true } : {}),
     families: [...(C.ENEMY_FAMILIES[base.key] || [])],
   };
 }
