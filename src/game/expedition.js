@@ -29,7 +29,7 @@ import { CHAMPIONS, REGIONS, getRegion } from "./regions";
 import { simulateEncounter } from "./simulate";
 import { buildFightOutcome } from "./fightOutcome";
 import { combatBonds, separation } from "./bonds";
-import { partyThreat } from "./threat";
+import { endgameThreat, partyThreat } from "./threat";
 import { nemesisAppearChance, nemesisLevel, nemesisTraits, regionNemesis } from "./nemesis";
 import {
   DEEPER, addFeed, changeMorale, closePending, completeExpedition, deeperRegion, findHero, firstName, heal, heroId, livingParty,
@@ -69,9 +69,10 @@ const STALKER_STRIKE_PARTY_HP = 0.55;
 const STALKER_POUNCE = 0.12;
 // The region as this trip meets it: deeper legs, and grown to the party's
 // strength when it outclasses the region (threat.js, fixed at departure).
-function tripRegion(run) {
+// `endgame`: held to the endgame cap (a ranked boss).
+function tripRegion(run, { endgame = false } = {}) {
   const region = deeperRegion(getRegion(run.regionId), run.depth || 0);
-  const threat = run.threat || { hp: 1, dmg: 1 };
+  const threat = endgame ? endgameThreat(run.threat) : run.threat || { hp: 1, dmg: 1 };
   return threat.hp === 1 && threat.dmg === 1 ? region
     : { ...region, hpScale: region.hpScale * threat.hp, dmgScale: region.dmgScale * threat.dmg };
 }
@@ -328,7 +329,8 @@ function reachEnd(state, region, at, rng) {
     addFeed(run, at, fallen.length
       ? `The party catches its breath before the final stretch. ${fallen.map((hero) => hero.identity.name).join(" and ")} ${fallen.length > 1 ? "are" : "is"} back on their feet.`
       : "The party catches its breath and binds its wounds before the final stretch.", "good");
-    const wave = buildBossEncounter(region, state.bossRank || 0, rng);
+    // A ranked boss grows every rank already: it keeps the endgame threat cap.
+    const wave = buildBossEncounter((state.bossRank || 0) > 0 ? tripRegion(run, { endgame: true }) : region, state.bossRank || 0, rng);
     const boss = wave.enemies.find((enemy) => enemy.boss || enemy.tier === "elite") || wave.enemies[0];
     addFeed(run, at, `The way out is blocked: ${boss.name} stands guard with ${describeSquad({ enemies: wave.enemies.filter((enemy) => enemy !== boss) })}.`, "danger", true);
     if (wave.champion) addFeed(run, at, `A Champion! It ${CHAMPIONS[wave.champion].text}. Double bounty if it falls.`, "danger", true);

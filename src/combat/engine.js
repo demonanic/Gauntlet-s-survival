@@ -36,6 +36,9 @@ import { defaultRandom } from "../game/random";
 
 const MAX_COMBAT_EFFECTS = 180;
 const MAX_COMBAT_FLOATERS = 120;
+// Owner's call (Nov 2026, calibration): the most a hero can dodge, from every
+// source together. It was 50%, and late heroes dodged ~37% of all swings.
+export const HERO_DODGE_CAP = 0.3;
 
 export { H, W };
 
@@ -976,7 +979,7 @@ export class Engine {
     const classlessBonus = !area
       ? derived.evasion + (hpRatio >= 1 && derived.fullHpEvasion ? derived.fullHpEvasion : 0)
       : 0;
-    return Math.min(0.5, Math.max(0, baseDodge + lowHpBonus + classlessBonus));
+    return Math.min(HERO_DODGE_CAP, Math.max(0, baseDodge + lowHpBonus + classlessBonus));
   }
 
   _classlessReducedDamage(hero, rawDamage) {

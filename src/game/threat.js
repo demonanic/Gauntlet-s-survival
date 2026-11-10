@@ -24,7 +24,18 @@ export const THREAT = Object.freeze({
   // Enemies start growing only past this much stronger than the reference
   // (the reference has no perks; real heroes at that level do).
   slack: Number(globalThis.process?.env?.THREAT_SLACK) || 1.2,
-  max: Number(globalThis.process?.env?.THREAT_MAX) || 3,
+  // Nov 2026 calibration (owner-approved "enemies keep pace"): damage was
+  // capped at 3 with HP, and a geared party hit that cap 5 levels over a
+  // region and stopped losing HP at all (0% lost from LV10 up). HP may now
+  // grow to 5x and damage to 30x; measured, a party 5-10 levels over a region
+  // still loses about as much HP as one at its level.
+  max: Number(globalThis.process?.env?.THREAT_MAX) || 5,
+  maxDmg: Number(globalThis.process?.env?.THREAT_MAX_DMG) || 30,
+  // Endless runs and ranked bosses escalate on their own (waves, ranks) and
+  // were tuned to the ~70% endgame wall with the old cap; they keep it.
+  // Measured (Nov 2026, balance --runs 3): the new caps there dropped idle
+  // ranked Ashen wins from 70% to 16% and the Rift median from 35 to 10 waves.
+  endgameMax: 3,
   // The reference hero's stat points, in this order.
   spOrder: Object.freeze(["attack", "defense", "attack"]),
   rarity: "common",
@@ -74,15 +85,21 @@ export function referencePower(level, tier) {
   return power;
 }
 
+// A threat held to the endgame cap (endless runs, ranked bosses).
+export function endgameThreat(threat = { hp: 1, dmg: 1 }) {
+  return { hp: Math.min(THREAT.endgameMax, threat.hp), dmg: Math.min(THREAT.endgameMax, threat.dmg) };
+}
+
 // Enemy HP and damage multipliers for `heroes` setting out to `region`.
+// Endless regions get the endgame cap.
 export function partyThreat(heroes, region) {
   if (!heroes.length || !region) return { hp: 1, dmg: 1 };
   const party = partyPower(heroes);
   const { level, tier } = regionReference(region);
   const reference = referencePower(level, tier);
-  const grow = (ratio) => Math.min(THREAT.max, Math.max(1, ratio / THREAT.slack) ** THREAT.close);
+  const grow = (ratio, max) => Math.min(region.endless ? THREAT.endgameMax : max, Math.max(1, ratio / THREAT.slack) ** THREAT.close);
   return {
-    hp: Math.round(grow(party.offense / reference.offense) * 100) / 100,
-    dmg: Math.round(grow(party.toughness / reference.toughness) * 100) / 100,
+    hp: Math.round(grow(party.offense / reference.offense, THREAT.max) * 100) / 100,
+    dmg: Math.round(grow(party.toughness / reference.toughness, THREAT.maxDmg) * 100) / 100,
   };
 }
