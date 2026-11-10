@@ -1135,8 +1135,8 @@ ranked Ashen boss. Owner-approved fix: flatter rarity, and enemies that adapt to
 - **Threat:** at departure the party's offense (attack with crits) and toughness (HP through
   defense and dodge) are compared with a reference hero: the region's minimum level, Common
   gear a tier below (`regionReference`), the party each region is tuned for. Enemy HP ×
-  `(offense ratio / 1.2) ^ 1.5`, enemy damage × the same for toughness, each capped at ×3,
-  fixed for the trip (`run.threat`). The 1.2 slack is for perks the reference lacks; the
+  `(offense ratio / 1.2) ^ 1.5`, enemy damage × the same for toughness, capped at HP ×5
+  and damage ×30 (both ×3 until Nov 2026, see below), fixed for the trip (`run.threat`). The 1.2 slack is for perks the reference lacks; the
   1.5 power because the measure misses affixes and kill speed. The Rift's waves carry the
   same threat from wave 1.
 - **First try, reverted:** tuning regions for Rare gear at a higher level. Real parties
@@ -1153,7 +1153,51 @@ Measured (`npm run scenarios -- --group party`, mixed party of four):
 `npm run balance` (6 idle + 6 active guilds): first Blightmire clear 1.8–5 h in (main:
 1.8–3 h). Endgame 8 h on: idle Ashen boss runs won 61–64% (main 100%), boss rank 9–14
 (main 16–20), Rift median 29–31 waves. Tuning knobs for scripts: `THREAT_CLOSE`,
-`THREAT_SLACK`, `THREAT_MAX` env vars; `--levels N --tiers N` on scenarios.
+`THREAT_SLACK`, `THREAT_MAX`, `THREAT_MAX_DMG` env vars; `--levels N --tiers N` on scenarios.
+
+### Higher caps (Nov 2026 combat calibration, PR #73)
+
+Sam's report after finishing the story: enemies are no challenge and the HP bars never move.
+Measured cause: with both caps at ×3, a geared party reached the damage cap about 5 levels
+over a region and from there lost no HP at all. Party damage grows about 10× from LV1 to
+LV20, so foes fell before they could swing (145 swings at heroes in four LV1 Boneyard fights,
+13 at LV10, 6 at LV20). Late heroes also dodged ~37% of the swings that did come.
+
+- **Caps:** enemy HP up to ×5 and damage up to ×30 on regular trips (`THREAT.max`,
+  `THREAT.maxDmg`). Uncapped, damage threat measured 5–33 for parties 5–10 levels over.
+- **Endgame keeps ×3** (`THREAT.endgameMax`): endless runs (Rift, Dead March, Free Roam) and
+  a ranked boss (`bossRank` > 0, `endgameThreat`). They escalate on their own; the new caps
+  there dropped idle ranked Ashen wins from 70% to 16% and the Rift median from 35 to 10.
+- **Dodge:** every source together stops at 30% (`HERO_DODGE_CAP` in the engine; was 50%).
+  Agility's own 35% cap is unchanged.
+- **Tried and dropped:** bigger late squads, a stronger Blightmire and harder bosses
+  (`COMBAT_PACING.bossDmg` 0.8). They crushed the reference parties (Ashen 75% → 13%,
+  Blightmire 69% → 6% of idle trips). A second, level-based scaling layer was also dropped:
+  the threat system already does that job.
+
+Measured (seeded; mixed party of four, perks and stat points spent by role, gear
+`ceil(level / 2)` tier; HP lost after healing, and the lowest a hero fell, 8 fights each):
+
+| Fight | Before: HP lost / lowest hero | After |
+| --- | --- | --- |
+| Boneyard +5 levels (LV8), wild / boss | 3% 88% / 6% 73% | 10% 54% / 13% 49% |
+| Boneyard +10 (LV13), wild / boss | 0% 98% / 0% 99% | 9% 50% / 14% 31% |
+| Frostfang +5 (LV9), wild / boss | 2% 88% / 9% 54% | 13% 52% / 23% 16% |
+| Frostfang +10 (LV14), wild / boss | 0% 96% / 2% 90% | 19% 36% / 21% 21% |
+| Ashen +5 (LV11), wild / boss | 0% 95% / 8% 74% | 10% 63% / 17% 29% |
+| Ashen +10 (LV16), wild / boss | 0% 99% / 0% 98% | 8% 66% / 16% 35% |
+| Blightmire +5 (LV15), wild / boss | 0% 98% / 0% 98% | 5% 70% / 6% 39% |
+| Blightmire +10 (LV20), wild / boss | 0% 99% / 0% 98% | 3% 79% / 0% 50% |
+
+At each region's own level nothing changed (the threat stays under ×3 there). Reference trips
+(`scenarios --group party --trips 16 --seed 7`): Boneyard 75%, Frostfang 50%, Ashen 75%,
+Blightmire 69%, the same as before. `balance --runs 3 --seed 7 --hours 8`: first clears
+unchanged; endgame idle ranked Ashen wins 70% → 60%, boss rank at 8 h 13–14 → 9–12, Rift
+median 35 → 29; active 78% → 69%, rank 14 → 12–14, Rift 34 → 29. `ranks` (fresh LV20
+epic party): unchanged. Story battles 13–20 (LV8 uncommon tier 4): unchanged, since a campaign
+has no threat scaling. Not checked: Rift and roam depth for parties far over LV10 beyond 4 runs
+each (unchanged within that), and live play. The Blightmire stays the softest region for
+overleveled parties (HP lost stays low, but the lowest hero still drops to about half).
 
 ## Balance (Oct 2026, `npm run balance`)
 
