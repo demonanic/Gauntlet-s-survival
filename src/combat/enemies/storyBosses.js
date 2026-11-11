@@ -50,10 +50,12 @@ export function portalTick(engine, portal, dt) {
     engine._float(portal.x, portal.y - 20, "COLLAPSES", portal.color);
     return;
   }
-  portal.spawnCd = (portal.spawnCd ?? STORY_BOSS.gatewarden.spawnEvery) - dt;
+  // A story goal's object (goals.js) may set its own pace and foes.
+  const spawnEvery = portal.spawnEvery ?? STORY_BOSS.gatewarden.spawnEvery;
+  portal.spawnCd = (portal.spawnCd ?? spawnEvery) - dt;
   if (portal.spawnCd > 0) return;
-  portal.spawnCd = STORY_BOSS.gatewarden.spawnEvery;
-  const spawns = STORY_BOSS.gatewarden.spawns;
+  portal.spawnCd = spawnEvery;
+  const spawns = portal.spawns || STORY_BOSS.gatewarden.spawns;
   const foe = engine.sim.makeMinion(spawns[Math.floor(engine.rng() * spawns.length)]);
   foe.summoned = true;
   engine.injectEnemy(foe);
