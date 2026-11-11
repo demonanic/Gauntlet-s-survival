@@ -78,10 +78,12 @@ Last updated: 2026-11-09, with the event card animation open as draft PR #72.
   - #73: combat calibration batch 1 (threat caps HP ×5, damage ×30, endgame keeps ×3;
     dodge cap 30%). The calibration catalogue is a dashboard artifact for Sam ("Gauntlet
     combat calibration"); its fight numbers ran without the trip threat system.
-- **Open:** draft PR #74: re-tests of the dashboard outliers (bow, Conjuration and special
-  moves held up fine like for like) and flat quality stats growing with level.
-- **Next (agreed with Sam):** the story goals rebuild (batches A and B: outcome matrix, Redo
-  only on a full wipe, a secondary goal per battle, a difficulty floor).
+  - #74: re-tests of the dashboard outliers (bow, Conjuration and special moves held up
+    fine like for like) and flat quality stats growing with level.
+- **Open:** draft PR #75: story batch A (battle goals: assassinate, destroy, hold; the owner's
+  outcome matrix; Redo only on a full wipe; a difficulty floor; chapters 1-2 goals).
+- **Next:** story batch B (Escape, Rescue, Small band and No fallen goals; chapters 3-4),
+  then chapter 5 goals and Sam's playtest notes on goal timings.
 - **Planned with Sam:** Claude's two campaigns; Sam's second. Sam asked ChatGPT about one sign-in across his apps (Demonanic, LC wallet) so signing out anywhere freezes the countdown.
 - **Waiting on Sam:** error boundary, auto-cast switches, the wolf's taunt, thinning glow, spreading unattended fights (proposals in #61), and his phone's fps.
 - **Next (Sam's choice):**
