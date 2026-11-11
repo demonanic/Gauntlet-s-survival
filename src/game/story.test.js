@@ -5,7 +5,7 @@ import { tick } from "./expedition";
 import { createGuild, currentEncounterParty, recruitHero, resolveEncounter } from "./guild";
 import { seededRandom } from "./random";
 import {
-  CAMPAIGNS, STORY, answerStoryLoss, beginStoryBattle, campaignBattles, checkStoryTimer, currentBattle, nextCampaignId,
+  CAMPAIGNS, STORY, answerStoryLoss, beginStoryBattle, buildStoryWave, campaignBattles, checkStoryTimer, currentBattle, goalBonus, nextCampaignId,
   pauseStory, recordStoryBattle, resumeStory, startCampaign, storyLineup, storyTimeLeft, swapStoryHero,
 } from "./story";
 
@@ -21,12 +21,12 @@ const started = () => {
   const state = guild();
   return startCampaign(state, ids(state), T0, { signedIn: true, rng: () => 0 }).state;
 };
-// Fight the current battle and report `victory`.
-const fight = (state, victory, at = T0 + 1000) => {
+// Fight the current battle and report `victory` (and how its goal went).
+const fight = (state, victory, at = T0 + 1000, goal = null) => {
   const begun = beginStoryBattle(state, at, seededRandom(3));
   expect(begun.ok).toBe(true);
   const party = currentEncounterParty(begun.state);
-  return resolveEncounter(begun.state, { victory, party, xpGains: {}, gold: 0, items: [] }, at + 1000, { rng: seededRandom(4) }).state;
+  return resolveEncounter(begun.state, { victory, party, xpGains: {}, gold: 0, items: [], goal }, at + 1000, { rng: seededRandom(4) }).state;
 };
 
 describe("story mode: the Time Warp Breach", () => {
@@ -66,22 +66,76 @@ describe("story mode: the Time Warp Breach", () => {
     expect(after.lastReport.regionId).toBe("story");
   });
 
-  test("a lost battle: Redo once a chapter, or fall back to the chapter before", () => {
+  // The owner's outcome matrix (Nov 2026).
+  test("the whole party falls: Redo the chapter once, or start the campaign again", () => {
     let state = started();
     state.story.run.battle = 9; // chapter 3, battle 10
     state = fight(state, false);
-    expect(state.story.run.failed).toEqual({ battle: 9 });
+    expect(state.story.run.failed).toEqual({ battle: 9, chapter: 2 });
     expect(beginStoryBattle(state, T0 + 5000).reason).toBe("failed");
+    // Redo replays the chapter from its first battle.
     state = answerStoryLoss(state, "redo").state;
-    expect(state.story.run).toMatchObject({ battle: 9, failed: null, redoUsed: [2] });
-    // Redo spent: the next loss in the chapter falls straight back to chapter 2.
+    expect(state.story.run).toMatchObject({ battle: 8, failed: null, redoUsed: [2] });
+    // Redo spent: the next wipe in the chapter starts the campaign again.
     state = fight(state, false);
-    expect(state.story.run).toMatchObject({ battle: 4, failed: null });
-    // Accepting a loss in chapter 1 restarts chapter 1.
-    let first = started();
-    first.story.run.battle = 2;
-    first = answerStoryLoss(fight(first, false), "accept").state;
-    expect(first.story.run.battle).toBe(0);
+    expect(state.story.run).toMatchObject({ battle: 0, failed: null });
+    // Accepting a wipe starts the campaign again too; the countdown keeps running.
+    let other = started();
+    other.story.run.battle = 6;
+    other = answerStoryLoss(fight(other, false), "accept").state;
+    expect(other.story.run.battle).toBe(0);
+    expect(other.story.run.startedAt).toBe(T0);
+  });
+
+  test("survived with the goal done: on to the next battle with a bonus", () => {
+    const after = fight(started(), true, T0 + 1000, { kind: "assassinate", done: true, critical: false });
+    expect(after.story.run.battle).toBe(1);
+    expect(after.story.run.lastGoal).toEqual({ battle: 1, done: true, bonus: goalBonus(1) });
+    expect(after.lastReport.log).toContain(`Goal complete: +${goalBonus(1)} gold.`);
+  });
+
+  test("survived with the goal missed: on, with a quarter of the bonus and minutes lost", () => {
+    const after = fight(started(), true, T0 + 1000, { kind: "assassinate", done: false, critical: false });
+    const run = after.story.run;
+    expect(run.battle).toBe(1);
+    expect(run.penaltyMs).toBe(STORY.goals.missPenaltyMs);
+    expect(run.lastGoal).toMatchObject({ done: false, bonus: Math.round(goalBonus(1) * STORY.goals.missShare) });
+    expect(storyTimeLeft(run, T0)).toBe(run.limitMs - STORY.goals.missPenaltyMs);
+  });
+
+  test("a story-critical goal missed: back to the chapter's first battle, no bonus", () => {
+    let state = started();
+    state.story.run.battle = 7; // battle 8, critical
+    expect(currentBattle(state.story.run).goal.critical).toBe(true);
+    state = fight(state, true, T0 + 1000, { kind: "assassinate", done: false, critical: true });
+    expect(state.story.run).toMatchObject({ battle: 4, lastGoal: { battle: 8, done: false, critical: true } });
+    expect(state.lastReport.log.some((line) => line.includes("Goal"))).toBe(false);
+  });
+
+  test("goal waves mark their target, their raiders and their objects", () => {
+    const battles = campaignBattles(TIME_WARP);
+    const assassinate = buildStoryWave(battles[0]);
+    expect(assassinate.goal.kind).toBe("assassinate");
+    expect(assassinate.enemies[0]).toMatchObject({ type: "warlock", quarry: { after: battles[0].goal.escapeAfter } });
+    const hold = buildStoryWave(battles[6]);
+    const raiders = hold.enemies.filter((enemy) => enemy.thief);
+    expect(raiders.map((enemy) => enemy.type).sort()).toEqual(["bandit", "bandit", "gnome", "gnome", "goblin", "goblin"]);
+    expect(raiders.every((enemy) => enemy.thief.after === battles[6].goal.raidAfter)).toBe(true);
+    expect(buildStoryWave(battles[2]).goal).toMatchObject({ kind: "destroy", count: 2, within: battles[2].goal.within });
+    // Chapters 1-2 all have a goal.
+    expect(battles.slice(0, 8).every((battle) => battle.goal)).toBe(true);
+  });
+
+  test("difficulty floor: a stronger party meets stronger foes", () => {
+    const state = guild();
+    const battle = campaignBattles(TIME_WARP)[0];
+    const base = buildStoryWave(battle);
+    // A party well past the battle's pitch: stat points spent on attack and defense.
+    const strong = state.heroes.slice(0, 4).map((hero) => ({ ...hero, combat: { ...hero.combat, stats: { ...hero.combat.stats, attack: hero.combat.stats.attack + 40, defense: hero.combat.stats.defense + 40 } } }));
+    const scaled = buildStoryWave(battle, strong);
+    expect(scaled.threat.hp).toBeGreaterThan(1);
+    expect(scaled.enemies[0].maxHp).toBeGreaterThan(base.enemies[0].maxHp);
+    expect(scaled.enemies[0].damage).toBeGreaterThan(base.enemies[0].damage);
   });
 
   test("the countdown runs on real time; signing out freezes it for up to 24 hours", () => {

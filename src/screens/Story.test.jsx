@@ -31,17 +31,20 @@ describe("the story screen", () => {
     expect(html).toContain("Scouts on the ridge");
     expect(html).toContain('data-testid="story-fight"');
     expect(html).toContain('data-testid="story-lineup"');
+    // Its second goal.
+    expect(html).toContain("Kill the warlock before he slips away");
   });
 
-  test("signed out the countdown shows as paused; a lost battle offers Redo or falling back", () => {
+  test("signed out the countdown shows as paused; a wipe offers Redo or starting again", () => {
     const guild = running();
     guild.story.run.pausedAt = T0;
     expect(draw(guild, { now: T0 + 60_000 })).toMatch(/PAUSED <!-- -->45:00|PAUSED 45:00/);
     guild.story.run.pausedAt = null;
-    guild.story.run.failed = { battle: 0 };
+    guild.story.run.failed = { battle: 0, chapter: 0 };
     const html = draw(guild);
     expect(html).toContain('data-testid="story-redo"');
-    expect(html).toContain("Fall back to chapter 1");
+    expect(html).toContain("Start the campaign again");
+    expect(html).toMatch(/Redo chapter (<!-- -->)?1/);
     expect(html).not.toContain('data-testid="story-fight"');
   });
 

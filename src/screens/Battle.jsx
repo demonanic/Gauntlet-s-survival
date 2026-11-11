@@ -209,6 +209,8 @@ export default function Battle({ expedition, party, createWave, onComplete, spee
         </div>
       </header>
 
+      {hud?.goal && <GoalBar goal={hud.goal} />}
+
       {bench && (
         <div className="flex flex-wrap items-center gap-1.5 px-3 pb-1 font-mono-g text-[10px]" data-testid="battle-camp">
           <button type="button" disabled={!engine || !!result} onClick={() => setCampOpen((open) => !open)} aria-pressed={campOpen}
@@ -683,5 +685,21 @@ function ActionPanel({ hero, index, abilities, spells, quickSlots, moving, locke
         </div>
       )}
     </section>
+  );
+}
+
+// A story battle's second goal (combat/goals.js): what to do, and how it stands.
+function GoalBar({ goal }) {
+  const color = goal.state === "done" ? "#39FF14" : goal.state === "failed" ? "#FF2A5F" : "#FDE68A";
+  const progress = goal.state === "done" ? "Done" : goal.state === "failed" ? "Failed"
+    : goal.kind === "destroy" ? `${goal.total - goal.left}/${goal.total} broken · ${goal.secondsLeft}s`
+      : goal.kind === "hold" ? `Wagon ${goal.livesLeft}/${goal.lives}`
+        : goal.secondsLeft != null ? `${goal.secondsLeft}s` : "";
+  return (
+    <div className="mx-3 mb-1 flex items-center justify-between gap-2 rounded border px-2 py-1 font-mono-g text-[10px]"
+      style={{ borderColor: `${color}66`, color }} data-testid="battle-goal">
+      <span>{goal.critical ? "★ " : ""}Goal: {goal.text}</span>
+      <span className="shrink-0 font-bold">{progress}</span>
+    </div>
   );
 }

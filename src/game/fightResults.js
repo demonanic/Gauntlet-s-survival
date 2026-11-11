@@ -143,7 +143,7 @@ export function applyFightResult(state, region, { victory, party, xpGains, gold,
   // and the party comes home; a loss keeps the loot (the setback is the cost).
   if (pending.kind === "campaign") {
     run.pending = null;
-    recordStoryBattle(state, victory, at, rng);
+    recordStoryBattle(state, victory, at, rng, outcome.goal);
     completeExpedition(state, victory ? "returned" : "retreat", at);
     return;
   }

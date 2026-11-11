@@ -8,13 +8,16 @@
 //   battle                                  index of the next battle (0-based)
 //   party, joining                          heroes in the line-up; swaps in transit
 //   redoUsed                                chapters whose Redo is spent
-//   failed                                  a lost battle waiting on Redo or Accept
+//   failed                                  a wipe waiting on Redo or Accept
+//   penaltyMs                               countdown lost to missed goals
+//   lastGoal                                how the last battle's second goal went
 // Times are the game's clock (the server's, once signed in; App.jsx).
 import { buildScenarioWave, roamZombies } from "./encounters";
 import { addFeed, findHero } from "./expeditionRun";
 import { LEGENDARIES, chestCrystal, randomLegendary } from "./items";
 import { TIME_WARP } from "./campaigns/timeWarp";
 import { startExpedition } from "./expedition";
+import { partyThreat } from "./threat";
 import { serializeGameState } from "../combat/heroModel";
 
 export const CAMPAIGNS = Object.freeze({ [TIME_WARP.id]: TIME_WARP });
@@ -26,7 +29,53 @@ export const STORY = Object.freeze({
   pauseCapMs: 24 * 60 * 60 * 1000,
   // A campaign won: a fortune, one random legendary, and Radiant crystals or shards.
   bounty: Object.freeze({ gold: Object.freeze([15000, 25000]), legendaryTier: 5, crystals: 2, crystalTier: 3 }),
+  // A battle's second goal (owner's outcome matrix, Nov 2026): done pays a
+  // bonus; missed pays a quarter of it and costs countdown time; missed on a
+  // story-critical battle sends the party back to the chapter's first battle.
+  goals: Object.freeze({ bonusBase: 150, bonusPerBattle: 50, missShare: 0.25, missPenaltyMs: 2 * 60_000 }),
 });
+
+// The goal bonus for battle `number` (1-based).
+export function goalBonus(number) {
+  return STORY.goals.bonusBase + STORY.goals.bonusPerBattle * number;
+}
+
+// The party a battle is a fair fight for: its Free Roam wave strength
+// (`battle.level`) maps to a hero level of 0.4 per wave (at least 1), with
+// common gear a tier over half that. A party stronger than that meets
+// stronger foes (threat.js), so a campaign never becomes a stroll.
+// Calibrated in seeded fights (Nov 2026, DESIGN.md "Story goals").
+export const STORY_PITCH = Object.freeze({ levelPerWave: 0.4 });
+export function storyReference(battle) {
+  const level = Math.max(1, Math.round(STORY_PITCH.levelPerWave * battle.level));
+  return { minLevel: level, tier: 1 + Math.max(1, Math.ceil(level / 2)) };
+}
+
+// A battle's wave: its scenario at the party's threat, with its goal marked.
+export function buildStoryWave(battle, heroes = []) {
+  const threat = heroes.length ? partyThreat(heroes, storyReference(battle)) : { hp: 1, dmg: 1 };
+  const spec = { ...battle.wave, zombies: battle.wave.zombies ?? roamZombies(battle.wave.layer, battle.level) };
+  const wave = buildScenarioWave(spec, battle.level, threat);
+  const goal = battle.goal;
+  if (!goal) return wave;
+  wave.goal = { ...goal };
+  const squadSize = (spec.boss ? 1 : 0) + (spec.leaders?.length || 0) + (spec.grunts?.length || 0);
+  const squad = wave.enemies.slice(0, squadSize);
+  if (goal.kind === "assassinate") {
+    const target = squad[goal.targetIndex ?? 0];
+    if (target) {
+      target.quarry = { after: goal.escapeAfter || 30 };
+      // The marked foe is tougher than its kind: it takes a plan to bring down in time.
+      target.hp = target.maxHp = Math.round(target.maxHp * (goal.hpMult || 1));
+    }
+  } else if (goal.kind === "hold") {
+    const raiders = new Set(goal.raiders || ["bandit", "goblin", "gnome"]);
+    for (const enemy of squad) {
+      if (raiders.has(enemy.type)) enemy.thief = { after: goal.raidAfter || 25, steal: enemy.thief?.steal || 0 };
+    }
+  }
+  return wave;
+}
 
 export function storyState(state) {
   return state.story || { run: null, won: {}, lost: {}, lastLost: null, lastLegendary: null };
@@ -47,7 +96,7 @@ export function currentBattle(run) {
 export function storyTimeLeft(run, now) {
   let frozen = run.pausedMs || 0;
   if (run.pausedAt != null) frozen += Math.min(STORY.pauseCapMs, Math.max(0, now - run.pausedAt));
-  return run.limitMs - Math.max(0, now - run.startedAt - frozen);
+  return run.limitMs - (run.penaltyMs || 0) - Math.max(0, now - run.startedAt - frozen);
 }
 
 // The campaign a new run would play: never the one just lost, if there is another.
@@ -72,7 +121,7 @@ export function startCampaign(state, heroIds, now, { signedIn = false, rng = Mat
     ...storyState(next), queued: null,
     run: {
       campaignId, startedAt: now, limitMs: CAMPAIGNS[campaignId].timerMinutes * 60_000,
-      pausedMs: 0, pausedAt: null, battle: 0, party: ids, joining: [], redoUsed: [], failed: null,
+      pausedMs: 0, pausedAt: null, battle: 0, party: ids, joining: [], redoUsed: [], failed: null, penaltyMs: 0, lastGoal: null,
     },
   };
   return { ok: true, state: next };
@@ -136,8 +185,8 @@ export function beginStoryBattle(state, now, rng = Math.random) {
   const started = startExpedition(state, "story", ready, now, rng);
   if (!started.ok) return started;
   const trip = started.state.expedition;
-  // A campaign's difficulty is fixed (no threat scaling): growing stronger helps.
-  const wave = buildScenarioWave({ ...battle.wave, zombies: battle.wave.zombies ?? roamZombies(battle.wave.layer, battle.level) }, battle.level);
+  // Enemies at least as strong as the party (owner's call, Nov 2026).
+  const wave = buildStoryWave(battle, ready.map((id) => findHero(started.state, id)).filter(Boolean));
   trip.pending = {
     kind: "campaign", wave, label: battle.title, campaignId: run.campaignId, battle: run.battle,
     at: now, promptAt: now, engagedAt: now,
@@ -149,24 +198,54 @@ export function beginStoryBattle(state, now, rng = Math.random) {
 // The first battle of chapter `chapter`.
 const chapterStart = (chapter) => chapter * STORY.battlesPerChapter;
 
-// After a story battle (fightResults.js, with the trip still open): move the
-// campaign on, or mark the loss. Winning the last battle pays the bounty into
-// the trip's loot so the report shows it.
-export function recordStoryBattle(state, victory, at, rng = Math.random) {
+// After a story battle (fightResults.js, with the trip still open). The
+// owner's outcome matrix (Nov 2026):
+//   party survives, goal done       next battle, goal bonus
+//   party survives, goal missed     next battle, a quarter of the bonus, and
+//                                   STORY.goals.missPenaltyMs off the countdown
+//   ...missed on a critical battle  back to the chapter's first battle, no bonus
+//   whole party falls               Redo the chapter (once a chapter) or the
+//                                   campaign starts again from battle 1
+// Winning the last battle pays the bounty into the trip's loot.
+export function recordStoryBattle(state, victory, at, rng = Math.random, goal = null) {
   const story = storyState(state);
   const run = story.run;
   if (!run) return;
   const trip = state.expedition;
   const battle = currentBattle(run);
   if (!victory) {
+    run.lastGoal = null;
     if (!run.redoUsed.includes(battle.chapter)) {
-      run.failed = { battle: run.battle };
-      addFeed(trip, at, "The battle is lost. Redo it, or fall back a chapter.", "danger");
+      run.failed = { battle: run.battle, chapter: battle.chapter };
+      addFeed(trip, at, `The whole party has fallen. Redo chapter ${battle.chapter + 1}, or start the campaign again.`, "danger");
     } else {
-      fallBack(run, battle.chapter);
-      addFeed(trip, at, `The battle is lost. The party falls back to chapter ${battle.chapter === 0 ? 1 : battle.chapter}.`, "danger");
+      restartCampaign(run);
+      addFeed(trip, at, "The whole party has fallen. The campaign starts again from the first battle.", "danger");
     }
     return;
+  }
+  if (goal) {
+    const bonus = goalBonus(battle.number);
+    if (goal.done) {
+      trip.loot.gold += bonus;
+      run.lastGoal = { battle: battle.number, done: true, bonus };
+      addFeed(trip, at, `Goal complete: +${bonus} gold.`, "good");
+    } else if (goal.critical) {
+      run.lastGoal = { battle: battle.number, done: false, critical: true };
+      run.battle = chapterStart(battle.chapter);
+      run.party = storyLineup(run);
+      run.joining = run.joining.filter((entry) => entry.from > run.battle);
+      addFeed(trip, at, `The goal was missed, and this one mattered. Back to the start of chapter ${battle.chapter + 1}.`, "danger");
+      return;
+    } else {
+      const partial = Math.round(bonus * STORY.goals.missShare);
+      trip.loot.gold += partial;
+      run.penaltyMs = (run.penaltyMs || 0) + STORY.goals.missPenaltyMs;
+      run.lastGoal = { battle: battle.number, done: false, bonus: partial, penaltyMs: STORY.goals.missPenaltyMs };
+      addFeed(trip, at, `Goal missed: only +${partial} gold, and ${STORY.goals.missPenaltyMs / 60_000} minutes lost.`, "danger");
+    }
+  } else {
+    run.lastGoal = null;
   }
   run.battle += 1;
   run.party = storyLineup(run);
@@ -185,25 +264,27 @@ export function recordStoryBattle(state, victory, at, rng = Math.random) {
   story.queued = nextCampaignId(story, rng);
 }
 
-// Back to the start of the chapter before `chapter` (chapter 1 restarts itself).
-function fallBack(run, chapter) {
-  run.battle = chapterStart(Math.max(0, chapter - 1));
+// The campaign starts over from its first battle; the countdown keeps running.
+function restartCampaign(run) {
+  run.battle = 0;
   run.failed = null;
 }
 
-// A lost battle: Redo it (once a chapter; a stand-in for a rewarded ad) or
-// accept the setback.
+// The whole party fell: Redo the chapter from its first battle (once a
+// chapter; a stand-in for a rewarded ad), after any swaps, gear or supplies,
+// or accept and start the campaign again from battle 1.
 export function answerStoryLoss(state, choice) {
   const run = state.story?.run;
   if (!run?.failed) return { ok: false, reason: "nothing_failed" };
   const next = serializeGameState(state);
   const nextRun = next.story.run;
-  const chapter = currentBattle(nextRun).chapter;
+  const chapter = nextRun.failed.chapter ?? currentBattle(nextRun).chapter;
   if (choice === "redo") {
     nextRun.redoUsed = [...nextRun.redoUsed, chapter];
+    nextRun.battle = chapterStart(chapter);
     nextRun.failed = null;
   } else {
-    fallBack(nextRun, chapter);
+    restartCampaign(nextRun);
   }
   return { ok: true, state: next };
 }

@@ -33,6 +33,7 @@ import { projectileVfxAssetId } from "./combatVfx";
 import { renderBattle } from "./render/battleRenderer";
 import { ENEMY_BODY_RADIUS, FLOOR_Y, H, HERO_BODY_RADIUS, HERO_Y, W } from "./arena";
 import { defaultRandom } from "../game/random";
+import { createGoal, goalResult, goalSpawned, goalStatus, goalTick, quarryEscapes, wagonRaided } from "./goals";
 
 const MAX_COMBAT_EFFECTS = 180;
 const MAX_COMBAT_FLOATERS = 120;
@@ -168,6 +169,8 @@ export class Engine {
     // rng gives the same fight for the same inputs; otherwise Math.random.
     this.rng = typeof sim.rng === "function" ? sim.rng : defaultRandom;
     this.wave = wave;           // {enemies,total,...}
+    // A story battle's second goal (goals.js), or null.
+    this.goal = createGoal(wave.goal);
     this.cb = callbacks;
     this.speed = 1;
     this.running = false;
@@ -448,6 +451,7 @@ export class Engine {
     this._float(e.x, e.y - 20, stolen ? `ESCAPED -${stolen}g` : "ESCAPED", "#FBBF24");
     this._log("death", `${this._foeName(e)} escapes${stolen ? ` with ${stolen} gold` : ""}`);
     this.effects.push({ x: e.x, y: e.y, r: 20, life: 0.4, color: e.color, ring: true });
+    wagonRaided(this);
   }
 
   _hordeEntry(e) {
@@ -610,6 +614,7 @@ export class Engine {
         else if (e.flank) this._flankEntry(e);
         else { e.x = laneX(pickLane(this, e)); e.y = 10 + this.rng() * 20; }
         if (e.thief) e.thief.at = this.time + e.thief.after;
+        goalSpawned(this, e);
         e.lane = Math.max(0, Math.min(LANES - 1, Math.round(e.x / (W / LANES) - 0.5)));
         e.dmgBy = {}; e.atkCd = 0; e.state = "advance";
         this.active.push(e);
@@ -633,11 +638,13 @@ export class Engine {
     }
     for (const e of this.active) {
       if (e.thief && e.hp > 0 && this.time >= e.thief.at) { this._thiefEscapes(e); continue; }
+      if (e.quarry && e.hp > 0 && this.time >= e.quarry.at) { quarryEscapes(this, e); continue; }
       this._tickDots(e, dt);
       this._landMeteors(e);
       if (e.hp > 0) enemyTurn(this, e, dt);
     }
     this.active = this.active.filter((e) => e.hp > 0 && !e.escaped);
+    goalTick(this);
 
     // heroes: in an encounter the party is engaged as soon as any enemy is on
     // the field. Melee heroes advance to attack; ranged fire in place.
@@ -764,7 +771,9 @@ export class Engine {
       }
       let target = this._selectTarget(h);
 
-      if (target && target.hp <= 0) {
+      // A foe that got away (a thief, a fleeing story target, a collapsed
+      // portal) is gone as surely as a dead one.
+      if (target && (target.hp <= 0 || target.escaped)) {
         h.manualTarget = null;
         this._completeTacticalAction(h.i, "cancelled");
         target = h.manual ? null : this._selectTarget(h);
@@ -1555,6 +1564,7 @@ export class Engine {
   _fightSummary() {
     return { downed: this.downed, nemesisSlain: this.nemesisSlain, nemesisFled: this.nemesisFled, clutches: this.clutches,
       spellCasts: this.spellSuccesses,
+      ...(this.goal ? { goal: goalResult(this.goal, this.heroes.some((h) => h.alive) && !this.forcedDefeat) } : {}),
       ...(this.heroes.length > this.startingParty || this.heroes.some((h) => h.away) ? { swaps: this.swapResult() } : {}) };
   }
 
@@ -1874,6 +1884,7 @@ export class Engine {
       waveCount: this.cb.nextWave ? null : this.waveCount,
       // Free Roam: the current wave's event card text.
       event: this.wave.event || null,
+      goal: goalStatus(this),
       heroes: this.heroes.map((h) => ({ name: h.ref.name, hp: h.ref.hp, maxHp: h.d.maxHp, alive: h.alive, shield: h.ref.shield || 0, ...(h.away ? { away: true } : {}) })),
       swaps: this.swaps.length ? this.swapStatus() : null,
       heroAbilities: this.heroes.map((h) => this.getHeroAbilityStatus(h.i)),

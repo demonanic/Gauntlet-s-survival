@@ -50,6 +50,20 @@ export function renderBattle(engine) {
       ctx.beginPath(); ctx.arc(e.x, e.y, r + 4, 0, Math.PI * 2); ctx.stroke();
       ctx.restore();
     }
+    // Story goals (goals.js): the foe to kill before it flees, the raiders
+    // going for the wagon, and the objects to break.
+    const goalMark = e.quarry ? ["TARGET", "#FF2A5F"] : e.goalObject ? ["BREAK", "#FDE68A"]
+      : e.thief && engine.goal?.kind === "hold" ? ["RAIDER", "#FBBF24"] : null;
+    if (goalMark && e.hp > 0) {
+      ctx.save();
+      ctx.strokeStyle = goalMark[1]; ctx.fillStyle = goalMark[1]; ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath(); ctx.arc(e.x, e.y, r + 5, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.textAlign = "center"; ctx.font = "bold 9px JetBrains Mono, monospace";
+      ctx.fillText(goalMark[0], e.x, e.y - r - 12);
+      ctx.restore();
+    }
     if (e.nemesisId && e.hp > 0) {
       ctx.save();
       ctx.textAlign = "center"; ctx.font = "bold 10px JetBrains Mono, monospace";

@@ -264,6 +264,7 @@ export function debugStoryBattle(state, number) {
   next.story.run.startedAt = Date.now();
   next.story.run.pausedMs = 0;
   next.story.run.pausedAt = null;
+  next.story.run.penaltyMs = 0;
   return { ok: true, state: next };
 }
 

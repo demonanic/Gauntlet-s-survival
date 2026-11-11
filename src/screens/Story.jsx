@@ -57,7 +57,8 @@ export default function Story({ guild, now, signedIn, onStart, onFight, onSwap, 
           <ul className="mt-2 space-y-0.5 font-mono-g text-[10px] text-slate-400">
             <li>· {campaign.chapters.length} chapters, {campaignBattles(campaign).length} battles. Every battle is fought by you: nothing here plays itself.</li>
             <li>· A countdown of {campaign.timerMinutes} minutes starts now and keeps running while you're signed in, even with the game closed. Signing out freezes it for up to 24 hours.</li>
-            <li>· Lose a battle and you fall back a chapter, unless you Redo it (once a chapter).</li>
+            <li>· Every battle: survive to move on. Most add a second goal: done pays a bonus, missed costs gold and minutes, and a ★ goal missed sends you back to the chapter's start.</li>
+            <li>· If the whole party falls, the campaign starts again from battle 1, unless you Redo the chapter (once a chapter).</li>
             <li>· Win, and a legendary bounty is yours.</li>
           </ul>
         </Panel>
@@ -122,16 +123,28 @@ export default function Story({ guild, now, signedIn, onStart, onFight, onSwap, 
       <Panel data-testid="story-battle">
         <h3 className="font-display text-sm font-bold text-cyan-200">Battle {battle.number}: {battle.title}</h3>
         <p className="mt-1 font-mono-g text-[11px] text-slate-300">{battle.text}</p>
+        {battle.goal && !run.failed && (
+          <p className="mt-1 font-mono-g text-[11px] text-amber-200" data-testid="story-goal">
+            {battle.goal.critical ? "★ " : ""}Goal: {battle.goal.text}
+          </p>
+        )}
+        {run.lastGoal && !run.failed && (
+          <p className={`mt-1 font-mono-g text-[10px] ${run.lastGoal.done ? "text-emerald-300" : "text-red-300"}`} data-testid="story-last-goal">
+            Battle {run.lastGoal.battle}: {run.lastGoal.done ? `goal complete, +${run.lastGoal.bonus} gold.`
+              : run.lastGoal.critical ? "goal missed. It mattered, so the chapter starts again."
+                : `goal missed: +${run.lastGoal.bonus} gold, and ${run.lastGoal.penaltyMs / 60_000} minutes lost.`}
+          </p>
+        )}
         {run.failed ? (
           <div className="mt-2 space-y-2" data-testid="story-failed">
-            <p className="font-mono-g text-[11px] text-red-300">The battle is lost.</p>
+            <p className="font-mono-g text-[11px] text-red-300">The whole party has fallen.</p>
             <div className="grid grid-cols-2 gap-2">
-              <NeonButton color="#FBBF24" onClick={() => onLoss("redo")} data-testid="story-redo">Redo (watch an ad)</NeonButton>
+              <NeonButton color="#FBBF24" onClick={() => onLoss("redo")} data-testid="story-redo">Redo chapter {(run.failed.chapter ?? battle.chapter) + 1} (watch an ad)</NeonButton>
               <NeonButton color="#94A3B8" onClick={() => onLoss("accept")} data-testid="story-accept">
-                Fall back to chapter {Math.max(1, battle.chapter)}
+                Start the campaign again
               </NeonButton>
             </div>
-            <p className="font-mono-g text-[10px] text-slate-500">Redo is free for now; it will play a short ad once ads are in. One Redo a chapter.</p>
+            <p className="font-mono-g text-[10px] text-slate-500">Redo replays the chapter from its first battle: swap heroes, change gear or restock at the market first. Free for now; it will play a short ad once ads are in. One Redo a chapter. The countdown keeps running.</p>
           </div>
         ) : battle.comingSoon ? (
           <p className="mt-2 font-mono-g text-[11px] text-amber-300" data-testid="story-soon">{REASONS.coming_soon}</p>
