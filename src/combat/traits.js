@@ -9,6 +9,7 @@
 // finds, hazards, stalkers): see partyRoadEffects and game/expedition.js.
 // Evolved qualities have three tiers; hero.qualityTiers[key] says which one.
 
+import { heroLevelForXp } from "./config";
 import { luckEffects, partyLuck } from "./luck";
 import { petRoadEffects } from "./pets";
 
@@ -18,8 +19,8 @@ export const TRAITS = Object.freeze({
   // ---------- innate: combat ----------
   brawny: { key: "brawny", name: "Brawny", kind: "combat", desc: "+12% max HP.", effects: { maxHp: 0.12 } },
   keenEye: { key: "keenEye", name: "Keen Eye", kind: "combat", desc: "+6% crit chance.", effects: { critChance: 0.06 } },
-  nimble: { key: "nimble", name: "Nimble", kind: "combat", desc: "+8 agility (dodge); light on their feet when sneaking.", effects: { agility: 8 }, road: { sneak: 0.05 } },
-  ironhide: { key: "ironhide", name: "Ironhide", kind: "combat", desc: "+8 defense.", effects: { defense: 8 } },
+  nimble: { key: "nimble", name: "Nimble", kind: "combat", desc: "+8 agility (dodge), growing with level; light on their feet when sneaking.", effects: { agility: 8 }, road: { sneak: 0.05 } },
+  ironhide: { key: "ironhide", name: "Ironhide", kind: "combat", desc: "+8 defense, growing with level.", effects: { defense: 8 } },
   berserker: { key: "berserker", name: "Berserker", kind: "combat", desc: "+20% damage while below half HP.", effects: { berserk: 0.2 } },
   quickHands: { key: "quickHands", name: "Quick Hands", kind: "combat", desc: "+8% attack speed.", effects: { attackSpeed: 0.08 } },
   medic: { key: "medic", name: "Field Medic", kind: "combat", desc: "Bandages and potions heal 40% more.", effects: { healBonus: 0.4 } },
@@ -91,18 +92,18 @@ export const TRAITS = Object.freeze({
     key: "ghostStep", name: "Ghost-Step", kind: "evolved",
     story: "{hero} has slipped past so many monsters that silence comes naturally now.",
     tiers: tiers(["Ghost-Step", "Shadow-Step", "Living Shadow"], [
-      { desc: "+4% party sneak chance, +3 agility.", effects: { agility: 3 }, road: { sneak: 0.04 } },
-      { desc: "+6% party sneak chance, +5 agility.", effects: { agility: 5 }, road: { sneak: 0.06 } },
-      { desc: "+8% party sneak chance, +7 agility.", effects: { agility: 7 }, road: { sneak: 0.08 } },
+      { desc: "+4% party sneak chance, +3 agility (grows with level).", effects: { agility: 3 }, road: { sneak: 0.04 } },
+      { desc: "+6% party sneak chance, +5 agility (grows with level).", effects: { agility: 5 }, road: { sneak: 0.06 } },
+      { desc: "+8% party sneak chance, +7 agility (grows with level).", effects: { agility: 7 }, road: { sneak: 0.08 } },
     ]),
   },
   bulwark: {
     key: "bulwark", name: "Bulwark", kind: "evolved",
     story: "{hero} has taken every hit meant for someone else. It shows.",
     tiers: tiers(["Bulwark", "Iron Bulwark", "Living Fortress"], [
-      { desc: "+4 defense, 3% less damage taken.", effects: { defense: 4, damageTaken: 0.03 } },
-      { desc: "+7 defense, 5% less damage taken.", effects: { defense: 7, damageTaken: 0.05 } },
-      { desc: "+10 defense, 7% less damage taken.", effects: { defense: 10, damageTaken: 0.07 } },
+      { desc: "+4 defense (grows with level), 3% less damage taken.", effects: { defense: 4, damageTaken: 0.03 } },
+      { desc: "+7 defense (grows with level), 5% less damage taken.", effects: { defense: 7, damageTaken: 0.05 } },
+      { desc: "+10 defense (grows with level), 7% less damage taken.", effects: { defense: 10, damageTaken: 0.07 } },
     ]),
   },
   fieldSurgeon: {
@@ -213,13 +214,23 @@ const EMPTY = Object.freeze({
   dodge: 0, castSuccess: 0, spellPower: 0, supportPower: 0, moveCooldown: 0, backstabDamage: 0,
 });
 
+// Calibration (Nov 2026): flat agility and defense from qualities faded as a
+// hero grew (+8 defense is ~2% of a LV20 hero's). They now grow with the
+// hero's level: x1 at LV1, x2.08 at LV10, x3.28 at LV20.
+export const QUALITY_FLAT_GROWTH = 0.12;
+const FLAT_STATS = new Set(["agility", "defense"]);
+export function qualityFlatScale(hero) {
+  return 1 + QUALITY_FLAT_GROWTH * (heroLevelForXp(hero?.progression?.xp || 0) - 1);
+}
+
 // Summed quality effects for one hero, plus the guild's Hall of Legends bonuses
 // stamped on the hero (hero.guildBonus: { damage, maxHp }) and, during an
 // expedition fight, the party's morale (hero.moraleBonus: { damage }).
 export function heroTraitEffects(hero) {
   const total = { ...EMPTY };
+  const flat = qualityFlatScale(hero);
   for (const quality of heroQualities(hero)) {
-    for (const [stat, value] of Object.entries(quality.effects || {})) total[stat] += value;
+    for (const [stat, value] of Object.entries(quality.effects || {})) total[stat] += FLAT_STATS.has(stat) ? value * flat : value;
   }
   total.damage += Number(hero?.guildBonus?.damage) || 0;
   total.maxHp += Number(hero?.guildBonus?.maxHp) || 0;

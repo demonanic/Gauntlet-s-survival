@@ -360,3 +360,20 @@ describe("enemy behavior families", () => {
     expect(wave.enemies[0].families).toEqual(expect.arrayContaining(["hunter", "predator"]));
   });
 });
+
+// Calibration (Nov 2026): flat agility and defense from qualities used to fade
+// as a hero grew. They now grow with the hero's level.
+describe("flat quality stats grow with level", () => {
+  const heroAt = (level, traits) => ({ traits, progression: { xp: C.HERO_XP[level - 1] } });
+
+  test("Ironhide and Nimble give their base at LV1 and more later", () => {
+    expect(heroTraitEffects(heroAt(1, ["ironhide"])).defense).toBeCloseTo(8);
+    expect(heroTraitEffects(heroAt(10, ["ironhide"])).defense).toBeCloseTo(8 * 2.08);
+    expect(heroTraitEffects(heroAt(20, ["nimble"])).agility).toBeCloseTo(8 * 3.28);
+  });
+
+  test("percentage effects do not grow", () => {
+    expect(heroTraitEffects(heroAt(20, ["keenEye"])).critChance).toBeCloseTo(0.06);
+    expect(heroTraitEffects(heroAt(20, ["quickHands"])).attackSpeed).toBeCloseTo(0.08);
+  });
+});
