@@ -595,6 +595,7 @@ export class Engine {
   update(dt) {
     if (this.clutch) dt = this._tickClutch(dt);
     this.time += dt;
+    this.lastDt = dt;
     this._logbook().tick(this.time);
 
     // spawn: release enemies gradually (group release proxy)
@@ -1906,6 +1907,22 @@ export class Engine {
       this.cb.onEnd && this.cb.onEnd({
         victory: false,
         reason: "heroes",
+        xpGains: this.xpGains,
+        killed: this.killed,
+        wavesCleared: this.wavesCleared,
+        ...this._fightSummary(),
+      });
+      return;
+    }
+
+    // A story party that reached the exit (goals.js escape) has won, whatever is left.
+    if (this.goalVictory) {
+      this.ended = true;
+      this._logbook().finish(this.time, "Victory");
+      this.stop();
+      this.cb.onEnd && this.cb.onEnd({
+        victory: true,
+        reason: "escaped",
         xpGains: this.xpGains,
         killed: this.killed,
         wavesCleared: this.wavesCleared,

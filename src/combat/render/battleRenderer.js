@@ -6,6 +6,7 @@ import { drawFamiliar } from "../familiarSprites";
 import { drawEnemySprite } from "./enemySprites";
 import { drawHeroSprite } from "./heroSprites";
 import { FLOOR_Y, H, W } from "../arena";
+import { CAPTIVE_REACH, EXIT_Y } from "../goals";
 
 const combatVfxImages = new Map();
 function getCombatEffectImage(assetId) {
@@ -26,6 +27,8 @@ export function renderBattle(engine) {
   // arena boundary
   neonLine(engine, 0, 6, W, 6, "#A855F7", 2);
   neonLine(engine, 0, FLOOR_Y, W, FLOOR_Y, "#A855F7", 2);
+
+  drawGoalGround(ctx, engine.goal, engine);
 
   const targetHighlights = new Set(
     engine.targetingHero == null
@@ -50,6 +53,7 @@ export function renderBattle(engine) {
       ctx.beginPath(); ctx.arc(e.x, e.y, r + 4, 0, Math.PI * 2); ctx.stroke();
       ctx.restore();
     }
+    // (The exit and the captive are drawn once, below the enemies loop.)
     // Story goals (goals.js): the foe to kill before it flees, the raiders
     // going for the wagon, and the objects to break.
     const goalMark = e.quarry ? ["TARGET", "#FF2A5F"] : e.goalObject ? ["BREAK", "#FDE68A"]
@@ -496,4 +500,35 @@ function bar(engine, x, y, w, h, frac, color) {
   const ctx = engine.ctx;
   ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(x, y, w, h);
   ctx.fillStyle = color; ctx.fillRect(x, y, w * Math.max(0, Math.min(1, frac)), h);
+}
+
+// A story goal's ground marks (goals.js): the escape exit and the captive.
+function drawGoalGround(ctx, goal, engine) {
+  if (!goal) return;
+  if (goal.kind === "escape" && goal.state === "active") {
+    ctx.save();
+    ctx.fillStyle = "rgba(57,255,20,0.07)"; ctx.fillRect(0, 6, W, EXIT_Y - 6);
+    ctx.strokeStyle = "#39FF14"; ctx.setLineDash([6, 5]); ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(0, EXIT_Y); ctx.lineTo(W, EXIT_Y); ctx.stroke();
+    ctx.setLineDash([]); ctx.fillStyle = "#39FF14"; ctx.textAlign = "center";
+    ctx.font = "bold 10px JetBrains Mono, monospace";
+    ctx.fillText(engine.time < goal.opensAfter ? `EXIT OPENS IN ${Math.ceil(goal.opensAfter - engine.time)}s` : "EXIT OPEN: GET EVERYONE HERE", W / 2, EXIT_Y - 8);
+    ctx.restore();
+  }
+  if (goal.kind === "rescue" && goal.state !== "failed") {
+    const { x, y } = goal.captive;
+    const freed = goal.state === "done";
+    ctx.save();
+    ctx.strokeStyle = freed ? "#39FF14" : "#7DD3FC"; ctx.lineWidth = 1.5; ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.arc(x, y, CAPTIVE_REACH, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = freed ? "#39FF14" : "#7DD3FC";
+    ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI * 2); ctx.fill();
+    if (!freed && goal.progress > 0) {
+      ctx.strokeStyle = "#39FF14"; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(x, y, 14, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, goal.progress / goal.freeAfter)); ctx.stroke();
+    }
+    ctx.textAlign = "center"; ctx.font = "bold 9px JetBrains Mono, monospace";
+    ctx.fillText(freed ? "FREED" : "CAPTIVE", x, y - 18);
+    ctx.restore();
+  }
 }
