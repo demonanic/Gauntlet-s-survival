@@ -122,8 +122,19 @@ describe("story mode: the Time Warp Breach", () => {
     expect(raiders.map((enemy) => enemy.type).sort()).toEqual(["bandit", "bandit", "gnome", "gnome", "goblin", "goblin"]);
     expect(raiders.every((enemy) => enemy.thief.after === battles[6].goal.raidAfter)).toBe(true);
     expect(buildStoryWave(battles[2]).goal).toMatchObject({ kind: "destroy", count: 2, within: battles[2].goal.within });
-    // Chapters 1-2 all have a goal.
-    expect(battles.slice(0, 8).every((battle) => battle.goal)).toBe(true);
+    // Chapters 1-4 all have a goal.
+    expect(battles.slice(0, 16).every((battle) => battle.goal)).toBe(true);
+  });
+
+  test("a Small band battle can send only the first heroes of the line-up", () => {
+    const state = started();
+    state.story.run.battle = 10; // battle 11: Small band of 3
+    expect(currentBattle(state.story.run).goal).toMatchObject({ kind: "smallBand", max: 3 });
+    expect(state.story.run.party.length).toBe(4);
+    const band = beginStoryBattle(state, T0 + 1000, seededRandom(3), { band: true });
+    expect(currentEncounterParty(band.state)).toHaveLength(3);
+    const everyone = beginStoryBattle(state, T0 + 1000, seededRandom(3));
+    expect(currentEncounterParty(everyone.state)).toHaveLength(4);
   });
 
   test("difficulty floor: a stronger party meets stronger foes", () => {
