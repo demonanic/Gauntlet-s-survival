@@ -10,9 +10,21 @@
 //                within `within` s, or they finish their work and vanish.
 //   hold         a wagon behind the party; every marked raider (`e.thief`)
 //                that gets away with loot costs it one of its `lives`.
+//   noFallen     nobody may fall.
+//   smallBand    win with at most `max` heroes on the field (the story screen
+//                lets the player send only that many).
+//   escape       the exit at the top of the field opens after `opensAfter` s;
+//                get every standing hero into it by `within` s: the battle
+//                ends there, won.
+//   rescue       reach the captive (a hero beside it for `freeAfter` s) within
+//                `within` s, before the captors finish it.
 import { H, W } from "./arena";
 
-export const GOAL_KINDS = Object.freeze(["assassinate", "destroy", "hold"]);
+export const GOAL_KINDS = Object.freeze(["assassinate", "destroy", "hold", "noFallen", "smallBand", "escape", "rescue"]);
+// Goals met by still standing when the battle is won.
+const KEPT_TO_THE_END = new Set(["hold", "noFallen", "smallBand"]);
+export const EXIT_Y = 90;          // the escape exit: the top band of the field
+export const CAPTIVE_REACH = 46;   // how close a hero must stand to free the captive
 
 // A goal as the engine tracks it, from the wave's plan (null: no goal).
 export function createGoal(plan) {
@@ -20,6 +32,9 @@ export function createGoal(plan) {
   const goal = { kind: plan.kind, text: plan.text || "", critical: !!plan.critical, state: "active" };
   if (plan.kind === "destroy") Object.assign(goal, { total: plan.count || 1, left: plan.count || 1, within: plan.within || 45, spawned: false, objects: [] });
   if (plan.kind === "hold") Object.assign(goal, { lives: plan.lives || 3, livesLeft: plan.lives || 3 });
+  if (plan.kind === "smallBand") goal.max = plan.max || 2;
+  if (plan.kind === "escape") Object.assign(goal, { within: plan.within || 40, opensAfter: plan.opensAfter || 0 });
+  if (plan.kind === "rescue") Object.assign(goal, { within: plan.within || 35, freeAfter: plan.freeAfter || 1.5, progress: 0, captive: { x: W / 2, y: plan.captiveY || 110 } });
   return goal;
 }
 
@@ -41,6 +56,27 @@ export function goalTick(engine) {
     }
   } else if (goal.kind === "assassinate") {
     if (goal.target && goal.target.hp <= 0 && !goal.target.escaped) settle(engine, goal, "done");
+  } else if (goal.kind === "noFallen") {
+    if (engine.heroes.some((h) => !h.alive)) settle(engine, goal, "failed");
+  } else if (goal.kind === "smallBand") {
+    if (engine.heroes.length > goal.max) settle(engine, goal, "failed");
+  } else if (goal.kind === "escape") {
+    const standing = engine.heroes.filter((h) => h.alive);
+    if (engine.time >= goal.opensAfter && standing.length && standing.every((h) => h.y <= EXIT_Y)) {
+      settle(engine, goal, "done");
+      engine.goalVictory = true; // the battle ends here, won (engine._checkEnd)
+    } else if (engine.time >= goal.within) settle(engine, goal, "failed");
+  } else if (goal.kind === "rescue") {
+    const { captive } = goal;
+    const near = engine.heroes.some((h) => h.alive && Math.hypot(h.x - captive.x, h.y - captive.y) <= CAPTIVE_REACH);
+    if (near) goal.progress += engine.lastDt || 1 / 30;
+    if (goal.progress >= goal.freeAfter) {
+      settle(engine, goal, "done");
+      engine._float(captive.x, captive.y - 20, "FREED", "#39FF14");
+    } else if (engine.time >= goal.within) {
+      settle(engine, goal, "failed");
+      engine._float(captive.x, captive.y - 20, "TOO LATE", "#FF2A5F");
+    }
   }
 }
 
@@ -75,7 +111,7 @@ export function wagonRaided(engine) {
 export function goalResult(goal, victory) {
   if (!goal) return null;
   let state = goal.state;
-  if (state === "active") state = goal.kind === "hold" && victory ? "done" : "failed";
+  if (state === "active") state = KEPT_TO_THE_END.has(goal.kind) && victory ? "done" : "failed";
   return { kind: goal.kind, done: state === "done", critical: goal.critical };
 }
 
@@ -86,6 +122,9 @@ export function goalStatus(engine) {
   const status = { kind: goal.kind, text: goal.text, state: goal.state, critical: goal.critical };
   if (goal.kind === "destroy") Object.assign(status, { left: goal.left, total: goal.total, secondsLeft: Math.max(0, Math.ceil(goal.within - engine.time)) });
   if (goal.kind === "hold") Object.assign(status, { livesLeft: goal.livesLeft, lives: goal.lives });
+  if (goal.kind === "smallBand") status.max = goal.max;
+  if (goal.kind === "escape" || goal.kind === "rescue") status.secondsLeft = Math.max(0, Math.ceil(goal.within - engine.time));
+  if (goal.kind === "escape" && engine.time < goal.opensAfter) status.opensIn = Math.ceil(goal.opensAfter - engine.time);
   if (goal.kind === "assassinate" && goal.target?.quarry?.at != null && goal.target.hp > 0) {
     status.secondsLeft = Math.max(0, Math.ceil(goal.target.quarry.at - engine.time));
   }
