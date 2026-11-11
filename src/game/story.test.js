@@ -126,6 +126,18 @@ describe("story mode: the Time Warp Breach", () => {
     expect(battles.slice(0, 8).every((battle) => battle.goal)).toBe(true);
   });
 
+  test("difficulty floor: a stronger party meets stronger foes", () => {
+    const state = guild();
+    const battle = campaignBattles(TIME_WARP)[0];
+    const base = buildStoryWave(battle);
+    // A party well past the battle's pitch: stat points spent on attack and defense.
+    const strong = state.heroes.slice(0, 4).map((hero) => ({ ...hero, combat: { ...hero.combat, stats: { ...hero.combat.stats, attack: hero.combat.stats.attack + 40, defense: hero.combat.stats.defense + 40 } } }));
+    const scaled = buildStoryWave(battle, strong);
+    expect(scaled.threat.hp).toBeGreaterThan(1);
+    expect(scaled.enemies[0].maxHp).toBeGreaterThan(base.enemies[0].maxHp);
+    expect(scaled.enemies[0].damage).toBeGreaterThan(base.enemies[0].damage);
+  });
+
   test("the countdown runs on real time; signing out freezes it for up to 24 hours", () => {
     let state = started();
     const run = () => state.story.run;

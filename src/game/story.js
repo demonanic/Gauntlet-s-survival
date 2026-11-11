@@ -17,6 +17,7 @@ import { addFeed, findHero } from "./expeditionRun";
 import { LEGENDARIES, chestCrystal, randomLegendary } from "./items";
 import { TIME_WARP } from "./campaigns/timeWarp";
 import { startExpedition } from "./expedition";
+import { partyThreat } from "./threat";
 import { serializeGameState } from "../combat/heroModel";
 
 export const CAMPAIGNS = Object.freeze({ [TIME_WARP.id]: TIME_WARP });
@@ -39,9 +40,20 @@ export function goalBonus(number) {
   return STORY.goals.bonusBase + STORY.goals.bonusPerBattle * number;
 }
 
-// A battle's wave: its scenario, with its goal marked.
+// The party a battle is a fair fight for: its Free Roam wave strength
+// (`battle.level`) maps to a hero level of 0.4 per wave (at least 1), with
+// common gear a tier over half that. A party stronger than that meets
+// stronger foes (threat.js), so a campaign never becomes a stroll.
+// Calibrated in seeded fights (Nov 2026, DESIGN.md "Story goals").
+export const STORY_PITCH = Object.freeze({ levelPerWave: 0.4 });
+export function storyReference(battle) {
+  const level = Math.max(1, Math.round(STORY_PITCH.levelPerWave * battle.level));
+  return { minLevel: level, tier: 1 + Math.max(1, Math.ceil(level / 2)) };
+}
+
+// A battle's wave: its scenario at the party's threat, with its goal marked.
 export function buildStoryWave(battle, heroes = []) {
-  const threat = { hp: 1, dmg: 1 };
+  const threat = heroes.length ? partyThreat(heroes, storyReference(battle)) : { hp: 1, dmg: 1 };
   const spec = { ...battle.wave, zombies: battle.wave.zombies ?? roamZombies(battle.wave.layer, battle.level) };
   const wave = buildScenarioWave(spec, battle.level, threat);
   const goal = battle.goal;
@@ -173,6 +185,7 @@ export function beginStoryBattle(state, now, rng = Math.random) {
   const started = startExpedition(state, "story", ready, now, rng);
   if (!started.ok) return started;
   const trip = started.state.expedition;
+  // Enemies at least as strong as the party (owner's call, Nov 2026).
   const wave = buildStoryWave(battle, ready.map((id) => findHero(started.state, id)).filter(Boolean));
   trip.pending = {
     kind: "campaign", wave, label: battle.title, campaignId: run.campaignId, battle: run.battle,
