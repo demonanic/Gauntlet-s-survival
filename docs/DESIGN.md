@@ -616,6 +616,10 @@ player's build; qualities are never chosen.
   `stalkerDetect`, `sneak`, `moraleBase`, `moraleLossCut`, `moraleOnWin`, `moraleWhenLow`,
   `moralePerDanger`, `findChance`, `rareChance`, `goldFind`, `gambleLuck`, `scavengeOnWin`,
   `postFightHeal`; `hazardDodge` and `envDrain` are personal.
+- **Flat stats grow with level** (Nov 2026, PR #74): a quality's flat `agility` and
+  `defense` (Ironhide, Nimble, Bulwark, Ghost-Step) are multiplied by
+  `1 + QUALITY_FLAT_GROWTH (0.12) × (level − 1)`: ×1 at LV1, ×2.08 at LV10, ×3.28 at LV20.
+  Before, +8 defense was about 2% of a LV20 hero's. Percentage effects don't grow.
 - **Evolved** (`EVOLVED_KEYS`, three tiers each, `hero.qualityTiers`): developed at levels
   10 and 16 (`QUALITY_MILESTONES`) once the hero has 15+ fights on record. Each evolved
   quality scores the hero's history (`hero.history`: trips, fights, wins, kills,
@@ -1198,6 +1202,26 @@ epic party): unchanged. Story battles 13–20 (LV8 uncommon tier 4): unchanged, 
 has no threat scaling. Not checked: Rift and roam depth for parties far over LV10 beyond 4 runs
 each (unchanged within that), and live play. The Blightmire stays the softest region for
 overleveled parties (HP lost stays low, but the lowest hero still drops to about half).
+
+### Re-tests of the dashboard outliers (Nov 2026, PR #74)
+
+The calibration dashboard flagged the bow (+50% over the sword late), Conjuration (+41% over
+the median school), weak special moves and small qualities. Re-tested like for like:
+
+- **Bow vs sword: not an outlier.** The dashboard's sword hero spent half its points on
+  defense and carried a shield; the bow hero spent on attack and agility. With the same
+  points, perks and gear rolls (sword with a dagger, bow with a quiver), the sword does more
+  on a dummy: 37 / 204 / 659 damage per second early / mid / late against the bow's
+  30 / 151 / 472. Melee trades safety for damage. No change.
+- **Conjuration: not an outlier in fights.** Swapping the party's second caster's school
+  (Frostfang and Ashen, 5 levels over, 8 fights each) moved HP lost by a few points at most
+  and Conjuration was not ahead of ice or fire. Its dummy lead comes from summons hitting a
+  target that never fights back. No change.
+- **Special moves matter now.** Pressing every ready move (Shared Strike, the starter moves,
+  Mana Surge) cut boss fights from 77 s to 60 s (Frostfang +5) and 90 s to 74 s (Ashen +5),
+  and HP lost from 23% to 11% and 17% to 14%. Auto-play never presses them. No change.
+- **Qualities:** flat stats faded late; they now grow with level (above). Reference trips are
+  unchanged (75 / 50 / 75 / 69%).
 
 ## Balance (Oct 2026, `npm run balance`)
 
