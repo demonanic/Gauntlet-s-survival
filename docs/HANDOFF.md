@@ -75,13 +75,13 @@ Last updated: 2026-11-09, with the event card animation open as draft PR #72.
   - #70: Story mode batch 2: chapter 5's bosses, Confusion, story mode for everyone, a test-panel jump to any battle; the Fury shard test fix. Sam widened the Chronomancer's field (every 10 s, radius 160).
   - #71: the Chronomancer's field also slows special-move and spell cooldowns (Sam's idea).
   - #72: the wave event card shows 2.5 s, pops in and puffs away.
-- **Open:** draft PR #73: combat calibration batch 1 (threat caps HP ×5, damage ×30, endgame
-  keeps ×3; dodge cap 30%). The calibration catalogue is a dashboard artifact for Sam
-  ("Gauntlet combat calibration"). Its fight numbers ran without the trip threat system.
-- **Next after #73 (agreed with Sam):** tune spells, special moves and qualities once fights
-  are dangerous again (bow +50% over sword late, Conjuration +41%, weak special moves, small
-  qualities), then the story goals rebuild (batches A and B in DESIGN/chat: outcome matrix,
-  Redo only on a full wipe, a secondary goal per battle, a difficulty floor).
+  - #73: combat calibration batch 1 (threat caps HP ×5, damage ×30, endgame keeps ×3;
+    dodge cap 30%). The calibration catalogue is a dashboard artifact for Sam ("Gauntlet
+    combat calibration"); its fight numbers ran without the trip threat system.
+- **Open:** draft PR #74: re-tests of the dashboard outliers (bow, Conjuration and special
+  moves held up fine like for like) and flat quality stats growing with level.
+- **Next (agreed with Sam):** the story goals rebuild (batches A and B: outcome matrix, Redo
+  only on a full wipe, a secondary goal per battle, a difficulty floor).
 - **Planned with Sam:** Claude's two campaigns; Sam's second. Sam asked ChatGPT about one sign-in across his apps (Demonanic, LC wallet) so signing out anywhere freezes the countdown.
 - **Waiting on Sam:** error boundary, auto-cast switches, the wolf's taunt, thinning glow, spreading unattended fights (proposals in #61), and his phone's fps.
 - **Next (Sam's choice):**

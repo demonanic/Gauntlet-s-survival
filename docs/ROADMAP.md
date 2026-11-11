@@ -370,3 +370,4 @@ Decisions (Sam, 2026-11-01, reviewing Phase 5):
 | 2026-11-09 | Chronomancer cooldowns | #71 | His time field also slows special-move and spell cooldowns 40%; measured neutral in seeded runs (no special moves there) |
 | 2026-11-09 | Event card | #72 | 2.5 s instead of 5 s; pops in and puffs away into smoke (CSS only) |
 | 2026-11-10 | Combat calibration batch 1 | #73 | Catalogue and seeded measurements (dashboard for Sam); threat caps HP ×5 and damage ×30 on regular trips, endgame keeps ×3; dodge cap 30%. Reference trips unchanged; overleveled parties now lose HP again; endgame ~10% harder. Fingerprints unchanged |
+| 2026-11-11 | Combat calibration batch 2 | #74 | Like-for-like re-tests: the bow and Conjuration leads were test artifacts, special moves now cut boss fights ~20%; flat agility and defense from qualities grow with level (×3.28 at LV20). Two party-decision fingerprints re-recorded |
