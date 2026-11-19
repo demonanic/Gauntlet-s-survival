@@ -246,8 +246,8 @@ export default function App() {
           now={gameNow()}
           signedIn={!!signedIn}
           onStart={(heroIds) => storyStep((current) => startCampaign(current, heroIds, gameNow(), { signedIn: !!signedIn }))}
-          onFight={() => {
-            const result = storyStep((current) => beginStoryBattle(current, gameNow()));
+          onFight={(options) => {
+            const result = storyStep((current) => beginStoryBattle(current, gameNow(), Math.random, options));
             if (result.ok) setInBattle(true);
             return result;
           }}

@@ -10,7 +10,7 @@
 // second (`goal`, combat/goals.js; outcomes in game/story.js): assassinate a
 // marked foe before it flees, destroy objects within a time, or hold a wagon
 // against raiders. `critical`: missing it sends the party back to the
-// chapter's first battle. Chapters 1-2 have goals so far (story batch A).
+// chapter's first battle. Chapters 1-4 have goals so far (story batches A and B).
 //
 // Chapter 5 is the three rebel warlocks and the Ancient Evil, each with
 // powers of their own (combat/enemies/storyBosses.js).
@@ -61,10 +61,14 @@ export const TIME_WARP = Object.freeze({
       intro: "Under the mountain, time runs wrong. Torches burn backwards. Footsteps arrive before the feet. The warlocks' allies wait in the dark, and they are no longer only of this world.",
       outro: "You reach the chamber where the circles meet. At its heart, the wormhole turns slowly, and something on the far side turns with it, watching.",
       battles: [
-        { title: "Hunters in the dark", text: "Dark elf hunters have come to share the spoils of a broken world. They strike from both sides of the tunnel.", wave: { faction: "darkElves", leaders: ["darkElf", "darkElf"], grunts: ["harrier", "harrier", "watcher", "watcher"], twist: "flanked" }, level: 10 },
-        { title: "The vanguard", text: "The warband's vanguard holds the tunnel, and the dead are gathering behind them for when you tire.", wave: chaos(["warlock", "warlock"], [...times("orc", 3), "bandit", "bandit"], { layer: "horde", twist: "lateHorde" }), level: 11 },
-        { title: "The inner circle", text: "Three warlocks chant around a pillar of light. Their ward holds everyone else in place. The casters first, always the casters.", wave: chaos(times("warlock", 3), [...times("orc", 3), "bandit", "bandit"], { layer: "trickle", twist: "warded" }), level: 12 },
-        { title: "The tide", text: "The breach widens and the dead pour out, led by necromancers drunk on the power leaking through.", wave: { faction: "undead", leaders: ["lesserNecromancer", "lesserNecromancer"], grunts: [...times("skeleton", 3), ...times("reaper", 3)], layer: "horde" }, level: 13 },
+        { title: "Hunters in the dark", text: "Dark elf hunters have come to share the spoils of a broken world. They strike from both sides of the tunnel.", wave: { faction: "darkElves", leaders: ["darkElf", "darkElf"], grunts: ["harrier", "harrier", "watcher", "watcher"], twist: "flanked" }, level: 10,
+          goal: { kind: "noFallen", text: "The hunters want a trophy. Don't give them one: nobody falls." } },
+        { title: "The vanguard", text: "The warband's vanguard holds the tunnel, and the dead are gathering behind them for when you tire.", wave: chaos(["warlock", "warlock"], [...times("orc", 3), "bandit", "bandit"], { layer: "horde", twist: "lateHorde" }), level: 11,
+          goal: { kind: "escape", text: "Don't hold the tunnel, run it: get everyone to the far end before the horde closes in. The way opens once the vanguard breaks.", opensAfter: 20, within: 45 } },
+        { title: "The inner circle", text: "Three warlocks chant around a pillar of light. Their ward holds everyone else in place. The casters first, always the casters.", wave: chaos(times("warlock", 3), [...times("orc", 3), "bandit", "bandit"], { layer: "trickle", twist: "warded" }), level: 12,
+          goal: { kind: "smallBand", text: "Only three can slip past the ward unseen. Send three, or send everyone and be heard.", max: 3 } },
+        { title: "The tide", text: "The breach widens and the dead pour out, led by necromancers drunk on the power leaking through.", wave: { faction: "undead", leaders: ["lesserNecromancer", "lesserNecromancer"], grunts: [...times("skeleton", 3), ...times("reaper", 3)], layer: "horde" }, level: 13,
+          goal: { kind: "rescue", text: "A scout is trapped behind the tide. Reach her before the necromancers do. The story needs her.", within: 30, critical: true } },
       ],
     },
     {
@@ -72,10 +76,14 @@ export const TIME_WARP = Object.freeze({
       intro: "The chamber opens onto a bridge of frozen moments over nothing at all. On the far side the ritual's masters wait: three warlocks who broke from their own order to bring the Ancient Evil through. Everything they have stands between you and them.",
       outro: "The bridge is yours. Ahead, three rebel warlocks turn to face you, and above them the wormhole groans open another inch.",
       battles: [
-        { title: "The bridge", text: "The Iron Legion holds the bridge, and the dead climb up both sides of it.", wave: { faction: "iron", leaders: ["lieutenant"], grunts: ["bulwark", "bulwark", ...times("orc", 4)], layer: "horde", twist: "flanked" }, level: 14 },
-        { title: "Shadows on the span", text: "Dark elves drop from the arches on both sides, the dead close behind.", wave: { faction: "darkElves", leaders: times("darkElf", 3), grunts: [...times("harrier", 3), "watcher", "watcher"], layer: "trickle", twist: "flanked" }, level: 15 },
-        { title: "The conclave", text: "The warband's casters lock their ward around the last of their fighters, and the dead creep in behind. Break the casters and the way is open.", wave: chaos(times("warlock", 3), [...times("orc", 4), "bandit", "bandit"], { layer: "trickle", twist: "warded" }), level: 15 },
-        { title: "The last gate", text: "Everything the warband has left. Behind it, the gate to the rebels' sanctum, and behind you a horde gathering for one last push.", wave: chaos(times("warlock", 3), [...times("orc", 4), ...times("bandit", 3)], { layer: "horde", twist: "lateHorde" }), level: 16 },
+        { title: "The bridge", text: "The Iron Legion holds the bridge, and the dead climb up both sides of it.", wave: { faction: "iron", leaders: ["lieutenant"], grunts: ["bulwark", "bulwark", ...times("orc", 4)], layer: "horde", twist: "flanked" }, level: 14,
+          goal: { kind: "escape", text: "Cross the bridge: get everyone to the far side once the gate on it lifts, before it falls.", opensAfter: 25, within: 50 } },
+        { title: "Shadows on the span", text: "Dark elves drop from the arches on both sides, the dead close behind.", wave: { faction: "darkElves", leaders: times("darkElf", 3), grunts: [...times("harrier", 3), "watcher", "watcher"], layer: "trickle", twist: "flanked" }, level: 15,
+          goal: { kind: "noFallen", text: "One fall from the span is one too many: nobody falls." } },
+        { title: "The conclave", text: "The warband's casters lock their ward around the last of their fighters, and the dead creep in behind. Break the casters and the way is open.", wave: chaos(times("warlock", 3), [...times("orc", 4), "bandit", "bandit"], { layer: "trickle", twist: "warded" }), level: 15,
+          goal: { kind: "rescue", text: "The conclave holds a hedge mage who knows the way to the sanctum. Free him before they silence him.", within: 35 } },
+        { title: "The last gate", text: "Everything the warband has left. Behind it, the gate to the rebels' sanctum, and behind you a horde gathering for one last push.", wave: chaos(times("warlock", 3), [...times("orc", 4), ...times("bandit", 3)], { layer: "horde", twist: "lateHorde" }), level: 16,
+          goal: { kind: "destroy", text: "Smash the gate's 2 seals before the horde behind you arrives.", object: "Gate seal", count: 2, within: 50, spawnEvery: 10, spawns: ["orc", "bandit"] } },
       ],
     },
     {

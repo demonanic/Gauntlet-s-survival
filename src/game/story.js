@@ -170,7 +170,9 @@ export function swapStoryHero(state, outId, inId) {
 
 // Fight the next battle: a one-fight trip to the story region, started at
 // once (story battles are always watched). Heroes injured or down sit it out.
-export function beginStoryBattle(state, now, rng = Math.random) {
+// `band`: on a Small band battle, send only the first `goal.max` heroes of the
+// line-up (sending more is allowed, and misses the goal).
+export function beginStoryBattle(state, now, rng = Math.random, { band = false } = {}) {
   const run = state.story?.run;
   if (!run) return { ok: false, reason: "no_campaign" };
   if (run.failed) return { ok: false, reason: "failed" };
@@ -182,6 +184,7 @@ export function beginStoryBattle(state, now, rng = Math.random) {
     return hero && hero.combat.hp > 0 && !((state.injuries?.[id] || 0) > now);
   });
   if (!ready.length) return { ok: false, reason: "no_heroes" };
+  if (band && battle.goal?.kind === "smallBand") ready.splice(battle.goal.max || 2);
   const started = startExpedition(state, "story", ready, now, rng);
   if (!started.ok) return started;
   const trip = started.state.expedition;

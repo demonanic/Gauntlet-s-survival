@@ -694,6 +694,9 @@ function GoalBar({ goal }) {
   const progress = goal.state === "done" ? "Done" : goal.state === "failed" ? "Failed"
     : goal.kind === "destroy" ? `${goal.total - goal.left}/${goal.total} broken · ${goal.secondsLeft}s`
       : goal.kind === "hold" ? `Wagon ${goal.livesLeft}/${goal.lives}`
+        : goal.kind === "noFallen" ? "Nobody down"
+          : goal.kind === "smallBand" ? `${goal.max} heroes`
+            : goal.opensIn ? `Exit opens in ${goal.opensIn}s`
         : goal.secondsLeft != null ? `${goal.secondsLeft}s` : "";
   return (
     <div className="mx-3 mb-1 flex items-center justify-between gap-2 rounded border px-2 py-1 font-mono-g text-[10px]"

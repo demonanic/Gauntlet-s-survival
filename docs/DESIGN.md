@@ -211,8 +211,14 @@ Sam's design: hand-written campaigns fought hands-on against a real countdown. F
   - **Assassinate:** a marked foe (`quarry`) flees after `escapeAfter` s on the field (tougher than its kind by `hpMult`).
   - **Destroy:** `count` objects (portal-like: they never move or attack, and call `spawns` every `spawnEvery` s until broken) appear at the start; break them within `within` s or they vanish, done.
   - **Hold:** a wagon behind the party; marked raiders (`raiders`, bandits, goblins and gnomes by default) run off after `raidAfter` s, each costing the wagon a life; it holds `lives`.
-  - Chapters 1–2 (batch A): 1 assassinate (12 s), 2 assassinate (8 s), 3 destroy 2 braziers (24 s), 4 ★ destroy 2 ward stones (27 s), 5 destroy the crack (24 s), 6 assassinate the lieutenant (18 s), 7 hold the wagon (2 lives, raiders run at 5 s), 8 ★ assassinate the necromancer (28 s). Chapters 3–5 have none yet (batch B adds Escape, Rescue, Small band and No fallen).
+  - **No fallen:** fails the moment a hero goes down.
+  - **Small band:** won with at most `max` heroes on the field. The story screen offers "Send N" (the first N of the line-up) or "Send everyone (goal missed)".
+  - **Escape:** the exit (the top band of the field, `EXIT_Y` 90) opens after `opensAfter` s; every standing hero in it by `within` s ends the battle, won (`reason: "escaped"`), whatever is left on the field.
+  - **Rescue:** a captive near the top; a hero within 46 of it for `freeAfter` s (1.5) frees it, by `within` s.
+  - Chapters 1–2 (batch A): 1 assassinate (12 s), 2 assassinate (8 s), 3 destroy 2 braziers (24 s), 4 ★ destroy 2 ward stones (27 s), 5 destroy the crack (24 s), 6 assassinate the lieutenant (18 s), 7 hold the wagon (2 lives, raiders run at 5 s), 8 ★ assassinate the necromancer (28 s).
+  - Chapters 3–4 (batch B): 9 no fallen, 10 escape (opens at 20 s, by 45 s), 11 small band of 3, 12 ★ rescue the scout (30 s), 13 escape (opens at 25 s, by 50 s), 14 no fallen, 15 rescue the hedge mage (35 s), 16 destroy the 2 gate seals (50 s). Chapter 5 (the bosses) has none yet.
   - Measured, the party on auto (LV10, 6 seeded fights each): goals done in 6, 5, 6, 4, 6, 0, 1 and 3 of 6. A crude "focus the goal" script did no better overall, so how much a player's orders help is still to be seen in play.
+  - Chapters 3–4 (LV12, 6 seeded fights each), on auto / with a script that runs for the exit, walks to the captive, focuses the objects and sends the small band: battle 9 6/6 · 6/6; 10 0/6 · 6/6 (the run costs 45% HP); 11 0/6 · 6/6 (three heroes: 59% HP lost); 12 2/6 · 6/6; 13 0/6 · 6/6; 14 6/6 · 6/6; 15 2/6 · 6/6; 16 1/6 · 0/6 (rushing the seals loses the battle; on auto it is won 5 of 6). Every battle is won on auto, with 16 the hardest (about 70% of party HP lost).
 - **Fixed with it:** a hero ordered at a foe that then got away (a thief, a fleeing target, a collapsed portal) stood idle; an escaped target now clears the order like a dead one.
 - **Not built:** a shared sign-in across Sam's apps (Demonanic, the LC wallet). Only signing out of Gauntlet freezes the countdown.
 

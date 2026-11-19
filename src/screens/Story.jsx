@@ -149,9 +149,20 @@ export default function Story({ guild, now, signedIn, onStart, onFight, onSwap, 
         ) : battle.comingSoon ? (
           <p className="mt-2 font-mono-g text-[11px] text-amber-300" data-testid="story-soon">{REASONS.coming_soon}</p>
         ) : (
-          <NeonButton className="mt-2 w-full" color="#FF2A5F" disabled={fighting} onClick={() => tell(onFight())} data-testid="story-fight">
-            Fight
-          </NeonButton>
+          battle.goal?.kind === "smallBand" ? (
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <NeonButton color="#FF2A5F" disabled={fighting} onClick={() => tell(onFight({ band: true }))} data-testid="story-fight-band">
+                Send {battle.goal.max}: {lineup.slice(0, battle.goal.max).map(name).join(", ")}
+              </NeonButton>
+              <NeonButton color="#94A3B8" disabled={fighting} onClick={() => tell(onFight())} data-testid="story-fight">
+                Send everyone (goal missed)
+              </NeonButton>
+            </div>
+          ) : (
+            <NeonButton className="mt-2 w-full" color="#FF2A5F" disabled={fighting} onClick={() => tell(onFight())} data-testid="story-fight">
+              Fight
+            </NeonButton>
+          )
         )}
         {note && <p className="mt-1 font-mono-g text-[11px] text-red-300" data-testid="story-note">{note}</p>}
       </Panel>
